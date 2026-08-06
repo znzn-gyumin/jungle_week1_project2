@@ -3,16 +3,6 @@ from functools import lru_cache
 from pydantic import PostgresDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-SPOTIFY_SCOPES = " ".join(
-    (
-        "streaming",
-        "user-read-email",
-        "user-read-private",
-        "user-read-playback-state",
-        "user-modify-playback-state",
-    )
-)
-
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -27,9 +17,8 @@ class Settings(BaseSettings):
     postgres_password: str = "jungle"
     postgres_db: str = "jungle_music"
 
-    spotify_client_id: str = ""
-    spotify_client_secret: str = ""
-    spotify_redirect_uri: str = "http://127.0.0.1:8000/api/auth/callback"
+    youtube_api_key: str = ""
+    itunes_country: str = "KR"
 
     client_origin: str = "http://127.0.0.1:5173"
     server_port: int = 8000
@@ -53,16 +42,6 @@ class Settings(BaseSettings):
     @property
     def async_database_url(self) -> str:
         return self._dsn("postgresql+asyncpg")
-
-    def missing_spotify_config(self) -> list[str]:
-        return [
-            name
-            for name, value in (
-                ("SPOTIFY_CLIENT_ID", self.spotify_client_id),
-                ("SPOTIFY_CLIENT_SECRET", self.spotify_client_secret),
-            )
-            if not value
-        ]
 
 
 @lru_cache

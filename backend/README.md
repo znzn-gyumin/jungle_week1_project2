@@ -22,7 +22,7 @@ cp .env.example .env
 ```
 
 `POSTGRES_*` 는 `backend/docker-compose.yml` 기본값이라 그대로 두면 된다.
-Spotify 키는 아래 "현재 상태" 참고.
+`YOUTUBE_API_KEY` 를 비워두면 iTunes 만으로 동작한다.
 
 ### 2. 데이터베이스
 
@@ -65,64 +65,59 @@ npm run dev     # uvicorn(:8000) + vite(:5173) 동시 실행
 .venv/Scripts/uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-> **Windows 주의** — `npm run dev` 의 `dev:api` 는 `.venv/bin/uvicorn` 을 참조한다.
-> Windows 는 `.venv/Scripts/` 라 그대로는 실패한다. 위 명령으로 따로 띄우거나
-> `package.json` 을 고쳐야 한다.
+> `npm run dev` 의 `dev:api` 는 `python -m uvicorn` 을 쓴다. **가상환경을 먼저
+> 활성화**해야 한다 (`.venv/bin/uvicorn` 은 Windows 에 없어서 경로 대신 모듈로 부른다).
 
 ---
 
-## 현재 상태
+## 소스와 재생
 
-**재생 방식을 iTunes Search API 로 바꾸는 중이다.** 아직 코드는 Spotify 기준이다.
+**Spotify 는 제거했다.** 사용자 로그인 없이 개발자 크레덴셜만으로는 Web Playback SDK
+가 동작하지 않아(Client Credentials 미지원 + Premium 필요) 이 제품 구조와 맞지 않았다.
 
-- DB 는 `source_type` ENUM 에 `'itunes'` 와 `tracks.play_url` 을 이미 갖고 있다
-- `backend/main.py`, `backend/spotify.py` 는 아직 Spotify OAuth 기반이다
+| | 인증 | 검색 | 재생 | 요청 한도 |
+|---|---|---|---|---|
+| **iTunes** | 없음 | `/search?entity=song\|album` | `previewUrl` 30초 오디오 | IP 당 약 20회/분 (429) |
+| **YouTube** | API 키 | `search.list` (100 유닛) | IFrame 임베드 | 하루 10,000 유닛 = **검색 100회** |
 
-지금 코드를 그대로 돌리려면 Spotify Developer 앱과 **Premium 계정**이 필요하다
-(Web Playback SDK 는 Premium 전용). <https://developer.spotify.com/dashboard> 에서
-앱을 만들고 Redirect URI 에 `http://127.0.0.1:8000/api/auth/callback` 을 정확히
-등록한다 — Spotify 는 `http://localhost` 를 거부한다. `.env` 의
-`SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` 를 채우면 된다.
+`.env` 의 `YOUTUBE_API_KEY` 가 비어 있으면 YouTube 검색은 자동으로 건너뛴다
+(`/api/health` 의 `youtube: false`). iTunes 만으로도 동작한다.
 
-iTunes 로 넘어가면 이 준비물이 전부 사라진다. 인증이 없고, 로그인도 필요 없고,
-`previewUrl` 30초 미리듣기를 누구나 동시에 재생할 수 있다. 대신 **전체 재생은
-불가능**하다.
-
-요청 한도는 iTunes 가 IP 당 약 20회/분(초과 시 429), YouTube Data API 가
-하루 10,000 유닛인데 `search.list` 가 1회 100 유닛이라 **하루 100회**다. 둘 다
-개발자 크레덴셜 하나를 전체 사용자가 공유하므로 사용자가 늘면 빨리 소진된다.
+YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 한 번 더 받는다.
+`videos.list` 는 1 유닛이라 비용은 사실상 검색값과 같다.
 
 **검색 캐시는 DB 에 두지 않는다.** 서버를 재시작하면 버려도 되는 값이라 테이블로
-만들 이유가 없다. 필요해지면 인메모리 dict + TTL 로 충분하고, 규모가 커지면 Redis 로
-옮긴다. `tracks` / `albums` 는 검색 결과를 upsert 해두는 곳이지 검색어 캐시가 아니다.
-
-참고: Spotify 는 2024년 11월부터 신규 앱에 `preview_url` 필드를 `null` 로 내려준다.
-현재 코드가 SDK 경로를 쓰는 이유다.
+만들 이유가 없다. 필요해지면 인메모리 dict + TTL 로 충분하다. `tracks` / `albums` 는
+검색 결과를 upsert 해두는 곳이지 검색어 캐시가 아니다.
 
 ---
 
 ## API
 
-전부 세션 쿠키(`sid`) 기반. 로그인 안 하면 `401`.
-실패 응답은 FastAPI 기본 `detail` 대신 `{"error": "..."}` 로 통일되어 있고,
-프론트 `client/src/api.js` 가 이 키를 읽는다.
+인증 없음. 실패 응답은 FastAPI 기본 `detail` 대신 `{"error": "..."}` 로 통일되어
+있고, 프론트 `client/src/api.js` 가 이 키를 읽는다.
 
 | Method | Path | 설명 |
 |---|---|---|
-| GET | `/api/health` | 서버 상태 + `.env` 설정 여부 |
-| GET | `/api/auth/login` | Spotify 인증 페이지로 리다이렉트 |
-| GET | `/api/auth/callback` | 코드 → 토큰 교환 후 세션 발급 |
-| GET | `/api/auth/me` | 로그인 유저 (`product` 로 Premium 판별) |
-| GET | `/api/auth/token` | SDK 용 access token (자동 갱신) |
-| POST | `/api/auth/logout` | 세션 파기 |
-| GET | `/api/search?q=&type=track\|artist` | 곡 / 아티스트 검색 |
-| GET | `/api/artists/:id/top-tracks` | 아티스트 인기 트랙 |
-| PUT | `/api/player/transfer` | 브라우저 플레이어를 활성 기기로 전환 |
-| PUT | `/api/player/play` | `{ deviceId, uris }` — uris 생략 시 이어재생 |
-| PUT | `/api/player/pause?deviceId=` | 일시정지 |
+| GET | `/api/health` | 서버 상태 + YouTube 키 설정 여부 |
+| GET | `/api/health/db` | DB 연결 + public 스키마 테이블 수 |
+| GET | `/api/search?q=&source=all\|itunes\|youtube&limit=` | 검색 후 결과를 DB 에 upsert 하고 반환 |
+| GET | `/api/tracks?source=&limit=` | DB 에 쌓인 곡 목록 |
+| GET | `/api/tracks/{id}` | 곡 하나 |
 
-iTunes 전환 시 `/api/auth/*` 와 `/api/player/*` 는 전부 사라진다.
-재생은 iTunes 가 `<audio src={play_url}>`, YouTube 가 IFrame 임베드로 끝난다.
+`/api/search` 는 두 소스를 `asyncio.gather` 로 동시에 호출한다. 한쪽이 실패해도
+나머지 결과를 반환하고 실패는 `errors` 배열에 담는다. 둘 다 실패하면 502.
+
+```json
+{
+  "tracks": [
+    { "id": 1, "source": "itunes", "sourceId": "1440650711",
+      "title": "...", "artist": "...", "durationMs": 355145,
+      "thumbnailUrl": "...", "playUrl": "https://audio-ssl.itunes.apple.com/....m4a" }
+  ],
+  "errors": [{ "source": "youtube", "error": "YouTube 일일 할당량 소진" }]
+}
+```
 
 ---
 
@@ -132,17 +127,18 @@ iTunes 전환 시 `/api/auth/*` 와 `/api/player/*` 는 전부 사라진다.
 
 | 경로 | 역할 |
 |---|---|
-| `backend/main.py` | 라우트 + 응답 정규화 + 예외 핸들러 |
-| `backend/spotify.py` | 토큰 교환/갱신, Spotify API 래퍼 |
-| `backend/sessions.py` | 인메모리 세션 (서버 재시작하면 로그아웃) |
-| `backend/config.py` | `.env` → DB 접속 문자열 + Spotify 설정 (단일 `get_settings()`) |
-| `backend/models/*.py` | SQLAlchemy 모델 (`from backend.models import Track`) |
+| `backend/main.py` | 라우트 + 예외 핸들러 + 응답 직렬화 |
+| `backend/itunes.py` | iTunes Search API 클라이언트 + 매퍼 |
+| `backend/youtube.py` | YouTube Data API 클라이언트 + 매퍼 + ISO8601 길이 파싱 |
+| `backend/repository.py` | `ON CONFLICT` upsert, 로컬 조회 |
+| `backend/config.py` | `.env` → 접속 문자열 + API 키 |
+| `backend/db/session.py` | asyncpg 엔진 + `get_db` 의존성 |
 | `backend/db/base.py` | `Base`, 제약조건 네이밍 규칙, 공통 mixin |
+| `backend/models/*.py` | SQLAlchemy 모델 (`from backend.models import Track`) |
 | `backend/migrations/` | Alembic |
 | `backend/schema.sql` | 순수 SQL 생성 스크립트. 스택 무관 |
 | `backend/docker-compose.yml` | 로컬 개발용 postgres 17 |
-| `client/src/App.jsx` | 화면 전체 |
-| `client/src/usePlayer.js` | Web Playback SDK 연결 훅 |
+| `client/src/App.jsx` | 검색 화면 + 플레이어 바 |
 | `client/src/api.js` | 백엔드 호출 |
 
 ---
@@ -362,96 +358,21 @@ PG enum 라벨이 소문자라 insert 시 `invalid input value for enum source_t
 
 ---
 
-## 아직 안 정한 것
+## 아직 없는 것
 
-**같은 곡이 플랫폼별로 별개 행이다.**
-iTunes 의 "Bohemian Rhapsody" 와 YouTube 의 같은 곡은 `source` 가 달라 완전히
-별개의 `tracks` 행이다. 검색 결과에 같은 곡이 두 번 뜨고, 플레이리스트에도 따로
-담긴다. ISRC 같은 공용 식별자가 없어 제목·아티스트 휴리스틱 말고는 방법이 없다.
+**자체 로그인** — `users` 테이블은 있지만 회원가입/로그인 경로가 없다. 따라서
+`playlists` / `likes` 도 아직 API 가 없다. 붙일 때는 비밀번호 해시(argon2 등)와
+세션 저장소가 필요하다. 인메모리 dict 는 서버 재시작 시 로그아웃되므로 실제
+운영에서는 Redis 나 DB 로 간다.
 
-"iTunes 로 찾은 곡을 YouTube 로 전체 재생" 같은 걸 하려면 곡의 정체성을 나타내는
-상위 테이블(예: `songs`)을 두고 `tracks` 가 그 아래 플랫폼별 재생 소스로 붙는
-구조가 필요하다. iTunes 는 30초, YouTube 는 전체 재생이라 **이 둘을 잇는 게
-곧 제품의 핵심 가치**가 된다. 언젠가는 결정해야 한다.
+**플랫폼 간 같은 곡 병합** — iTunes 의 "Bohemian Rhapsody" 와 YouTube 의 같은 곡은
+`source` 가 달라 별개의 `tracks` 행이다. 검색 결과에 두 번 뜬다. ISRC 같은 공용
+식별자가 없어 제목·아티스트 휴리스틱 말고는 방법이 없고, 라이브/리마스터/커버가
+섞이는 위험이 있어 도입하지 않았다.
 
-**`artist` 가 단순 텍스트다.**
-아티스트 테이블이 없어서 플랫폼 간 동일 아티스트를 식별할 수 없다.
+**`artist` 가 단순 텍스트** — 아티스트 테이블이 없어 플랫폼 간 동일 아티스트를
+식별할 수 없다. YouTube 는 `channelTitle` 이 들어가므로 iTunes 의 아티스트명과
+표기가 다를 수 있다.
 
-**DB 세션이 아직 FastAPI 에 연결되지 않았다.**
-모델과 마이그레이션은 있지만 async 엔진 / `get_db` 의존성이 없어서, `main.py` 의
-어떤 라우터도 아직 DB 를 읽거나 쓰지 않는다.
-
----
-
-## 현재 Spotify 코드의 알려진 제약
-
-iTunes 로 넘어가면 대부분 사라진다. 그전까지 유효한 내용이다.
-
-### Development Mode 앱 제약
-
-Extended Quota 승인 전 앱은 Spotify 가 조용히 기능을 깎는다. 실측으로 확인한 내용:
-
-| 항목 | 실제 동작 | 대응 |
-|---|---|---|
-| `search` 의 `limit` | **11 이상이면 400 `Invalid limit`**. 값과 무관 | `MAX_LIMIT = 10` 고정 (`backend/main.py`) |
-| `search` 결과 개수 | `limit=10` 을 보내도 보통 **5개**만 옴 | 그대로 표시 |
-| `/artists/{id}/top-tracks` | **403 Forbidden**. `market` 무관하게 항상 실패 | `artist:"이름"` 필터 검색으로 자동 대체 |
-| `/artists/{id}`, `/albums` | 정상 | — |
-
-### 재생은 실제 스트리밍이다
-
-**이 앱의 재생은 로그인한 계정의 실제 스트리밍이다.** 최근 재생 기록에 남고
-Daily Mix / Discover Weekly / Wrapped / 상위 아티스트에 반영된다. Spotify 에는
-재생 기록 삭제 기능이 없고, 앱의 Private session 은 SDK 기기에 적용되지 않는다.
-
-우측 상단 `개발 모드` 토글을 켜면 재생 10초 뒤 자동 일시정지한다
-(`client/src/App.jsx` 의 `DEV_STOP_MS`, 설정은 `localStorage` 에 저장). 다만
-30초 집계는 피해도 **짧은 재생이 스킵 신호로 잡힐 수 있어** 완전한 보호는 아니다.
-오염을 아예 피하려면 평소 듣는 곡으로 테스트하거나 `/api/player/devices` 로
-재생 없이 연결만 확인한다.
-
-### 기능 범위
-
-- 세션이 **인메모리**라 서버 재시작 시 재로그인 (실서비스는 Redis/DB)
-- 단일 사용자 기준. 동시 사용자 테스트 안 함
-- 다음곡/이전곡/셔플/볼륨/시크 미구현 (재생·일시정지만)
-- 플레이리스트, 앨범 상세, 좋아요 미구현 — DB 스키마만 준비된 상태
-- 브라우저는 EME(DRM) 필요. 일부 브라우저·시크릿 모드에서 SDK 연결 실패
-
-### 코드에 주석으로 있던 주의사항
-
-프로젝트 방침상 코드에 주석을 두지 않는다. 지우면서 사라질 내용을 여기 모았다.
-대부분 Spotify/SDK 고유 문제라 iTunes 전환 시 함께 없어진다.
-
-**`backend/main.py`**
-
-- `SpotifyError` 핸들러는 **401 일 때만** 세션을 파기한다. 400 은 잘못된 쿼리
-  파라미터에서도 나므로 로그아웃 사유가 아니다.
-- `StaticFiles` 마운트는 파일 **맨 끝**에 있어야 한다. `/` 에 마운트하므로 API
-  라우트가 먼저 등록되어 있지 않으면 전부 정적 파일 핸들러가 가로챈다.
-
-**`backend/spotify.py`**
-
-- refresh 응답에는 `refresh_token` 이 **없을 수 있다.** 그때는 기존 값을 유지한다
-  (`_to_tokens` 의 `fallback_refresh`).
-- 만료 **60초 전**을 만료로 취급한다. 경계에서 죽은 토큰을 쓰는 걸 피하려는 것.
-
-**`client/src/usePlayer.js`**
-
-- `Player` 인스턴스는 앱 전체에 **하나여야** 한다. React StrictMode 가 effect 를
-  두 번 실행하므로 모듈 스코프 싱글톤으로 막는다.
-- 리스너는 등록 전에 먼저 해제한다. 안 하면 같은 이벤트에 중복 등록된다.
-- SDK 는 재생 위치를 **이벤트로만** 준다. 재생 중 진행바는 로컬에서 보간하고,
-  새 state 이벤트가 오면 그 값을 새 기준점으로 리셋한다.
-
-**`client/src/App.jsx`**
-
-- `/api/auth/me` 실패 시 에러를 **먼저 렌더**해야 한다. 안 그러면 `me` 가 계속
-  `null` 이라 스플래시 화면에 갇히고 사유가 안 보인다.
-- 브라우저 플레이어가 준비되면 `/api/player/transfer` 로 활성 기기를 넘겨야 한다.
-  안 하면 `play` 가 404 로 실패한다.
-- 오디오 언락은 **클릭 제스처가 살아있는 동안** 해야 한다. 첫 `await` 보다 앞에
-  와야 브라우저 자동재생 정책에 걸리지 않는다.
-- Spotify 는 일부 오류를 JSON 이 아닌 평문으로 준다. 그때 백엔드가 만드는 message
-  는 `"Spotify 403"` 뿐이라 쓸모없으니 `detail.raw` 를 우선 표시한다.
-- 개발 모드를 끄거나 화면을 떠날 때 예약된 자동 정지 타이머를 정리한다.
+**`playlists.total_tracks` 자동 갱신** — 비정규화 사본이라 곡을 담고 뺄 때
+애플리케이션이 함께 갱신해야 한다. 트리거는 걸지 않았다.
