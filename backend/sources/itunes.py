@@ -7,7 +7,7 @@ import httpx
 from backend.models.enums import SourceType
 
 BASE = "https://itunes.apple.com"
-MAX_LIMIT = 200
+ITUNES_MAX_LIMIT = 200
 
 _client: httpx.AsyncClient | None = None
 
@@ -52,7 +52,7 @@ async def search_tracks(
             "term": term,
             "media": "music",
             "entity": "song",
-            "limit": min(limit, MAX_LIMIT),
+            "limit": min(limit, ITUNES_MAX_LIMIT),
             "country": country,
         },
     )
@@ -68,7 +68,7 @@ async def search_albums(
             "term": term,
             "media": "music",
             "entity": "album",
-            "limit": min(limit, MAX_LIMIT),
+            "limit": min(limit, ITUNES_MAX_LIMIT),
             "country": country,
         },
     )

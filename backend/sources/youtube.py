@@ -10,7 +10,7 @@ from backend.models.enums import SourceType
 BASE = "https://www.googleapis.com/youtube/v3"
 EMBED = "https://www.youtube.com/embed"
 MUSIC_CATEGORY_ID = "10"
-MAX_LIMIT = 50
+YOUTUBE_MAX_RESULTS = 50
 
 _DURATION = re.compile(
     r"^P(?:(?P<days>\d+)D)?T(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?$"
@@ -96,7 +96,7 @@ async def search_videos(term: str, limit: int = 25) -> list[dict[str, Any]]:
             "q": term,
             "type": "video",
             "videoCategoryId": MUSIC_CATEGORY_ID,
-            "maxResults": min(limit, MAX_LIMIT),
+            "maxResults": min(limit, YOUTUBE_MAX_RESULTS),
         },
     )
     items = [i for i in body.get("items", []) if (i.get("id") or {}).get("videoId")]
@@ -108,7 +108,7 @@ async def _durations(video_ids: list[str]) -> dict[str, int | None]:
     if not video_ids:
         return {}
     body = await _get(
-        "/videos", {"part": "contentDetails", "id": ",".join(video_ids[:MAX_LIMIT])}
+        "/videos", {"part": "contentDetails", "id": ",".join(video_ids[:YOUTUBE_MAX_RESULTS])}
     )
     return {
         i["id"]: parse_duration((i.get("contentDetails") or {}).get("duration"))

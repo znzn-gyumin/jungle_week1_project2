@@ -6,12 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import get_settings
 from backend.db import repository
 from backend.models import Album, Track
+from backend.models.enums import SourceType
 from backend.sources import itunes, youtube
 
 settings = get_settings()
 
-SOURCES = ("itunes", "youtube")
-ALBUM_SOURCES = ("itunes",)
+ALBUM_SOURCES = (SourceType.ITUNES.value,)
 
 
 async def _itunes(db: AsyncSession, q: str, limit: int) -> list[Track]:
@@ -37,7 +37,16 @@ async def _youtube(db: AsyncSession, q: str, limit: int) -> list[Track]:
     return await repository.upsert_tracks(db, [youtube.to_track(i) for i in items])
 
 
-_FETCHERS = {"itunes": _itunes, "youtube": _youtube}
+_FETCHERS = {
+    SourceType.ITUNES.value: _itunes,
+    SourceType.YOUTUBE.value: _youtube,
+}
+
+SOURCES = tuple(_FETCHERS)
+
+_missing = {s.value for s in SourceType} - set(_FETCHERS)
+if _missing:
+    raise RuntimeError(f"검색 구현이 없는 source: {sorted(_missing)}")
 
 
 def resolve_sources(source: str) -> tuple[str, ...]:
@@ -50,7 +59,7 @@ async def search(
     wanted = [
         name
         for name in resolve_sources(source)
-        if name != "youtube" or youtube.configured()
+        if name != SourceType.YOUTUBE.value or youtube.configured()
     ]
 
     done = await asyncio.gather(

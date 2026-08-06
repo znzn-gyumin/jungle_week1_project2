@@ -3,6 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api import DEFAULT_LIMIT, MAX_LIMIT
 from backend.db import repository
 from backend.db.session import get_db
 from backend.models.enums import SourceType
@@ -11,14 +12,12 @@ from backend.services.search import SOURCES
 
 router = APIRouter(prefix="/api/tracks", tags=["tracks"])
 
-MAX_LIMIT = 50
-
 
 @router.get("")
 async def list_tracks(
     q: str | None = None,
     source: str | None = None,
-    limit: int = Query(25, ge=1, le=MAX_LIMIT),
+    limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     if source is not None and source not in SOURCES:
