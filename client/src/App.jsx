@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import ApiLab from './ApiLab.jsx'
 import { api } from './api.js'
 import { usePlayer } from './usePlayer.js'
 
@@ -8,43 +7,10 @@ const TABS = [
   { key: 'artist', label: '아티스트' },
 ]
 
-const VIEWS = [
-  { key: 'spotify', label: 'Spotify 플레이어' },
-  { key: 'api', label: 'API 확인' },
-]
-
-const VIEW_KEY = 'jungle:view'
 const DEV_MODE_KEY = 'jungle:devMode'
 const DEV_STOP_MS = 10_000
 
 export default function App() {
-  const [view, setView] = useState(() => localStorage.getItem(VIEW_KEY) ?? 'spotify')
-
-  const choose = (key) => {
-    localStorage.setItem(VIEW_KEY, key)
-    setView(key)
-  }
-
-  return (
-    <>
-      <nav className="viewswitch">
-        {VIEWS.map((v) => (
-          <button
-            key={v.key}
-            type="button"
-            className={v.key === view ? 'tab active' : 'tab'}
-            onClick={() => choose(v.key)}
-          >
-            {v.label}
-          </button>
-        ))}
-      </nav>
-      {view === 'api' ? <ApiLab /> : <SpotifyApp />}
-    </>
-  )
-}
-
-function SpotifyApp() {
   const [me, setMe] = useState(null)
   const [authError, setAuthError] = useState(null)
 

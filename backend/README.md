@@ -1,7 +1,8 @@
 # Jungle Music
 
 여러 플랫폼의 음악을 한 곳에서 검색하고 재생하는 서비스.
-저장소의 유일한 문서다 (루트 README 없음).
+**무엇이 어떻게 동작하는지**는 이 문서에 있다 (루트 README 없음).
+**왜 그렇게 설계했는지**는 `docs/junho_dev/` 에 따로 있다.
 
 - 프론트: React 19 + Vite (`client/`)
 - 백엔드: FastAPI (`backend/`)
@@ -77,11 +78,9 @@ npm run dev     # uvicorn(:8000) + vite(:5173) 동시 실행
 
 - DB 는 `source_type` ENUM 에 `'itunes'` 와 `tracks.play_url` 을 이미 갖고 있다
 - 유저 / 플레이리스트 / 좋아요 API 는 **DB 에 붙어 동작한다**
-- 검색과 재생은 아직 전부 Spotify (`backend/spotify.py`, `/api/search`, `/api/player/*`)
-
-**`tracks` / `albums` 에 행을 넣는 경로가 아직 없다.** Spotify 검색은 DB 를 거치지
-않기 때문이다. 그래서 플레이리스트에 곡을 담거나 앨범에 좋아요를 누르려면 지금은
-SQL 로 직접 넣어야 한다. iTunes 검색을 붙이면서 채워질 자리다.
+- 재생은 아직 전부 Spotify (`backend/spotify.py`, `/api/search`, `/api/player/*`)
+- `tracks` / `albums` 를 채우는 iTunes 검색은 **개발용 임시 코드**로만 있다
+  (아래 "개발용 임시 코드" 참고). 정식 검색으로 승격시킬 때 옮기면 된다
 
 DB 없이 서버를 띄우면 `/api/health` 와 Spotify 라우트는 뜨지만 위 API 는
 연결 오류로 실패한다. **먼저 postgres 를 올릴 것.**
@@ -198,23 +197,71 @@ iTunes 전환 시 `/api/auth/*` 와 `/api/player/*` 는 전부 사라진다.
 | `backend/migrations/` | Alembic |
 | `backend/schema.sql` | 순수 SQL 생성 스크립트. 스택 무관 |
 | `backend/docker-compose.yml` | 로컬 개발용 postgres 17 |
-| `client/src/App.jsx` | 뷰 전환 + Spotify 화면 전체 |
-| `client/src/ApiLab.jsx` | `API 확인` 탭 — DB API 를 직접 눌러보는 화면 |
+| `client/src/App.jsx` | Spotify 화면 전체 |
 | `client/src/usePlayer.js` | Web Playback SDK 연결 훅 |
-| `client/src/api.js` | 백엔드 호출 + 요청 로그 이벤트(`onApiEvent`) |
+| `client/src/api.js` | 백엔드 호출 |
+| `backend/devtools/` · `client/src/devlab/` | 개발용 임시 코드. 아래 참고 |
+
+### 개발용 임시 코드 — 배포 전 삭제 대상
+
+API 확인 페이지와 그것이 쓰는 iTunes 검색은 **제품 코드가 아니다.** 지우기 쉽도록
+디렉터리 둘로 몰아뒀고, 제품 코드와 닿는 지점은 아래 다섯 줄이 전부다.
+
+| 위치 | 내용 |
+|---|---|
+| `backend/devtools/` | iTunes 검색 + `/api/catalog/*` |
+| `client/src/devlab/` | API 확인 페이지 전체 (뷰 전환 · CSS 포함) |
+| `backend/devtools/integration_test.py` | 통합 테스트. `schema.sql` 을 검증하는 유일한 수단 |
+| `backend/main.py` | `from .devtools import install_devtools` · `install_devtools(app)` |
+| `client/src/main.jsx` | `import DevLabRoot ...` · `<DevLabRoot app={<App />} />` |
+| `backend/config.py` | `dev_tools: bool = True` |
+
+**끄기만 하려면** `.env` 에 `DEV_TOOLS=false`. `/api/catalog/*` 가 통째로 사라진다.
+
+지우기 전에 `integration_test.py` 를 옮길 곳을 먼저 정할 것 — 이 디렉터리와 함께
+사라지면 `schema.sql` 을 확인하는 수단이 없어진다. 실행법은 파일 상단 주석에 있다.
+
+**완전히 걷어내려면** 위 두 디렉터리를 지우고 세 파일에서 해당 줄을 지운다.
+`client/src/main.jsx` 는 `<App />` 을 직접 렌더하도록 되돌리면 된다.
+`client/src/App.jsx` · `api.js` · `styles.css` 는 **애초에 건드리지 않았다.**
+
+의존 방향은 한쪽뿐이다 — `devtools`/`devlab` 이 제품 코드를 참조하고 그 반대는 없다.
+요청 로그도 `api.js` 를 고치는 대신 devlab 이 마운트될 때 `window.fetch` 를 감싸는
+방식이라 폴더를 지우면 흔적이 남지 않는다.
+
+`/api/catalog/*` 는 이 문서 위쪽 API 표에 넣지 않았다. 임시라서다.
+
+| Method | Path | 설명 |
+|---|---|---|
+| GET | `/api/catalog/search?q=&limit=&country=` | iTunes 검색 → `tracks`/`albums` upsert. `cached` 로 캐시 히트 여부 반환 |
+| GET | `/api/catalog/tracks`, `/api/catalog/albums` | DB 에 쌓인 것 조회 |
+| GET | `/api/catalog/albums/:id` | 앨범 + 수록곡 |
 
 ### API 확인 페이지
 
 `http://127.0.0.1:5173` 상단의 **`API 확인`** 탭. Spotify 로그인 없이 열린다.
-가입 → 플레이리스트 생성 → 공개 전환 → 좋아요를 순서대로 눌러보게 되어 있고,
-오른쪽 패널에 **모든 요청의 method · path · status · 소요시간**이 쌓인다.
-`client/src/api.js` 의 `request()` 가 이벤트를 쏘기 때문에 Spotify 화면의 호출도
-같은 방식으로 볼 수 있다.
+상단 셀렉트로 유저 / 곡·앨범 / 플레이리스트 / 좋아요 / 실패 응답 중 하나만 본다.
 
-곡 담기와 앨범 좋아요는 `tracks` / `albums` 에 행이 있어야 눌러볼 수 있다.
-현재 그 행을 만드는 API 가 없어서 SQL 로 직접 넣어야 한다.
+프론트가 참조할 수 있게 아래를 화면에 노출한다.
 
-선택한 탭은 `localStorage` 의 `jungle:view` 에 저장된다.
+- **요청 로그** — 모든 `/api/*` 호출의 status · method · path · 소요시간.
+  행을 누르면 **요청 body · 응답 body · 그 호출의 fetch 코드**가 펼쳐진다 (복사 버튼 포함)
+- **엔드포인트 표** — 패널마다 method · path · body · 주의사항
+- **응답 키 사전** — 키 이름 · 타입 · 의미 (`totalTracks` 가 비정규화 사본이라는 것 등)
+- **에러 형식** — `{"error": "..."}` 와 status 별 발생 조건
+- **실패 응답 모아보기** — 409 · 422 · 404 · 400 을 버튼 하나로 재현
+
+쿠키는 브라우저당 하나라 두 계정을 동시에 붙일 수 없다. 유저 패널의 **계정 전환**은
+로그아웃 후 다른 계정으로 로그인하는 방식이고, 이걸로 403 · `viewCount` 증가 ·
+남의 공개 플레이리스트 좋아요를 확인한다. 동시에 보려면 시크릿 창을 따로 띄운다.
+
+`client/index.html` 의 빈 `onSpotifyWebPlaybackSDKReady` 도 이 페이지 때문이다.
+API 탭에서는 `usePlayer` 가 마운트되지 않아 SDK 가 콜백을 못 찾고 예외를 던진다.
+
+선택한 뷰는 `localStorage` 의 `devlab:view` 에 저장된다.
+
+FastAPI 가 <http://127.0.0.1:8000/docs> 에 Swagger 도 띄운다. 거기서도 모든
+엔드포인트를 눌러볼 수 있고 쿠키가 함께 나간다. 스키마만 필요하면 그쪽이 빠르다.
 
 ---
 
@@ -498,11 +545,11 @@ Spotify OAuth 세션(`sid`)과 자체 계정(`uid`)이 서로 모른다. Spotify
 플레이리스트를 만들 수 없고, 자체 계정으로 로그인해도 재생은 안 된다.
 iTunes 로 완전히 넘어가면 `sid` 쪽이 통째로 사라지면서 자연히 해소된다.
 
-**검색 결과가 DB 로 들어오지 않는다.**
-`/api/search` 는 Spotify 응답을 그대로 내려줄 뿐 `tracks`/`albums` 를 채우지
-않는다. 그래서 플레이리스트에 담을 곡의 출처가 없다. iTunes 검색을 붙일 때
-결과를 `(source, source_id)` 로 upsert 하는 단계를 함께 넣어야 한다
-(쿼리 예시는 "자주 쓸 쿼리" 참고). `search_cache` 도 그때 쓰인다.
+**곡을 DB 에 넣는 정식 경로가 없다.**
+`/api/search`(Spotify)는 응답을 그대로 내려줄 뿐 `tracks`/`albums` 를 채우지 않는다.
+지금 그 일을 하는 것은 `backend/devtools/` 의 `/api/catalog/search` 뿐이고, 이건
+배포 전 삭제 대상이다. 정식 검색을 만들 때 `devtools/itunes.py` 의 upsert·캐시
+로직을 제품 코드로 옮기면 된다 — 로직 자체는 검증되어 있다.
 
 ---
 

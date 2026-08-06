@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from . import spotify
 from .config import SPOTIFY_SCOPES, get_settings
 from .db.session import dispose_engine
+from .devtools import install_devtools
 from .routers import likes_router, playlists_router, users_router
 from .sessions import (
     SESSION_COOKIE,
@@ -52,6 +53,8 @@ app = FastAPI(title="Jungle Music API", lifespan=lifespan)
 app.include_router(users_router)
 app.include_router(playlists_router)
 app.include_router(likes_router)
+
+install_devtools(app)
 
 
 @app.exception_handler(HTTPException)

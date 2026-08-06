@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     client_origin: str = "http://127.0.0.1:5173"
     server_port: int = 8000
 
+    dev_tools: bool = True
+
     def _dsn(self, scheme: str) -> str:
         return str(
             PostgresDsn.build(

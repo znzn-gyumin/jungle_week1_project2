@@ -1,40 +1,8 @@
-const listeners = new Set()
-
-export function onApiEvent(fn) {
-  listeners.add(fn)
-  return () => listeners.delete(fn)
-}
-
-function emit(event) {
-  for (const fn of listeners) fn(event)
-}
-
 async function request(path, init) {
-  const method = init?.method ?? 'GET'
-  const startedAt = performance.now()
-  let res
-  try {
-    res = await fetch(path, { credentials: 'same-origin', ...init })
-  } catch (e) {
-    emit({ method, path, status: 0, ms: 0, ok: false, error: e.message })
-    throw e
-  }
-
+  const res = await fetch(path, { credentials: 'same-origin', ...init })
   const text = await res.text()
   const data = text ? JSON.parse(text) : null
-  const event = {
-    method,
-    path,
-    status: res.status,
-    ms: Math.round(performance.now() - startedAt),
-    ok: res.ok,
-    error: res.ok ? null : (data?.error ?? res.statusText),
-  }
-  emit(event)
-
-  if (!res.ok) {
-    throw Object.assign(new Error(event.error), { status: res.status, data })
-  }
+  if (!res.ok) throw Object.assign(new Error(data?.error ?? res.statusText), { status: res.status, data })
   return data
 }
 
@@ -63,8 +31,6 @@ export const api = {
   play: (deviceId, uris) => request('/api/player/play', json('PUT', { deviceId, uris })),
 
   pause: (deviceId) => request(`/api/player/pause?${qs({ deviceId })}`, { method: 'PUT' }),
-
-  health: () => request('/api/health'),
 
   users: {
     signup: (body) => request('/api/users/signup', json('POST', body)),
