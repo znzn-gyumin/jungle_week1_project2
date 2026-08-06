@@ -1,0 +1,76 @@
+.login-page{
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:28px;
+    padding:40px 20px;
+    background:
+        radial-gradient(ellipse 700px 500px at 50% 0%, rgba(244,185,66,0.12), transparent 60%),
+        var(--bg);
+}
+
+.login-logo{
+    display:flex; align-items:center; gap:10px;
+    font-family:'Space Grotesk'; font-weight:700; font-size:20px;
+}
+.login-logo svg{ width:30px; height:30px; }
+
+.login-card{
+    width:100%; max-width:380px;
+    background:var(--bg-elev);
+    border:1px solid var(--line);
+    border-radius:var(--radius-lg);
+    padding:32px 28px;
+}
+
+.login-title{
+    font-family:'Space Grotesk'; font-weight:700; font-size:22px;
+    margin-bottom:6px;
+}
+.login-sub{ font-size:13px; color:var(--text-faint); margin-bottom:24px; }
+
+.login-form{ display:flex; flex-direction:column; }
+.login-label{
+    font-size:12.5px; font-weight:700; color:var(--text-muted);
+    margin-bottom:6px;
+}
+.login-input{
+    background:var(--bg-card); border:1px solid var(--green);
+    border-radius:var(--radius-md);
+    padding:12px 14px; margin-bottom:16px;
+    color:var(--text); font-family:'Inter'; font-size:14px;
+    outline:none; transition:border-color .15s ease;
+}
+.login-input:focus{ border-color:var(--green-bright); }
+.login-input::placeholder{ color:var(--text-faint); }
+
+.login-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:20px; font-size:12.5px;
+}
+.login-check{ display:flex; align-items:center; gap:6px; color:var(--text-muted); cursor:pointer; }
+.login-link-sm{ color:var(--text-faint); transition:color .15s ease; }
+.login-link-sm:hover{ color:var(--green); }
+
+.login-error{
+    color:#E8604A; font-size:12.5px; font-weight:600;
+    margin:-8px 0 14px;
+}
+
+.login-submit{ width:100%; margin-bottom:8px; }
+
+.login-divider{
+    display:flex; align-items:center; gap:12px;
+    margin:20px 0; color:var(--text-faint); font-size:12px;
+}
+.login-divider::before, .login-divider::after{
+    content:''; flex:1; height:1px; background:var(--line);
+}
+
+.login-social{ width:100%; }
+
+.login-footer{
+    text-align:center; font-size:13px; color:var(--text-faint);
+    margin-top:22px;
+}
+.login-link{ color:var(--green); font-weight:700; }
+.login-link:hover{ color:var(--green-bright); }

@@ -1,5 +1,5 @@
 {
-  "name": "flowbee-api-lab",
+  "name": "flowbee",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -8,19 +8,23 @@
     "db:stop": "./scripts/db.sh stop",
     "db:reset": "./scripts/db.sh reset && .venv/bin/alembic -c backend/alembic.ini upgrade head",
     "predev": "npm run db",
-    "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev": "concurrently -n api,pages,devlab -c cyan,green,magenta \"npm:dev:api\" \"npm:dev:pages\" \"npm:dev:devlab\"",
     "dev:api": ".venv/bin/uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000",
-    "dev:web": "vite",
+    "dev:pages": "nodemon --watch app.js app.js",
+    "dev:devlab": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "express": "^4.19.2",
+    "http-proxy-middleware": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.4",
     "concurrently": "^9.2.1",
+    "nodemon": "^3.1.14",
     "vite": "^7.1.9"
   },
   "allowScripts": {

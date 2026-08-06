@@ -114,7 +114,8 @@ uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 
 ```bash
 npm install
-npm run dev          # API(8000) + Vite(5173) 동시 실행
+npm run dev          # API(8000) + 페이지(3001) + Vite(5173) 동시 실행
+npm run dev:devlab   # Vite 만 따로 띄울 때
 ```
 
 <http://127.0.0.1:5173> 로 연다. Vite 가 `/api` 를 8000 으로 프록시하므로 쿠키가
@@ -137,8 +138,10 @@ same-origin 으로 붙는다. **8000 을 직접 열면 로그인 쿠키가 다�
 `youtube off` 는 대개 서버가 낡은 `.env` 를 물고 있다는 뜻이다. `get_settings()`
 가 `lru_cache` 라 `.env` 를 고쳐도 프로세스를 다시 띄우기 전에는 안 바뀐다.
 
-배포 대상이 아니다. 지울 때는 `client/`, `package.json`, `package-lock.json`,
-`vite.config.js` 를 지우면 백엔드는 그대로 돈다.
+배포 대상이 아니다. 지울 때는 `client/` 와 `vite.config.js` 를 지우고
+`package.json` 에서 `react` · `react-dom` · `@vitejs/plugin-react` · `vite` 와
+`dev:devlab` · `build` · `preview` 스크립트를 빼면 된다. `package.json` 자체는
+`app.js` 가 쓰는 `express` 때문에 남겨야 한다.
 
 ---
 

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>플로비 | 로그인</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/common.css">
+<link rel="stylesheet" href="/css/pages/login.css">
+</head>
+<body>
+
+<div class="login-page">
+
+    <a href="/" class="login-logo">
+        <svg viewBox="0 0 40 40">
+            <path d="M14,9 C13,5 11,3 9,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+            <circle cx="9" cy="2" r="1.8" fill="#2A1B06"/>
+            <path d="M26,9 C27,5 29,3 31,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+            <circle cx="31" cy="2" r="1.8" fill="#2A1B06"/>
+            <circle cx="20" cy="23" r="13" fill="#F4B942"/>
+            <ellipse cx="20" cy="25" rx="11" ry="3" fill="#2A1B06"/>
+            <ellipse cx="8" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(-20 8 14)"/>
+            <ellipse cx="32" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(20 32 14)"/>
+            <ellipse cx="8" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(-10 8 26)"/>
+            <ellipse cx="32" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(10 32 26)"/>
+        </svg>
+        플로비
+    </a>
+
+    <div class="login-card">
+        <h1 class="login-title">만나서 반가워요</h1>
+        <p class="login-sub">계정에 로그인하고 이어서 들어보세요</p>
+
+        <form class="login-form" id="login-form">
+            <label class="login-label" for="email">이메일</label>
+            <input class="login-input" type="email" id="email" name="email" placeholder="you@example.com" required>
+
+            <label class="login-label" for="password">비밀번호</label>
+            <input class="login-input" type="password" id="password" name="password" placeholder="비밀번호 입력" required>
+
+            <div class="login-row">
+                <label class="login-check">
+                    <input type="checkbox" name="remember">
+                    로그인 상태 유지
+                </label>
+                <a href="/forgot-password" class="login-link-sm">비밀번호를 잊으셨나요?</a>
+            </div>
+
+            <p class="login-error" id="login-error" hidden>이메일 또는 비밀번호를 확인해주세요.</p>
+
+            <button type="submit" class="btn btn-primary login-submit">로그인</button>
+        </form>
+
+        <div class="login-divider"><span>또는</span></div>
+
+        <button type="button" class="btn btn-outline login-social">Google로 계속하기</button>
+
+        <p class="login-footer">
+            아직 계정이 없으신가요? <a href="/signup" class="login-link">회원가입</a>
+        </p>
+    </div>
+
+</div>
+
+<script src="/js/pages/login.js"></script>
+</body>
+</html>

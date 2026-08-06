@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>플로비 | 홈</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/common.css">
+<link rel="stylesheet" href="/css/pages/main.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <span class="dot-icon">
+                <svg viewBox="0 0 40 40">
+                    <path d="M14,9 C13,5 11,3 9,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+                    <circle cx="9" cy="2" r="1.8" fill="#2A1B06"/>
+                    <path d="M26,9 C27,5 29,3 31,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+                    <circle cx="31" cy="2" r="1.8" fill="#2A1B06"/>
+                    <circle cx="20" cy="23" r="13" fill="#F4B942"/>
+                    <ellipse cx="20" cy="25" rx="11" ry="3" fill="#2A1B06"/>
+                    <ellipse cx="8" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(-20 8 14)"/>
+                    <ellipse cx="32" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(20 32 14)"/>
+                    <ellipse cx="8" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(-10 8 26)"/>
+                    <ellipse cx="32" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(10 32 26)"/>
+                </svg>
+            </span>
+            플로비
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="/" class="sidebar-link active">
+                <span class="icon">⌂</span> 홈
+            </a>
+            <a href="#" class="sidebar-link">
+                <span class="icon">⌕</span> 검색
+            </a>
+            <a href="/playlist" class="sidebar-link">
+                <span class="icon">☰</span> 보관함
+            </a>
+        </nav>
+
+        <div class="sidebar-divider"></div>
+
+        <div class="sidebar-playlists">
+            <div class="sidebar-section-title">내 플레이리스트</div>
+            <a href="/playlist" class="sidebar-playlist-item">
+                <span class="pl-thumb" style="background:linear-gradient(135deg,#E8A33D,#8A5A2B);"></span>
+                좋아하는 음악
+            </a>
+            <a href="/playlist" class="sidebar-playlist-item">
+                <span class="pl-thumb" style="background:linear-gradient(160deg,#3b2a1c,#1f150d);"></span>
+                출근길 플레이리스트
+            </a>
+            <a href="/playlist" class="sidebar-playlist-item">
+                <span class="pl-thumb" style="background:linear-gradient(150deg,#8A6A3F,#4A3218);"></span>
+                Lo-Fi Study
+            </a>
+
+            <div class="sidebar-section-title">좋아요 누른 앨범</div>
+            <a href="/album" class="sidebar-playlist-item">
+                <span class="pl-thumb" style="background:linear-gradient(135deg,#E8A33D,#8A5A2B);"></span>
+                Daybreak
+            </a>
+            <a href="/album" class="sidebar-playlist-item">
+                <span class="pl-thumb" style="background:linear-gradient(135deg,#F4B942,#D9822B);"></span>
+                Tideline
+            </a>
+
+            <div class="sidebar-section-title">좋아요 누른 플레이리스트</div>
+            <a href="/playlist" class="sidebar-playlist-item">
+                <span class="pl-thumb" style="background:linear-gradient(140deg,#F4B942,#C88A2E);"></span>
+                카페 무드
+            </a>
+            <a href="/playlist" class="sidebar-playlist-item">
+                <span class="pl-thumb" style="background:linear-gradient(150deg,#8A6A3F,#4A3218);"></span>
+                Lo-Fi Study
+            </a>
+        </div>
+    </aside>
+
+    <div class="main-col">
+
+        <header class="topbar">
+            <div class="search-box">
+                <span class="icon">⌕</span>
+                <input type="text" placeholder="아티스트, 곡, 앨범 검색">
+            </div>
+            <a href="/home" class="subscribe-banner">
+                <span class="subscribe-icon">★</span>
+                <span class="subscribe-text">광고 없이, 끊김없이 — <strong>무료로 구독 시작하기</strong></span>
+            </a>
+            <div class="topbar-right">
+                <a href="/login" class="btn btn-outline btn-sm">로그인</a>
+                <div class="avatar">
+                    <svg viewBox="0 0 40 40">
+                        <path d="M14,9 C13,5 11,3 9,2" stroke="#F4B942" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+                        <circle cx="9" cy="2" r="1.8" fill="#F4B942"/>
+                        <path d="M26,9 C27,5 29,3 31,2" stroke="#F4B942" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+                        <circle cx="31" cy="2" r="1.8" fill="#F4B942"/>
+                        <circle cx="20" cy="23" r="13" fill="#F4B942"/>
+                        <ellipse cx="8" cy="14" rx="8" ry="9" fill="#F4B942" transform="rotate(-20 8 14)"/>
+                        <ellipse cx="32" cy="14" rx="8" ry="9" fill="#F4B942" transform="rotate(20 32 14)"/>
+                        <ellipse cx="8" cy="26" rx="5.5" ry="6.5" fill="#F4B942" transform="rotate(-10 8 26)"/>
+                        <ellipse cx="32" cy="26" rx="5.5" ry="6.5" fill="#F4B942" transform="rotate(10 32 26)"/>
+                        <text x="20" y="27" text-anchor="middle" font-family="Inter" font-weight="700" font-size="12" fill="#2A1B06">유</text>
+                    </svg>
+                </div>
+            </div>
+        </header>
+
+        <nav class="content-tabs">
+            <a href="/" class="content-tab active">홈</a>
+            <a href="#" class="content-tab">최신음악</a>
+            <a href="#" class="content-tab">최신앨범</a>
+            <a href="#" class="content-tab">장르음악</a>
+            <a href="#" class="content-tab">차트</a>
+            <a href="/playlist" class="content-tab">플레이리스트</a>
+            <a href="#" class="content-tab">이벤트</a>
+        </nav>
+
+        <main class="main-content">
+
+            <section class="section">
+                <div class="section-head">
+                <h2 class="section-title">
+                    최근 재생
+                    <svg class="bee-mascot" viewBox="0 0 40 40">
+                        <path d="M14,9 C13,5 11,3 9,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+                        <circle cx="9" cy="2" r="1.8" fill="#2A1B06"/>
+                        <path d="M26,9 C27,5 29,3 31,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+                        <circle cx="31" cy="2" r="1.8" fill="#2A1B06"/>
+                        <circle cx="20" cy="23" r="13" fill="#F4B942"/>
+                        <ellipse cx="20" cy="25" rx="11" ry="3" fill="#2A1B06"/>
+                        <ellipse cx="8" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(-20 8 14)"/>
+                        <ellipse cx="32" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(20 32 14)"/>
+                        <ellipse cx="8" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(-10 8 26)"/>
+                        <ellipse cx="32" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(10 32 26)"/>
+                    </svg>
+                </h2>
+                <a class="week-pick" href="/album">
+                    <span class="week-pick-text">이번 주 추천 · <strong>Daybreak</strong></span>
+                    <svg class="week-pick-decor" viewBox="0 0 70 40" aria-hidden="true">
+                        <defs>
+                            <linearGradient id="tapeGradMini" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0" stop-color="#E8A33D"/>
+                                <stop offset="1" stop-color="#8A5A2B"/>
+                            </linearGradient>
+                        </defs>
+                        <rect x="4" y="6" width="42" height="28" rx="6" fill="url(#tapeGradMini)"/>
+                        <rect x="10" y="13" width="30" height="10" rx="3" fill="rgba(0,0,0,0.4)"/>
+                        <circle cx="16" cy="27" r="4" fill="none" stroke="#fff" stroke-width="1.6"/>
+                        <circle cx="34" cy="27" r="4" fill="none" stroke="#fff" stroke-width="1.6"/>
+                        <g transform="translate(42,0) scale(0.55)">
+                            <path d="M14,9 C13,5 11,3 9,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+                            <circle cx="9" cy="2" r="1.8" fill="#2A1B06"/>
+                            <path d="M26,9 C27,5 29,3 31,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+                            <circle cx="31" cy="2" r="1.8" fill="#2A1B06"/>
+                            <circle cx="20" cy="23" r="13" fill="#F4B942"/>
+                            <ellipse cx="20" cy="25" rx="11" ry="3" fill="#2A1B06"/>
+                            <ellipse cx="8" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(-20 8 14)"/>
+                            <ellipse cx="32" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(20 32 14)"/>
+                            <ellipse cx="8" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(-10 8 26)"/>
+                            <ellipse cx="32" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(10 32 26)"/>
+                        </g>
+                    </svg>
+                </a>
+                </div>
+                <div class="card-grid">
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:linear-gradient(135deg,#E8A33D,#8A5A2B);"></div>
+                        <div class="track-name">Daybreak</div>
+                        <div class="track-sub">ARCS, NOVA</div>
+                    </a>
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:linear-gradient(160deg,#3b2a1c,#1f150d);"></div>
+                        <div class="track-name">STATIC</div>
+                        <div class="track-sub">Interlude</div>
+                    </a>
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:#EDE6D6;"></div>
+                        <div class="track-name">Paper Boats</div>
+                        <div class="track-sub">NOVA</div>
+                    </a>
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:linear-gradient(160deg,#F2A65A,#C9672E);"></div>
+                        <div class="track-name">Afterglow</div>
+                        <div class="track-sub">Pre-release Single</div>
+                    </a>
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:linear-gradient(150deg,#8A6A3F,#4A3218);"></div>
+                        <div class="track-name">Golden Hour</div>
+                        <div class="track-sub">Track 07</div>
+                    </a>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-head">
+                <h2 class="section-title">최신 발매</h2>
+                </div>
+                <div class="card-grid">
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:linear-gradient(135deg,#F4B942,#D9822B);"></div>
+                        <div class="track-name">Tideline</div>
+                        <div class="track-sub">ARCS · 신곡</div>
+                    </a>
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:linear-gradient(150deg,#5C3A21,#2A1B06);"></div>
+                        <div class="track-name">Nocturne</div>
+                        <div class="track-sub">NOVA · EP</div>
+                    </a>
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:linear-gradient(160deg,#C9672E,#8A5A2B);"></div>
+                        <div class="track-name">Half Light</div>
+                        <div class="track-sub">플로비 컴필레이션</div>
+                    </a>
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:linear-gradient(140deg,#8A6A3F,#4A3218);"></div>
+                        <div class="track-name">Static Bloom</div>
+                        <div class="track-sub">신인 아티스트</div>
+                    </a>
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:linear-gradient(160deg,#EDE6D6,#C88A2E);"></div>
+                        <div class="track-name">Amber Room</div>
+                        <div class="track-sub">싱글</div>
+                    </a>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-head">
+                <h2 class="section-title">인기 앨범</h2>
+                </div>
+                <div class="card-grid">
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:linear-gradient(135deg,#E8A33D,#8A5A2B);"></div>
+                        <div class="track-name">Daybreak</div>
+                        <div class="track-sub">ARCS, NOVA · 앨범</div>
+                    </a>
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:linear-gradient(160deg,#F2A65A,#C9672E);"></div>
+                        <div class="track-name">Afterglow</div>
+                        <div class="track-sub">앨범 · 12곡</div>
+                    </a>
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:#EDE6D6;"></div>
+                        <div class="track-name">Paper Boats</div>
+                        <div class="track-sub">NOVA · 앨범</div>
+                    </a>
+                    <a class="track-card" href="/album">
+                        <div class="track-thumb" style="background:linear-gradient(150deg,#8A6A3F,#4A3218);"></div>
+                        <div class="track-name">Golden Hour</div>
+                        <div class="track-sub">앨범 · 9곡</div>
+                    </a>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-head">
+                <h2 class="section-title">내 플레이리스트</h2>
+                </div>
+                <div class="card-grid">
+                    <a class="track-card" href="/playlist">
+                        <div class="track-thumb" style="background:linear-gradient(150deg,#D9822B,#8A5A2B);"></div>
+                        <div class="track-name">비 오는 날</div>
+                        <div class="track-sub">플레이리스트 · 24곡</div>
+                    </a>
+                    <a class="track-card" href="/playlist">
+                        <div class="track-thumb" style="background:linear-gradient(160deg,#4A3218,#2A1B06);"></div>
+                        <div class="track-name">늦은 밤 드라이브</div>
+                        <div class="track-sub">플레이리스트 · 30곡</div>
+                    </a>
+                    <a class="track-card" href="/playlist">
+                        <div class="track-thumb" style="background:linear-gradient(140deg,#F4B942,#C88A2E);"></div>
+                        <div class="track-name">카페 무드</div>
+                        <div class="track-sub">플레이리스트 · 40곡</div>
+                    </a>
+                    <a class="track-card" href="/playlist">
+                        <div class="track-thumb" style="background:linear-gradient(160deg,#8A6A3F,#3b2a1c);"></div>
+                        <div class="track-name">집중이 필요할 때</div>
+                        <div class="track-sub">플레이리스트 · 20곡</div>
+                    </a>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-head">
+                <h2 class="section-title">추천 플레이리스트</h2>
+                </div>
+                <div class="card-grid">
+                    <a class="track-card" href="/playlist">
+                        <div class="track-thumb" style="background:linear-gradient(135deg,#D9822B,#F4B942);"></div>
+                        <div class="track-name">좋아하는 음악</div>
+                        <div class="track-sub">플레이리스트 · 32곡</div>
+                    </a>
+                    <a class="track-card" href="/playlist">
+                        <div class="track-thumb" style="background:linear-gradient(160deg,#5C3A21,#2A1B06);"></div>
+                        <div class="track-name">출근길 플레이리스트</div>
+                        <div class="track-sub">플레이리스트 · 18곡</div>
+                    </a>
+                    <a class="track-card" href="/playlist">
+                        <div class="track-thumb" style="background:linear-gradient(150deg,#8A6A3F,#4A3218);"></div>
+                        <div class="track-name">Lo-Fi Study</div>
+                        <div class="track-sub">플레이리스트 · 45곡</div>
+                    </a>
+                </div>
+            </section>
+
+        </main>
+    </div>
+</div>
+
+<footer class="player-bar">
+    <div class="player-now-playing">
+        <div class="track-thumb sm" style="background:linear-gradient(135deg,#E8A33D,#8A5A2B);"></div>
+        <div>
+            <div class="track-name">Daybreak</div>
+            <div class="track-sub">ARCS, NOVA</div>
+        </div>
+    </div>
+    <div class="player-controls">
+        <div class="player-buttons">
+            <button class="ctrl-btn" type="button">⏮</button>
+            <button class="ctrl-btn play" type="button" id="play-btn"><span>▶</span></button>
+            <button class="ctrl-btn" type="button">⏭</button>
+        </div>
+        <div class="player-progress">
+            <span class="time">1:12</span>
+            <div class="progress-track"><div class="progress-fill"></div></div>
+            <span class="time">3:48</span>
+        </div>
+    </div>
+    <div class="player-volume">
+        <span class="icon">🔊</span>
+        <div class="progress-track sm"><div class="progress-fill" style="width:70%;"></div></div>
+    </div>
+</footer>
+
+<script src="/js/pages/main.js"></script>
+</body>
+</html>
