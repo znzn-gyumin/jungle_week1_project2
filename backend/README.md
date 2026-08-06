@@ -103,8 +103,13 @@ YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 �
 
 ## API
 
-인증 없음. 실패 응답은 FastAPI 기본 `detail` 대신 `{"error": "..."}` 로 통일되어
-있다. 클라이언트는 이 키를 읽으면 된다.
+인증 없음. **모든 실패 응답이 `{"error": "..."}` 형태다.** 404·405 처럼 라우트에
+닿지 못한 경우까지 포함한다. 클라이언트는 `error` 키만 읽으면 된다.
+
+예외 핸들러는 `starlette.exceptions.HTTPException` 에 등록되어 있다.
+`fastapi.HTTPException` 은 그 하위 클래스라 함께 잡히지만, **반대로 등록하면
+경로를 못 찾았을 때(Starlette 가 던지는 기본 예외) 안 잡혀서** FastAPI 기본
+형식인 `{"detail": ...}` 이 그대로 나간다.
 
 | Method | Path | 설명 |
 |---|---|---|
@@ -414,6 +419,12 @@ alembic -c backend/alembic.ini check     # 모델과 DB 스키마 drift 확인
 저장소 루트가 아닌 곳에서 실행하면 `.env` 를 못 찾고 **에러 없이 전부 기본값**으로
 떨어진다. 다른 DB 에 붙고 YouTube 가 조용히 비활성화된다. `ROOT / ".env"` 로
 고정한 이유다.
+
+**기동 로그는 `uvicorn.error` 로거로 찍는다**
+`logging.getLogger("backend")` 처럼 새 로거를 만들면 uvicorn 이 핸들러를 붙이지
+않아 **메시지가 조용히 버려진다.** `print` 는 반대로 잘 나오지만 한국어 Windows
+콘솔(cp949)에서 인코딩 불가 문자를 만나면 `UnicodeEncodeError` 로 startup 이
+죽는다 (실제로 em-dash 때문에 한 번 겪었다).
 
 **비밀값은 `SecretStr` 이라 그대로 쓰면 안 된다**
 `postgres_password` 와 `youtube_api_key` 는 `SecretStr` 이다. `repr` 에
