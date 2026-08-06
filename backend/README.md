@@ -101,9 +101,28 @@ YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 �
 |---|---|---|
 | GET | `/api/health` | 서버 상태 + YouTube 키 설정 여부 |
 | GET | `/api/health/db` | DB 연결 + public 스키마 테이블 수 |
-| GET | `/api/search?q=&source=all\|itunes\|youtube&limit=` | 검색 후 결과를 DB 에 upsert 하고 반환 |
-| GET | `/api/tracks?source=&limit=` | DB 에 쌓인 곡 목록 |
+| GET | `/api/search?q=&source=all\|itunes\|youtube&type=track\|album&limit=` | 검색 후 결과를 DB 에 upsert 하고 반환 |
+| GET | `/api/tracks?q=&source=&limit=` | DB 에 쌓인 곡. 외부 API 를 부르지 않는다 |
 | GET | `/api/tracks/{id}` | 곡 하나 |
+| GET | `/api/albums?q=&limit=` | DB 에 쌓인 앨범 |
+| GET | `/api/albums/{id}` | 앨범 하나 |
+
+`type=album` 은 iTunes 만 지원한다. YouTube 에는 앨범 개념이 없어
+`source=youtube&type=album` 은 502 를 준다.
+
+곡 응답에는 앨범이 중첩된다. YouTube 곡은 `album: null` 이다.
+
+```json
+{ "id": 51, "source": "itunes", "title": "Viva La Vida", "artist": "Coldplay",
+  "durationMs": 242373, "playUrl": "https://audio-ssl.itunes.apple.com/....m4a",
+  "album": { "id": 22, "name": "Viva La Vida (Prospekt's March Edition)",
+             "releaseDate": "2008-06-12", "totalTracks": 10 } }
+```
+
+**중첩 앨범은 `selectinload` 로 미리 읽는다.** async SQLAlchemy 는 암묵적 lazy load
+를 허용하지 않아서, 직렬화 시점에 `track.album` 을 건드리면 `MissingGreenlet` 으로
+터진다. 곡을 반환하는 모든 조회(`upsert_tracks`, `list_tracks`, `get_track`)에
+`options(selectinload(Track.album))` 이 붙어 있다. 새 조회를 추가할 때도 필요하다.
 
 `/api/search` 는 두 소스를 `asyncio.gather` 로 동시에 호출한다. 한쪽이 실패해도
 나머지 결과를 반환하고 실패는 `errors` 배열에 담는다. 둘 다 실패하면 502.
@@ -129,12 +148,13 @@ YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 �
 ├── backend/                 파이썬 패키지는 backend 하나
 │   ├── main.py              앱 생성 · lifespan · 예외 핸들러 · 라우터 등록
 │   ├── config.py            .env -> 접속 문자열 + API 키
-│   ├── schemas.py           DB 모델 -> JSON 응답 변환
+│   ├── schemas.py           DB 모델 -> JSON 응답 변환 (track_out · album_out)
 │   │
 │   ├── api/                 HTTP 계층. 라우터만. 비즈니스 로직 없음
 │   │   ├── health.py        /api/health
 │   │   ├── search.py        /api/search
-│   │   └── tracks.py        /api/tracks
+│   │   ├── tracks.py        /api/tracks
+│   │   └── albums.py        /api/albums
 │   │
 │   ├── services/            여러 계층을 엮는 곳
 │   │   └── search.py        소스 동시 호출 + 부분 실패 수집 + upsert 호출

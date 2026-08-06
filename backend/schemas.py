@@ -1,6 +1,19 @@
 from typing import Any
 
-from backend.models import Track
+from backend.models import Album, Track
+
+
+def album_out(album: Album) -> dict[str, Any]:
+    return {
+        "id": album.id,
+        "source": album.source.value,
+        "sourceId": album.source_id,
+        "name": album.name,
+        "artist": album.artist,
+        "releaseDate": album.release_date.isoformat() if album.release_date else None,
+        "totalTracks": album.total_tracks,
+        "thumbnailUrl": album.thumbnail_url,
+    }
 
 
 def track_out(track: Track) -> dict[str, Any]:
@@ -13,4 +26,5 @@ def track_out(track: Track) -> dict[str, Any]:
         "durationMs": track.duration_ms,
         "thumbnailUrl": track.thumbnail_url,
         "playUrl": track.play_url,
+        "album": album_out(track.album) if track.album else None,
     }

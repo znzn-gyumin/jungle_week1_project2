@@ -7,7 +7,7 @@ from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.api import health, search, tracks
+from backend.api import albums, health, search, tracks
 from backend.config import get_settings
 from backend.db.session import engine
 from backend.sources import itunes, youtube
@@ -62,6 +62,7 @@ async def youtube_error(request: Request, exc: YouTubeError) -> JSONResponse:
 
 
 app.include_router(health.router)
+app.include_router(albums.router)
 app.include_router(search.router)
 app.include_router(tracks.router)
 

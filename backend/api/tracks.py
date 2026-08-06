@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db import repository
 from backend.db.session import get_db
-from backend.models import Track
 from backend.models.enums import SourceType
 from backend.schemas import track_out
 from backend.services.search import SOURCES
@@ -37,7 +36,7 @@ async def list_tracks(
 async def get_track(
     track_id: int, db: AsyncSession = Depends(get_db)
 ) -> dict[str, Any]:
-    track = await db.get(Track, track_id)
+    track = await repository.get_track(db, track_id)
     if track is None:
         raise HTTPException(404, "곡을 찾을 수 없습니다")
     return track_out(track)

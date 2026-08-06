@@ -5,12 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import get_settings
 from backend.db import repository
-from backend.models import Track
+from backend.models import Album, Track
 from backend.sources import itunes, youtube
 
 settings = get_settings()
 
 SOURCES = ("itunes", "youtube")
+ALBUM_SOURCES = ("itunes",)
 
 
 async def _itunes(db: AsyncSession, q: str, limit: int) -> list[Track]:
@@ -66,3 +67,28 @@ async def search(
         else:
             tracks.extend(result)
     return tracks, errors
+
+
+async def search_albums(
+    db: AsyncSession, q: str, source: str, limit: int
+) -> tuple[list[Album], list[dict[str, str]]]:
+    wanted = [s for s in resolve_sources(source) if s in ALBUM_SOURCES]
+    if not wanted:
+        return [], [{"source": source, "error": "앨범 검색을 지원하지 않는 소스"}]
+
+    try:
+        results = await itunes.search_albums(
+            q, limit=limit, country=settings.itunes_country
+        )
+    except Exception as exc:
+        message = getattr(exc, "message", None) or str(exc)
+        return [], [{"source": "itunes", "error": message}]
+
+    ids = await repository.upsert_albums(db, [itunes.to_album(r) for r in results])
+    await db.commit()
+    ordered = [
+        ids[key]
+        for r in results
+        if (key := itunes.album_source_id(r)) and key in ids
+    ]
+    return await repository.albums_by_ids(db, ordered), []
