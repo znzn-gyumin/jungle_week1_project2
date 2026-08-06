@@ -29,6 +29,7 @@ class Playlist(PKMixin, TimestampMixin, Base):
     __tablename__ = "playlists"
     __table_args__ = (
         CheckConstraint("view_count >= 0", name="view_count_non_negative"),
+        CheckConstraint("total_tracks >= 0", name="total_tracks_non_negative"),
         Index("ix_playlists_user_id", "user_id"),
         Index(
             "ix_playlists_public_view_count",
@@ -44,6 +45,9 @@ class Playlist(PKMixin, TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
+    total_tracks: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
     is_public: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false")
     )

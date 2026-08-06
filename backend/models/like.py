@@ -26,18 +26,18 @@ class Like(PKMixin, Base):
     __tablename__ = "likes"
     __table_args__ = (
         CheckConstraint(
-            "num_nonnulls(track_id, playlist_id, album_id) = 1",
+            "num_nonnulls(track_id, album_id, playlist_id) = 1",
             name="exactly_one_target",
         ),
         UniqueConstraint("user_id", "track_id", name="uq_likes_user_id_track_id"),
+        UniqueConstraint("user_id", "album_id", name="uq_likes_user_id_album_id"),
         UniqueConstraint(
             "user_id", "playlist_id", name="uq_likes_user_id_playlist_id"
         ),
-        UniqueConstraint("user_id", "album_id", name="uq_likes_user_id_album_id"),
         Index("ix_likes_user_id_created_at", "user_id", text("created_at DESC")),
         Index("ix_likes_track_id", "track_id"),
-        Index("ix_likes_playlist_id", "playlist_id"),
         Index("ix_likes_album_id", "album_id"),
+        Index("ix_likes_playlist_id", "playlist_id"),
     )
 
     user_id: Mapped[int] = mapped_column(
@@ -49,13 +49,13 @@ class Like(PKMixin, Base):
         BigInteger,
         ForeignKey("tracks.id", ondelete="CASCADE"),
     )
-    playlist_id: Mapped[int | None] = mapped_column(
-        BigInteger,
-        ForeignKey("playlists.id", ondelete="CASCADE"),
-    )
     album_id: Mapped[int | None] = mapped_column(
         BigInteger,
         ForeignKey("albums.id", ondelete="CASCADE"),
+    )
+    playlist_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("playlists.id", ondelete="CASCADE"),
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -63,8 +63,8 @@ class Like(PKMixin, Base):
 
     user: Mapped["User"] = relationship(back_populates="likes")
     track: Mapped["Track | None"] = relationship(back_populates="likes")
-    playlist: Mapped["Playlist | None"] = relationship(back_populates="likes")
     album: Mapped["Album | None"] = relationship(back_populates="likes")
+    playlist: Mapped["Playlist | None"] = relationship(back_populates="likes")
 
     def __repr__(self) -> str:
         return f"<Like id={self.id} user={self.user_id}>"

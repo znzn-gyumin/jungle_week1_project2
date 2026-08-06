@@ -86,7 +86,7 @@ def upgrade() -> None:
         sa.Column("duration_ms", sa.Integer(), nullable=True),
         sa.Column("thumbnail_url", sa.Text(), nullable=True),
         sa.Column("external_url", sa.Text(), nullable=True),
-        sa.Column("preview_url", sa.Text(), nullable=True),
+        sa.Column("audio_url", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -118,6 +118,9 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=100), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column(
+            "total_tracks", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
+        sa.Column(
             "is_public", sa.Boolean(), server_default=sa.text("false"), nullable=False
         ),
         sa.Column(
@@ -143,6 +146,7 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.CheckConstraint("view_count >= 0", name="view_count_non_negative"),
+        sa.CheckConstraint("total_tracks >= 0", name="total_tracks_non_negative"),
     )
     op.create_index("ix_playlists_user_id", "playlists", ["user_id"])
     op.create_index(
@@ -193,8 +197,8 @@ def upgrade() -> None:
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.BigInteger(), nullable=False),
         sa.Column("track_id", sa.BigInteger(), nullable=True),
-        sa.Column("playlist_id", sa.BigInteger(), nullable=True),
         sa.Column("album_id", sa.BigInteger(), nullable=True),
+        sa.Column("playlist_id", sa.BigInteger(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -212,26 +216,26 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["playlist_id"],
-            ["playlists.id"],
-            name="fk_likes_playlist_id_playlists",
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
             ["album_id"],
             ["albums.id"],
             name="fk_likes_album_id_albums",
             ondelete="CASCADE",
         ),
+        sa.ForeignKeyConstraint(
+            ["playlist_id"],
+            ["playlists.id"],
+            name="fk_likes_playlist_id_playlists",
+            ondelete="CASCADE",
+        ),
         sa.CheckConstraint(
-            "num_nonnulls(track_id, playlist_id, album_id) = 1",
+            "num_nonnulls(track_id, album_id, playlist_id) = 1",
             name="exactly_one_target",
         ),
         sa.UniqueConstraint("user_id", "track_id", name="uq_likes_user_id_track_id"),
+        sa.UniqueConstraint("user_id", "album_id", name="uq_likes_user_id_album_id"),
         sa.UniqueConstraint(
             "user_id", "playlist_id", name="uq_likes_user_id_playlist_id"
         ),
-        sa.UniqueConstraint("user_id", "album_id", name="uq_likes_user_id_album_id"),
     )
     op.create_index(
         "ix_likes_user_id_created_at",
@@ -239,8 +243,8 @@ def upgrade() -> None:
         ["user_id", sa.text("created_at DESC")],
     )
     op.create_index("ix_likes_track_id", "likes", ["track_id"])
-    op.create_index("ix_likes_playlist_id", "likes", ["playlist_id"])
     op.create_index("ix_likes_album_id", "likes", ["album_id"])
+    op.create_index("ix_likes_playlist_id", "likes", ["playlist_id"])
 
     op.create_table(
         "search_cache",

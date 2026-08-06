@@ -75,7 +75,7 @@ npm run dev     # uvicorn(:8000) + vite(:5173) 동시 실행
 
 **재생 방식을 iTunes Search API 로 바꾸는 중이다.** 아직 코드는 Spotify 기준이다.
 
-- DB 는 `source_type` ENUM 에 `'itunes'` 와 `tracks.preview_url` 을 이미 갖고 있다
+- DB 는 `source_type` ENUM 에 `'itunes'` 와 `tracks.audio_url` 을 이미 갖고 있다
 - `backend/main.py`, `backend/spotify.py` 는 아직 Spotify OAuth 기반이다
 
 지금 코드를 그대로 돌리려면 Spotify Developer 앱과 **Premium 계정**이 필요하다
@@ -88,7 +88,7 @@ iTunes 로 넘어가면 이 준비물이 전부 사라진다. 인증이 없고, 
 `previewUrl` 30초 미리듣기를 누구나 동시에 재생할 수 있다. 대신 **전체 재생은
 불가능**하다. IP 당 약 20회/분 제한이 있어 캐싱이 필요하다.
 
-참고: Spotify 는 2024년 11월부터 신규 앱에 `preview_url` 을 `null` 로 내려준다.
+참고: Spotify 는 2024년 11월부터 신규 앱에 `audio_url` 을 `null` 로 내려준다.
 현재 코드가 SDK 경로를 쓰는 이유다.
 
 ---
@@ -172,29 +172,45 @@ YouTube 에는 앨범 개념이 없어 실질적으로 전부 iTunes(`collection
 
 `id` · `source` · `source_id`(128) · `title` · `artist` · `album_id` ·
 `duration_ms` · `thumbnail_url` · `external_url` ·
-`preview_url` · `created_at` · `updated_at`
+`audio_url` · `created_at` · `updated_at`
 
 UNIQUE `(source, source_id)` · INDEX `album_id`, `lower(title)`
 `album_id` → `albums` **ON DELETE SET NULL** (YouTube 곡은 NULL)
 
 **재생 방식이 소스마다 다르다.**
 
-| | `source_id` | `preview_url` | 재생 |
+| | `source_id` | `audio_url` | 재생 |
 |---|---|---|---|
-| iTunes | `trackId` | 30초 오디오 URL | `<audio src={preview_url}>` |
-| YouTube | video id | NULL | IFrame 임베드에 `source_id` 전달 |
+| iTunes | `trackId` | **30초** 오디오 URL | `<audio src={audio_url}>` |
+| YouTube | video id | **항상 NULL** | IFrame 임베드에 `source_id` 전달 |
 
-`external_url` 은 사람이 보는 페이지 링크(Apple Music / YouTube 페이지)이고
-`preview_url` 은 **재생 가능한 오디오 파일** 이다. 둘은 다르다.
+YouTube Data API 는 재생 가능한 파일 URL 을 주지 않는다. IFrame 플레이어에
+video id 를 넘기는 방식뿐이고, 스트림 URL 을 직접 추출하는 것은 약관 위반이다.
+따라서 `audio_url` 이 YouTube 에서 NULL 인 것은 누락이 아니라 구조적 결과다.
+
+`external_url` 과 `audio_url` 은 다르다.
+
+| | 무엇 | 예 |
+|---|---|---|
+| `external_url` | **사람이 브라우저로 여는 웹페이지.** "원본에서 보기" 링크용 | iTunes `trackViewUrl` → `https://music.apple.com/us/album/...` <br> YouTube → `https://www.youtube.com/watch?v=...` |
+| `audio_url` | **프로그램이 재생하는 오디오 파일.** `<audio src=>` 에 그대로 넣는 값 | `https://audio-ssl.itunes.apple.com/....m4a` |
+
+이름을 `preview_url` 이 아니라 `audio_url` 로 둔 이유: `preview` 는 iTunes 용어인데
+이 테이블의 다른 컬럼(`source_id`, `external_url`, `thumbnail_url`)은 전부 플랫폼
+중립적이다. 다만 **iTunes 값은 30초짜리 발췌**라는 점은 기억할 것.
 
 iTunes 필드 매핑: `trackId`→`source_id`, `trackName`→`title`, `artistName`→`artist`,
 `collectionId`→앨범 조회, `trackTimeMillis`→`duration_ms`, `artworkUrl100`→`thumbnail_url`,
-`trackViewUrl`→`external_url`, `previewUrl`→`preview_url`.
+`trackViewUrl`→`external_url`, `previewUrl`→`audio_url`.
 
 ### playlists — 사용자 플레이리스트
 
-`id` · `user_id` · `name`(100) · `description` · `is_public`(기본 false) ·
-`view_count`(기본 0, CHECK ≥ 0) · `created_at` · `updated_at`
+`id` · `user_id` · `name`(100) · `description` · `total_tracks`(기본 0, CHECK ≥ 0) ·
+`is_public`(기본 false) · `view_count`(기본 0, CHECK ≥ 0) · `created_at` · `updated_at`
+
+`total_tracks` 는 `playlist_tracks` 개수의 **비정규화 사본**이다. 곡을 담거나 뺄 때
+애플리케이션이 함께 갱신해야 하며, 안 하면 실제 개수와 어긋난다. 목록 화면에서
+플레이리스트마다 `COUNT(*)` 를 돌리지 않으려는 것이 목적이다.
 
 `user_id` → `users` **CASCADE** · INDEX `user_id`, `(view_count DESC) WHERE is_public`
 
@@ -207,11 +223,13 @@ UNIQUE `(playlist_id, position)` **DEFERRABLE INITIALLY DEFERRED**
 
 ### likes — 곡/플레이리스트/앨범 좋아요 (마이페이지 목록의 원본)
 
-`id` · `user_id` · `track_id` · `playlist_id` · `album_id` · `created_at`
+`id` · `user_id` · `track_id` · `album_id` · `playlist_id` · `created_at`
 
-CHECK `num_nonnulls(track_id, playlist_id, album_id) = 1`
-UNIQUE `(user_id, track_id)` · `(user_id, playlist_id)` · `(user_id, album_id)`
-네 FK 모두 **CASCADE** · INDEX `(user_id, created_at DESC)`, `track_id`, `playlist_id`, `album_id`
+CHECK `num_nonnulls(track_id, album_id, playlist_id) = 1`
+UNIQUE `(user_id, track_id)` · `(user_id, album_id)` · `(user_id, playlist_id)`
+네 FK 모두 **CASCADE** · INDEX `(user_id, created_at DESC)`, `track_id`, `album_id`, `playlist_id`
+
+컬럼 순서는 대상 크기 순이다 — 곡 → 앨범 → 플레이리스트.
 
 검색 결과에서 곡을 바로 담는 게 가장 흔한 동선이라 `track_id` 가 있다.
 
