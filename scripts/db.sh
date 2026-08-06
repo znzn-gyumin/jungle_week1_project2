@@ -12,6 +12,15 @@ USER="${POSTGRES_USER:-jungle}"
 PASSWORD="${POSTGRES_PASSWORD:-jungle}"
 DB="${POSTGRES_DB:-flowbee}"
 
+# remote POSTGRES_HOST means a shared server owns the DB - never touch a local cluster
+case "$HOST" in
+  localhost|127.0.0.1|::1|"") ;;
+  *)
+    echo "POSTGRES_HOST=$HOST is remote - skipping local postgres (${1:-start})"
+    exit 0
+    ;;
+esac
+
 PGDATA="$ROOT/.pgdata"
 LOGFILE="$ROOT/.pgdata/server.log"
 BIN="$(.venv-pg/bin/python -c "import pgserver, os; print(os.path.join(os.path.dirname(pgserver.__file__), 'pginstall', 'bin'))")"
