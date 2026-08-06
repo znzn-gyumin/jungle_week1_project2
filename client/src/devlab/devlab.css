@@ -14,6 +14,33 @@
 .lab-head h1 { margin: 0 0 4px; font-size: 20px; }
 .lab-head p { margin: 0 0 16px; max-width: 760px; }
 
+.healthbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+}
+
+.hbadge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  cursor: default;
+}
+
+.hbadge b { font-weight: 600; color: var(--muted); }
+.hbadge.pending { color: var(--muted); }
+.hbadge.ok { border-color: rgba(29, 185, 84, 0.4); color: var(--accent); }
+.hbadge.warn { border-color: rgba(217, 164, 65, 0.4); color: var(--warn); }
+.hbadge.bad { border-color: rgba(229, 72, 77, 0.4); color: var(--error); }
+
 .lab-picker {
   display: flex;
   align-items: center;

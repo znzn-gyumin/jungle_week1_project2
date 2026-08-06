@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api.js'
 import { PUBLIC_SECTIONS, SECTIONS } from './meta.js'
+import HealthBar from './HealthBar.jsx'
 import { AccountPanel, CatalogPanel, ErrorPanel, LikePanel, PlaylistPanel } from './panels.jsx'
 import { RequestLog } from './RequestLog.jsx'
 import { useFetchLog } from './useFetchLog.js'
@@ -79,6 +80,7 @@ export default function ApiLab() {
           모든 호출이 오른쪽 로그에 남는다. 행을 펼치면 요청·응답 본문과 그대로 복붙할 수 있는
           fetch 코드가 나온다. 패널 아래 표에는 엔드포인트 목록·응답 키 사전·에러 형식이 있다.
         </p>
+        <HealthBar />
       </header>
 
       <label className="lab-picker">

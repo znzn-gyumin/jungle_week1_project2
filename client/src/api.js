@@ -34,6 +34,11 @@ const qs = (params) =>
   ).toString()
 
 export const api = {
+  health: {
+    check: () => request('/api/health'),
+    db: () => request('/api/health/db'),
+  },
+
   users: {
     signup: (body) => request('/api/users/signup', json('POST', body)),
     login: (body) => request('/api/users/login', json('POST', body)),
