@@ -237,6 +237,56 @@ async def test_add_track_concurrency(a: httpx.AsyncClient, Session) -> None:
         r.text,
     )
 
+    # remove_track 도 남은 행 전체의 position 을 다시 매기므로 같은 락이 필요하다.
+    # 락이 없으면 서로 상대의 UPDATE 를 기다리다 deadlock 이 나고 카운터가 어긋난다.
+    left = [i["itemId"] for i in (await a.get(f"/api/playlists/{pid}")).json()["items"]]
+    res = await asyncio.gather(
+        *[a.delete(f"/api/playlists/{pid}/tracks/{i}") for i in left[:3]]
+    )
+    check(
+        "동시 곡 빼기 3건 전부 200",
+        [r.status_code for r in res] == [200, 200, 200],
+        [r.status_code for r in res],
+    )
+    detail = (await a.get(f"/api/playlists/{pid}")).json()
+    expected = len(track_ids) - 4
+    check(
+        f"동시 빼기 후 totalTracks={expected}",
+        detail["totalTracks"] == expected,
+        detail["totalTracks"],
+    )
+    check(
+        "동시 빼기 후 items 수 일치",
+        len(detail["items"]) == expected,
+        len(detail["items"]),
+    )
+    check(
+        "동시 빼기 후 position 에 구멍 없음",
+        [i["position"] for i in detail["items"]] == list(range(expected)),
+        [i["position"] for i in detail["items"]],
+    )
+
+    # reorder 도 마찬가지 - 서로 다른 순열을 동시에 밀어도 결과가 온전해야 한다.
+    left = [i["itemId"] for i in detail["items"]]
+    perms = [left, list(reversed(left)), left[1:] + left[:1]]
+    res = await asyncio.gather(
+        *[
+            a.put(f"/api/playlists/{pid}/tracks/order", json={"itemIds": p})
+            for p in perms
+        ]
+    )
+    check(
+        "동시 순서변경 3건 전부 200",
+        [r.status_code for r in res] == [200, 200, 200],
+        [r.status_code for r in res],
+    )
+    detail = (await a.get(f"/api/playlists/{pid}")).json()
+    check(
+        "동시 순서변경 후 position 0..N-1",
+        [i["position"] for i in detail["items"]] == list(range(expected)),
+        [i["position"] for i in detail["items"]],
+    )
+
 
 # --- 3. 500 응답 JSON 계약 -------------------------------------------------
 async def test_unhandled_exception_contract() -> None:

@@ -3,8 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Query
 from fastapi.exceptions import HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import func, literal, select
-from sqlalchemy import insert as sql_insert
+from sqlalchemy import func, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -169,37 +168,26 @@ async def add_track(
     user: User = CurrentUser,
     db: AsyncSession = DbSession,
 ) -> dict[str, Any]:
-    await _owned(playlist_id, user, db, lock=True)
+    # lock=True 가 같은 플레이리스트의 동시 요청을 줄 세운다.
+    # 락이 없으면 아래 max(position) 을 여러 요청이 같은 값으로 읽어
+    # position UNIQUE 위반 500 이 나고 total_tracks 증가가 유실된다.
+    playlist = await _owned(playlist_id, user, db, lock=True)
     if await db.get(Track, body.trackId) is None:
         raise HTTPException(404, "곡을 찾을 수 없습니다")
 
-    # position 을 파이썬에서 읽고 쓰지 않는다. 한 문장 안에서 DB 가 계산한다.
-    next_position = (
-        select(func.coalesce(func.max(PlaylistTrack.position), -1) + 1)
-        .where(PlaylistTrack.playlist_id == playlist_id)
-        .scalar_subquery()
-    )
-    item = (
-        await db.execute(
-            sql_insert(PlaylistTrack)
-            .from_select(
-                ["playlist_id", "track_id", "position"],
-                select(literal(playlist_id), literal(body.trackId), next_position),
-            )
-            .returning(PlaylistTrack.id, PlaylistTrack.position)
+    next_position = await db.scalar(
+        select(func.coalesce(func.max(PlaylistTrack.position), -1) + 1).where(
+            PlaylistTrack.playlist_id == playlist_id
         )
-    ).one()
-
-    # total_tracks 도 read-modify-write 대신 SQL 식으로 증가시킨다.
-    total_tracks = await db.scalar(
-        sql_update(Playlist)
-        .where(Playlist.id == playlist_id)
-        .values(total_tracks=Playlist.total_tracks + 1)
-        .returning(Playlist.total_tracks)
-        .execution_options(synchronize_session=False)
     )
+    item = PlaylistTrack(
+        playlist_id=playlist_id, track_id=body.trackId, position=next_position or 0
+    )
+    db.add(item)
+    playlist.total_tracks += 1
     await db.commit()
-    return {"itemId": item.id, "position": item.position, "totalTracks": total_tracks}
+    await db.refresh(item)
+    return {"itemId": item.id, "position": item.position, "totalTracks": playlist.total_tracks}
 
 
 @router.delete("/{playlist_id}/tracks/{item_id}")
