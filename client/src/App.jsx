@@ -20,8 +20,20 @@ export default function App() {
       setAuthError(err)
       window.history.replaceState({}, '', window.location.pathname)
     }
-    api.me().then(setMe).catch((e) => setAuthError(e.message))
+    api.me().then(setMe).catch((e) => setAuthError(authErrorMessage(e)))
   }, [])
+
+  // me 를 못 받으면 me 는 계속 null 이라 아래 스플래시에 갇힌다.
+  // 에러를 먼저 렌더해야 사유가 화면에 보인다.
+  if (!me && authError) {
+    return (
+      <Splash>
+        <h1 className="brand">Jungle Music</h1>
+        <p className="error">로그인 실패: {authError}</p>
+        <a className="btn-primary" href="/api/auth/login">다시 로그인</a>
+      </Splash>
+    )
+  }
 
   if (!me) return <Splash>불러오는 중…</Splash>
 
@@ -322,6 +334,16 @@ function PlayerBar({ deviceId, state, position, devMode, onToggle }) {
       </div>
     </footer>
   )
+}
+
+// Spotify 는 일부 오류를 JSON 이 아닌 평문으로 준다. 그때 백엔드가 만드는 message 는
+// "Spotify 403" 뿐이라 쓸모가 없다. 실제 사유가 담긴 detail.raw 를 우선 보여준다.
+function authErrorMessage(e) {
+  const raw = e.data?.detail?.raw
+  if (typeof raw === 'string' && raw.includes('not registered for this application')) {
+    return 'Spotify 대시보드의 User Management 에 이 계정이 등록되어 있지 않습니다. 앱 소유자에게 계정 이메일 추가를 요청하세요.'
+  }
+  return typeof raw === 'string' ? raw : e.message
 }
 
 const Splash = ({ children }) => <div className="splash">{children}</div>
