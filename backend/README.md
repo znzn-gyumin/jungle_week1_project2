@@ -42,8 +42,9 @@ SQL 로 만든 DB에 나중에 Alembic 을 붙이려면
 무시되고 기본값으로 뜬다. 또 Compose 프로젝트 이름이 디렉터리명에서 오므로 위치를
 옮기면 볼륨 이름도 바뀌어 **기존 데이터가 딸린 다른 볼륨에 남는다.**
 
-`-c` 로 ini 위치를 지정해야 한다. `alembic.ini` 의 `script_location` 이
-루트 기준(`backend/migrations`)이라 다른 디렉터리에서 실행하면 경로를 못 찾는다.
+`-c` 로 ini 위치만 지정하면 **어느 디렉터리에서 실행해도 된다.**
+`script_location` 은 `%(here)s/migrations`(ini 파일 기준)이고, `sys.path` 는
+`env.py` 가 `Path(__file__)` 로 저장소 루트를 잡는다.
 
 ### 3. 의존성
 
@@ -533,7 +534,14 @@ API 는 `artworkUrl100`(100x100) 만 준다. URL 의 `100x100bb` 를 `600x600bb`
 
 **`alembic.ini` 에 비 ASCII 문자 금지**
 configparser 가 로케일 인코딩(한국어 Windows 는 cp949)으로 읽어서
-`UnicodeDecodeError` 로 alembic 이 죽는다. 한글 주석을 넣지 말 것.
+`UnicodeDecodeError` 로 alembic 이 죽는다. 이 프로젝트는 코드에 주석을 두지
+않으므로 애초에 쓸 일이 없지만, 값에 한글을 넣을 때도 마찬가지다.
+
+**`env.py` 는 import 순서가 의도적이다**
+`sys.path` 에 저장소 루트를 넣은 **뒤에야** `backend.*` 를 import 할 수 있다.
+그래서 표준 라이브러리 import 와 `backend` import 사이에 `sys.path` 조작이 끼어
+있다. 린터를 붙이면 E402(module level import not at top of file)가 뜨는데,
+`sys.path` 조작을 위로 올릴 수 없으므로 그 규칙을 끄거나 이 파일만 예외 처리한다.
 
 **`CheckConstraint(name=...)` 에는 접두사 없는 이름**
 `backend/db/base.py` 의 `NAMING_CONVENTION` 이 `ck_<table>_` 를 붙인다.

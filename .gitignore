@@ -1,7 +1,5 @@
-# OMC
 .omc/
 
-# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -12,7 +10,6 @@ env/
 .mypy_cache/
 .ruff_cache/
 
-# Node
 node_modules/
 dist/
 build/
@@ -20,20 +17,16 @@ build/
 npm-debug.log*
 yarn-error.log*
 
-# Env
 .env
 .env.*
 !.env.example
 
-# Editor / OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 *.swp
 
-# DB
 *.sqlite
 *.sqlite3
 *.db
-
