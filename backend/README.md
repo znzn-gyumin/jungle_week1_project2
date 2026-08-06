@@ -1,12 +1,13 @@
 # Flowbee
 
-여러 플랫폼의 음악을 한 곳에서 검색하고 재생하는 서비스.
-저장소의 유일한 문서다 (루트 README 없음).
+여러 플랫폼의 음악을 한 곳에서 검색하고 재생하는 서비스의 **백엔드**.
 
-- 프론트: React 19 + Vite (`client/`)
-- 백엔드: FastAPI (`backend/`)
-- DB: PostgreSQL 17
+- FastAPI + PostgreSQL 17
+- 외부 소스: iTunes Search API, YouTube Data API
 - **코드에 주석을 두지 않는다.** 설계 근거와 주의사항은 전부 이 문서에 있다.
+
+프론트엔드는 이 저장소에 없다. `users` / `playlists` / `likes` 관리도 여기에 없다
+(아래 "담당 구분" 참고).
 
 **모든 명령은 저장소 루트에서 실행한다.** `.env` 와 `requirements.txt` 도 루트에
 하나씩만 있다.
@@ -42,31 +43,42 @@ SQL 로 만든 DB에 나중에 Alembic 을 붙이려면
 ### 3. 의존성
 
 ```bash
-# .venv 위치를 바꾸지 말 것 — package.json 의 dev:api 가 직접 참조한다
 python -m venv .venv
 .venv/Scripts/activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-
-npm install
 ```
 
 ### 4. 실행
 
 ```bash
-npm run dev     # uvicorn(:8000) + vite(:5173) 동시 실행
+uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-브라우저에서 **<http://127.0.0.1:5173>**. `localhost` 로 열면 쿠키 도메인이 달라져
-로그인이 유지되지 않는다. API 문서는 <http://127.0.0.1:8000/docs>.
+API 문서는 <http://127.0.0.1:8000/docs>.
 
-백엔드만 따로:
+### 프론트엔드를 붙일 때 — CORS
 
-```bash
-.venv/Scripts/uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+**지금 CORS 미들웨어가 없다.** 예전에는 프론트가 같은 저장소에 있고 Vite 가
+`/api` 를 `127.0.0.1:8000` 으로 프록시해서 브라우저에는 same-origin 이었다.
+프론트를 다른 오리진에서 띄우면 브라우저가 요청을 막는다.
+
+`backend/main.py` 에 아래를 추가한다. 허용할 오리진은 `.env` 의 `CLIENT_ORIGIN`
+에 이미 있다.
+
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.client_origin],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 ```
 
-> `npm run dev` 의 `dev:api` 는 `python -m uvicorn` 을 쓴다. **가상환경을 먼저
-> 활성화**해야 한다 (`.venv/bin/uvicorn` 은 Windows 에 없어서 경로 대신 모듈로 부른다).
+쿠키 인증을 붙일 계획이라면 `allow_origins` 에 `"*"` 를 쓸 수 없다
+(`allow_credentials=True` 와 함께 쓰면 브라우저가 거부한다).
 
 ---
 
@@ -95,7 +107,7 @@ YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 �
 ## API
 
 인증 없음. 실패 응답은 FastAPI 기본 `detail` 대신 `{"error": "..."}` 로 통일되어
-있고, 프론트 `client/src/api.js` 가 이 키를 읽는다.
+있다. 클라이언트는 이 키를 읽으면 된다.
 
 | Method | Path | 설명 |
 |---|---|---|
@@ -143,44 +155,36 @@ YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 �
 ## 디렉터리 구조
 
 ```
-.env  .env.example  requirements.txt  package.json  vite.config.js
+.env  .env.example  requirements.txt
 │
-├── backend/                 파이썬 패키지는 backend 하나
-│   ├── main.py              앱 생성 · lifespan · 예외 핸들러 · 라우터 등록
-│   ├── config.py            .env -> 접속 문자열 + API 키
-│   ├── schemas.py           DB 모델 -> JSON 응답 변환 (track_out · album_out)
-│   │
-│   ├── api/                 HTTP 계층. 라우터만. 비즈니스 로직 없음
-│   │   ├── health.py        /api/health
-│   │   ├── search.py        /api/search
-│   │   ├── tracks.py        /api/tracks
-│   │   └── albums.py        /api/albums
-│   │
-│   ├── services/            여러 계층을 엮는 곳
-│   │   └── search.py        소스 동시 호출 + 부분 실패 수집 + upsert 호출
-│   │
-│   ├── sources/             외부 플랫폼 클라이언트. DB 를 모른다
-│   │   ├── itunes.py        Search API 호출 + 응답 -> 컬럼 매핑
-│   │   └── youtube.py       Data API 호출 + ISO8601 길이 파싱
-│   │
-│   ├── db/                  DB 접근 계층. HTTP 를 모른다
-│   │   ├── base.py          Base · 제약조건 네이밍 규칙 · 공통 mixin
-│   │   ├── session.py       asyncpg 엔진 + get_db 의존성
-│   │   └── repository.py    ON CONFLICT upsert · 로컬 조회
-│   │
-│   ├── models/              SQLAlchemy 모델 (from backend.models import Track)
-│   ├── migrations/          Alembic
-│   ├── schema.sql           순수 SQL 생성 스크립트. 스택 무관
-│   ├── docker-compose.yml   로컬 개발용 postgres 17
-│   └── README.md            이 문서
-│
-└── client/
-    ├── index.html
-    └── src/
-        ├── App.jsx          검색 폼 + 상태
-        ├── api.js           백엔드 호출
-        ├── styles.css
-        └── components/      TrackList · PlayerBar · Banner
+└── backend/                 파이썬 패키지는 backend 하나
+    ├── main.py              앱 생성 · lifespan · 예외 핸들러 · 라우터 등록
+    ├── config.py            .env -> 접속 문자열 + API 키
+    ├── schemas.py           DB 모델 -> JSON 응답 변환 (track_out · album_out)
+    │
+    ├── api/                 HTTP 계층. 라우터만. 비즈니스 로직 없음
+    │   ├── health.py        /api/health
+    │   ├── search.py        /api/search
+    │   ├── tracks.py        /api/tracks
+    │   └── albums.py        /api/albums
+    │
+    ├── services/            여러 계층을 엮는 곳
+    │   └── search.py        소스 동시 호출 + 부분 실패 수집 + upsert 호출
+    │
+    ├── sources/             외부 플랫폼 클라이언트. DB 를 모른다
+    │   ├── itunes.py        Search API 호출 + 응답 -> 컬럼 매핑
+    │   └── youtube.py       Data API 호출 + ISO8601 길이 파싱
+    │
+    ├── db/                  DB 접근 계층. HTTP 를 모른다
+    │   ├── base.py          Base · 제약조건 네이밍 규칙 · 공통 mixin
+    │   ├── session.py       asyncpg 엔진 + get_db 의존성
+    │   └── repository.py    ON CONFLICT upsert · 조회
+    │
+    ├── models/              SQLAlchemy 모델 (from backend.models import Track)
+    ├── migrations/          Alembic
+    ├── schema.sql           순수 SQL 생성 스크립트. 스택 무관
+    ├── docker-compose.yml   로컬 개발용 postgres 17
+    └── README.md            이 문서
 ```
 
 ### 계층 규칙

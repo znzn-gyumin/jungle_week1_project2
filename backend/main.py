@@ -1,11 +1,9 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from backend.api import albums, health, search, tracks
 from backend.config import get_settings
@@ -65,8 +63,3 @@ app.include_router(health.router)
 app.include_router(albums.router)
 app.include_router(search.router)
 app.include_router(tracks.router)
-
-
-_dist = Path(__file__).resolve().parent.parent / "dist"
-if _dist.is_dir():
-    app.mount("/", StaticFiles(directory=_dist, html=True), name="static")

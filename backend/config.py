@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     postgres_port: int = 5432
     postgres_user: str = "jungle"
     postgres_password: str = "jungle"
-    postgres_db: str = "jungle_music"
+    postgres_db: str = "flowbee"
 
     youtube_api_key: str = ""
     itunes_country: str = "KR"
