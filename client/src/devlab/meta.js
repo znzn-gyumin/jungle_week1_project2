@@ -27,7 +27,7 @@ export const ENDPOINTS = {
   ],
   playlists: [
     ['POST', '/api/playlists', '{name, description?, isPublic?}', ''],
-    ['GET', '/api/playlists', '', '내 것만'],
+    ['GET', '/api/playlists?limit=', '', '내 것만. 기본 50, 최대 200'],
     ['GET', '/api/playlists/public', '', 'view_count 내림차순'],
     ['GET', '/api/playlists/:id', '', '수록곡 포함. 타인이 보면 view_count +1'],
     ['PATCH', '/api/playlists/:id', '{name?, description?, isPublic?}', ''],
@@ -37,7 +37,7 @@ export const ENDPOINTS = {
     ['PUT', '/api/playlists/:id/tracks/order', '{itemIds: [...]}', '모든 항목을 한 번씩 담아야 200'],
   ],
   likes: [
-    ['GET', '/api/likes', '', 'likes / albums / playlists 세 벌로 내려줌'],
+    ['GET', '/api/likes?limit=', '', 'albums / playlists 로 나눠서. 기본 50, 최대 200'],
     ['PUT', '/api/likes/albums/:id', '', '멱등. 이미 있으면 created:false'],
     ['DELETE', '/api/likes/albums/:id', '', '없어도 200, removed:false'],
     ['PUT', '/api/likes/playlists/:id', '', '비공개 남의 것이면 403'],
@@ -109,12 +109,12 @@ export const RESPONSE_KEYS = {
   like: {
     title: 'GET /api/likes',
     rows: [
-      ['likes', 'array', '전체를 created_at 내림차순으로'],
-      ['albums', 'array', 'likes 중 target==="album" 만'],
-      ['playlists', 'array', 'likes 중 target==="playlist" 만'],
-      ['likes[].target', "'album' | 'playlist'", ''],
-      ['likes[].album', 'album | null', ''],
-      ['likes[].playlist', 'playlist | null', ''],
+      ['albums', 'array', 'target==="album" 만. created_at 내림차순'],
+      ['playlists', 'array', 'target==="playlist" 만. created_at 내림차순'],
+      ['limit', 'number', '적용된 상한 (기본 50, 최대 200)'],
+      ['albums[].target', "'album'", ''],
+      ['albums[].album', 'album', ''],
+      ['playlists[].playlist', 'playlist', ''],
     ],
   },
 }

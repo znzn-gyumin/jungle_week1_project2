@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.accounts import CurrentUser, DbSession, OptionalUser
 from backend.models import Playlist, PlaylistTrack, Track, User
+from backend.routers.limits import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT
 from backend.serializers import playlist_out
 
 router = APIRouter(prefix="/api/playlists", tags=["playlists"])
@@ -71,14 +72,17 @@ async def create(
 
 @router.get("")
 async def list_mine(
-    user: User = CurrentUser, db: AsyncSession = DbSession
+    limit: int = Query(DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
+    user: User = CurrentUser,
+    db: AsyncSession = DbSession,
 ) -> dict[str, Any]:
     rows = await db.execute(
         select(Playlist)
         .where(Playlist.user_id == user.id)
-        .order_by(Playlist.created_at.desc())
+        .order_by(Playlist.created_at.desc(), Playlist.id.desc())
+        .limit(limit)
     )
-    return {"playlists": [playlist_out(p) for p in rows.scalars()]}
+    return {"playlists": [playlist_out(p) for p in rows.scalars()], "limit": limit}
 
 
 @router.get("/public")

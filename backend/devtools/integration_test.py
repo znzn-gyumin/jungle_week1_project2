@@ -262,7 +262,12 @@ async def run_tests(a: httpx.AsyncClient, b: httpx.AsyncClient, Session) -> None
     r = await b.get(f"/api/playlists/{pid}")
     check("유저 삭제 시 플레이리스트 CASCADE", r.status_code == 404, r.text)
     r = await b.get("/api/likes")
-    check("플레이리스트 좋아요도 CASCADE", len(r.json()["likes"]) == 0, r.text)
+    body = r.json()
+    check(
+        "플레이리스트 좋아요도 CASCADE",
+        len(body["albums"]) == 0 and len(body["playlists"]) == 0,
+        r.text,
+    )
     async with Session() as s:
         left = (await s.execute(sql_text("SELECT count(*) FROM tracks"))).scalar_one()
     check("공용 캐시 tracks 는 남음", left == 3, left)

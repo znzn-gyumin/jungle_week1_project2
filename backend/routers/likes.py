@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi.exceptions import HTTPException
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.accounts import CurrentUser, DbSession
 from backend.models import Album, Like, Playlist, User
+from backend.routers.limits import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT
 from backend.serializers import like_out
 
 router = APIRouter(prefix="/api/likes", tags=["likes"])
@@ -16,20 +17,27 @@ router = APIRouter(prefix="/api/likes", tags=["likes"])
 
 @router.get("")
 async def list_mine(
-    user: User = CurrentUser, db: AsyncSession = DbSession
+    limit: int = Query(DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
+    user: User = CurrentUser,
+    db: AsyncSession = DbSession,
 ) -> dict[str, Any]:
-    """마이페이지 목록. ix_likes_user_id_created_at 를 탄다."""
+    """마이페이지 목록. ix_likes_user_id_created_at 를 탄다.
+
+    limit 이 없으면 좋아요 수만큼 행을 읽고 앨범·플레이리스트까지 전부 eager load 한다.
+    같은 데이터를 likes/albums/playlists 세 벌로 내리던 것도 두 벌(albums·playlists)로 줄였다.
+    """
     rows = await db.execute(
         select(Like)
         .where(Like.user_id == user.id)
         .options(selectinload(Like.album), selectinload(Like.playlist))
         .order_by(Like.created_at.desc(), Like.id.desc())
+        .limit(limit)
     )
     likes = [like_out(like) for like in rows.scalars()]
     return {
-        "likes": likes,
         "albums": [like for like in likes if like["target"] == "album"],
         "playlists": [like for like in likes if like["target"] == "playlist"],
+        "limit": limit,
     }
 
 
