@@ -10,8 +10,12 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import spotify
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from . import itunes, spotify
 from .config import SPOTIFY_SCOPES, get_settings
+from .db.session import engine, get_db
 from .sessions import (
     SESSION_COOKIE,
     STATE_COOKIE,
@@ -34,6 +38,7 @@ MAX_LIMIT = 10
 async def lifespan(app: FastAPI):
     async with httpx.AsyncClient(timeout=15.0) as client:
         spotify.set_client(client)
+        itunes.set_client(client)
         missing = settings.missing_spotify_config()
         print(f"server  http://127.0.0.1:{settings.server_port}")
         print(f"client  {settings.client_origin}")
@@ -42,6 +47,8 @@ async def lifespan(app: FastAPI):
             print(f".env 누락: {', '.join(missing)} - 로그인 불가")
         yield
         spotify.set_client(None)
+        itunes.set_client(None)
+    await engine.dispose()
 
 
 app = FastAPI(title="Jungle Music API", lifespan=lifespan)
@@ -89,6 +96,19 @@ AuthDep = Depends(require_auth)
 async def health() -> dict[str, Any]:
     missing = settings.missing_spotify_config()
     return {"ok": True, "configured": not missing, "missing": missing}
+
+
+@app.get("/api/health/db")
+async def health_db(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    tables = (
+        await db.execute(
+            text(
+                "SELECT count(*) FROM information_schema.tables "
+                "WHERE table_schema = 'public'"
+            )
+        )
+    ).scalar()
+    return {"ok": True, "tables": tables}
 
 
 @app.get("/api/auth/login")
