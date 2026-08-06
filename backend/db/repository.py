@@ -55,7 +55,7 @@ async def upsert_tracks(db: AsyncSession, rows: list[dict[str, Any]]) -> list[Tr
         },
     )
     await db.execute(stmt)
-    await db.commit()
+    await db.flush()
 
     keys = [(r["source"], r["source_id"]) for r in rows]
     found = (

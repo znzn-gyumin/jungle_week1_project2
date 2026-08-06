@@ -1,6 +1,8 @@
 import asyncio
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Any, NamedTuple
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import get_settings
@@ -8,16 +10,28 @@ from backend.db import repository
 from backend.models import Album, Track
 from backend.models.enums import SourceType
 from backend.sources import itunes, youtube
+from backend.sources.itunes import ITunesError
+from backend.sources.youtube import YouTubeError
 
 settings = get_settings()
 
 ALBUM_SOURCES = (SourceType.ITUNES.value,)
 
+SOURCE_ERRORS = (ITunesError, YouTubeError, httpx.HTTPError)
 
-async def _itunes(db: AsyncSession, q: str, limit: int) -> list[Track]:
-    results = await itunes.search_tracks(
-        q, limit=limit, country=settings.itunes_country
-    )
+
+class Fetcher(NamedTuple):
+    fetch: Callable[[str, int], Awaitable[list[dict[str, Any]]]]
+    persist: Callable[[AsyncSession, list[dict[str, Any]]], Awaitable[list[Track]]]
+
+
+async def _fetch_itunes(q: str, limit: int) -> list[dict[str, Any]]:
+    return await itunes.search_tracks(q, limit=limit, country=settings.itunes_country)
+
+
+async def _persist_itunes(
+    db: AsyncSession, results: list[dict[str, Any]]
+) -> list[Track]:
     if not results:
         return []
 
@@ -32,14 +46,21 @@ async def _itunes(db: AsyncSession, q: str, limit: int) -> list[Track]:
     return await repository.upsert_tracks(db, rows)
 
 
-async def _youtube(db: AsyncSession, q: str, limit: int) -> list[Track]:
-    items = await youtube.search_videos(q, limit=limit)
+async def _fetch_youtube(q: str, limit: int) -> list[dict[str, Any]]:
+    return await youtube.search_videos(q, limit=limit)
+
+
+async def _persist_youtube(
+    db: AsyncSession, items: list[dict[str, Any]]
+) -> list[Track]:
+    if not items:
+        return []
     return await repository.upsert_tracks(db, [youtube.to_track(i) for i in items])
 
 
-_FETCHERS = {
-    SourceType.ITUNES.value: _itunes,
-    SourceType.YOUTUBE.value: _youtube,
+_FETCHERS: dict[str, Fetcher] = {
+    SourceType.ITUNES.value: Fetcher(_fetch_itunes, _persist_itunes),
+    SourceType.YOUTUBE.value: Fetcher(_fetch_youtube, _persist_youtube),
 }
 
 SOURCES = tuple(_FETCHERS)
@@ -53,28 +74,44 @@ def resolve_sources(source: str) -> tuple[str, ...]:
     return SOURCES if source == "all" else (source,)
 
 
+def _select_sources(source: str) -> tuple[list[str], list[dict[str, str]]]:
+    wanted: list[str] = []
+    errors: list[dict[str, str]] = []
+    for name in resolve_sources(source):
+        if name == SourceType.YOUTUBE.value and not youtube.configured():
+            if source != "all":
+                errors.append(
+                    {"source": name, "error": "YOUTUBE_API_KEY 가 설정되지 않았다"}
+                )
+            continue
+        wanted.append(name)
+    return wanted, errors
+
+
+def _message(exc: BaseException) -> str:
+    return getattr(exc, "message", None) or str(exc)
+
+
 async def search(
     db: AsyncSession, q: str, source: str, limit: int
 ) -> tuple[list[Track], list[dict[str, str]]]:
-    wanted = [
-        name
-        for name in resolve_sources(source)
-        if name != SourceType.YOUTUBE.value or youtube.configured()
-    ]
+    wanted, errors = _select_sources(source)
 
-    done = await asyncio.gather(
-        *(_FETCHERS[name](db, q, limit) for name in wanted),
+    fetched = await asyncio.gather(
+        *(_FETCHERS[name].fetch(q, limit) for name in wanted),
         return_exceptions=True,
     )
 
     tracks: list[Track] = []
-    errors: list[dict[str, str]] = []
-    for name, result in zip(wanted, done):
+    for name, result in zip(wanted, fetched):
         if isinstance(result, BaseException):
-            message: Any = getattr(result, "message", None) or str(result)
-            errors.append({"source": name, "error": message})
-        else:
-            tracks.extend(result)
+            if not isinstance(result, SOURCE_ERRORS):
+                raise result
+            errors.append({"source": name, "error": _message(result)})
+            continue
+        tracks.extend(await _FETCHERS[name].persist(db, result))
+
+    await db.commit()
     return tracks, errors
 
 
@@ -89,15 +126,13 @@ async def search_albums(
         results = await itunes.search_albums(
             q, limit=limit, country=settings.itunes_country
         )
-    except Exception as exc:
-        message = getattr(exc, "message", None) or str(exc)
-        return [], [{"source": "itunes", "error": message}]
+    except SOURCE_ERRORS as exc:
+        return [], [{"source": SourceType.ITUNES.value, "error": _message(exc)}]
 
     ids = await repository.upsert_albums(db, [itunes.to_album(r) for r in results])
     await db.commit()
+
     ordered = [
-        ids[key]
-        for r in results
-        if (key := itunes.album_source_id(r)) and key in ids
+        ids[key] for r in results if (key := itunes.album_source_id(r)) and key in ids
     ]
     return await repository.albums_by_ids(db, ordered), []

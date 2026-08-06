@@ -420,6 +420,23 @@ alembic -c backend/alembic.ini check     # 모델과 DB 스키마 drift 확인
 떨어진다. 다른 DB 에 붙고 YouTube 가 조용히 비활성화된다. `ROOT / ".env"` 로
 고정한 이유다.
 
+**`AsyncSession` 은 동시에 쓸 수 없다**
+`asyncio.gather` 로 여러 코루틴을 돌리면서 **같은 세션**에 쓰면
+`InvalidRequestError: concurrent operations are not permitted` 가 난다.
+그래서 `services/search.py` 는 소스마다 `fetch`(HTTP)와 `persist`(DB)를 분리해
+**HTTP 만 병렬로 돌리고 DB 쓰기는 순차로** 처리한다. 병렬로 얻을 이득은
+네트워크 지연이지 DB 가 아니다.
+
+**트랜잭션 경계는 서비스가 쥔다**
+`repository` 는 `flush` 만 하고 `commit` 하지 않는다. 검색 한 번이 트랜잭션
+하나이며, 도중에 실패하면 아무것도 남지 않는다. 리포지토리가 커밋하면 서비스가
+여러 작업을 하나로 묶을 수 없다.
+
+**소스 오류만 `errors` 로 삼킨다**
+`SOURCE_ERRORS`(ITunesError · YouTubeError · httpx.HTTPError) 만 `errors` 배열에
+담고, 그 외 예외는 그대로 올려보내 500 으로 드러낸다. `except Exception` 으로
+전부 잡으면 우리 코드의 버그가 "iTunes 오류"로 둔갑해 조용히 묻힌다.
+
 **기동 로그는 `uvicorn.error` 로거로 찍는다**
 `logging.getLogger("backend")` 처럼 새 로거를 만들면 uvicorn 이 핸들러를 붙이지
 않아 **메시지가 조용히 버려진다.** `print` 는 반대로 잘 나오지만 한국어 Windows
