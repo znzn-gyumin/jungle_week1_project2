@@ -674,11 +674,11 @@ async def test_list_limits(a: httpx.AsyncClient, Session) -> None:
 
         r = await c.get("/api/playlists")
         check("기본 limit 로 전부 보임", len(r.json()["playlists"]) == 5, r.text)
-        check("응답이 적용된 limit 을 알려준다", r.json()["limit"] == 50, r.text)
+        check("응답이 적용된 limit 을 알려준다", r.json().get("limit") == 50, r.text)
 
         r = await c.get("/api/playlists?limit=2")
         check("limit=2 면 2건", len(r.json()["playlists"]) == 2, r.text)
-        check("limit=2 가 응답에 반영", r.json()["limit"] == 2, r.text)
+        check("limit=2 가 응답에 반영", r.json().get("limit") == 2, r.text)
         check("limit=0 은 422", (await c.get("/api/playlists?limit=0")).status_code == 422)
         check(
             "limit 이 상한을 넘으면 422",
@@ -704,15 +704,15 @@ async def test_list_limits(a: httpx.AsyncClient, Session) -> None:
             await c.put(f"/api/likes/albums/{album_id}")
 
         body = (await c.get("/api/likes")).json()
-        check("좋아요 6건 전부 보임", len(body["albums"]) == 6, body)
+        check("좋아요 6건 전부 보임", len(body.get("albums", [])) == 6, body)
         check("중복 payload 제거 - likes 키 없음", "likes" not in body, list(body))
         check("albums / playlists 로만 나뉜다", set(body) == {"albums", "playlists", "limit"}, list(body))
 
         body = (await c.get("/api/likes?limit=2")).json()
         check(
             "likes limit=2 면 총 2건",
-            len(body["albums"]) + len(body["playlists"]) == 2,
-            body,
+            len(body.get("albums", [])) + len(body.get("playlists", [])) == 2,
+            list(body),
         )
         check("likes limit=0 은 422", (await c.get("/api/likes?limit=0")).status_code == 422)
         check(
