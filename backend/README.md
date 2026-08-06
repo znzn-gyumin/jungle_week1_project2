@@ -73,10 +73,18 @@ npm run dev     # uvicorn(:8000) + vite(:5173) 동시 실행
 
 ## 현재 상태
 
-**재생 방식을 iTunes Search API 로 바꾸는 중이다.** 아직 코드는 Spotify 기준이다.
+**재생 방식을 iTunes Search API 로 바꾸는 중이다.** 재생 경로만 아직 Spotify 다.
 
 - DB 는 `source_type` ENUM 에 `'itunes'` 와 `tracks.play_url` 을 이미 갖고 있다
-- `backend/main.py`, `backend/spotify.py` 는 아직 Spotify OAuth 기반이다
+- 유저 / 플레이리스트 / 좋아요 API 는 **DB 에 붙어 동작한다**
+- 검색과 재생은 아직 전부 Spotify (`backend/spotify.py`, `/api/search`, `/api/player/*`)
+
+**`tracks` / `albums` 에 행을 넣는 경로가 아직 없다.** Spotify 검색은 DB 를 거치지
+않기 때문이다. 그래서 플레이리스트에 곡을 담거나 앨범에 좋아요를 누르려면 지금은
+SQL 로 직접 넣어야 한다. iTunes 검색을 붙이면서 채워질 자리다.
+
+DB 없이 서버를 띄우면 `/api/health` 와 Spotify 라우트는 뜨지만 위 API 는
+연결 오류로 실패한다. **먼저 postgres 를 올릴 것.**
 
 지금 코드를 그대로 돌리려면 Spotify Developer 앱과 **Premium 계정**이 필요하다
 (Web Playback SDK 는 Premium 전용). <https://developer.spotify.com/dashboard> 에서
@@ -116,6 +124,56 @@ iTunes 로 넘어가면 이 준비물이 전부 사라진다. 인증이 없고, 
 iTunes 전환 시 `/api/auth/*` 와 `/api/player/*` 는 전부 사라진다.
 재생은 iTunes 가 `<audio src={play_url}>`, YouTube 가 IFrame 임베드로 끝난다.
 
+### DB 기반 API
+
+아래는 **Spotify 세션과 무관한** 자체 계정(`users` 테이블) 기반이다.
+세션 쿠키가 `sid`(Spotify) 가 아니라 `uid` 다. 두 로그인은 서로 독립이며 동시에
+유지될 수 있다. 로그인 안 하면 `401`.
+
+| Method | Path | 설명 |
+|---|---|---|
+| POST | `/api/users/signup` | `{nickname, email, password}` — 가입 즉시 로그인 |
+| POST | `/api/users/login` | `{email, password}` |
+| POST | `/api/users/logout` | 세션 파기 |
+| GET | `/api/users/me` | 프로필 + `counts.playlists` / `counts.likes` |
+| PATCH | `/api/users/me` | 닉네임 · 이메일 · 비밀번호 부분 수정 |
+| DELETE | `/api/users/me` | 탈퇴 (플레이리스트·좋아요 CASCADE) |
+| POST | `/api/playlists` | `{name, description?, isPublic?}` |
+| GET | `/api/playlists` | 내 플레이리스트 |
+| GET | `/api/playlists/public` | 공개 목록 (`view_count DESC`) |
+| GET | `/api/playlists/:id` | 상세 + 수록곡. 타인 조회 시 `view_count` +1 |
+| PATCH | `/api/playlists/:id` | 이름 · 설명 · 공개 여부 |
+| DELETE | `/api/playlists/:id` | 삭제 |
+| POST | `/api/playlists/:id/tracks` | `{trackId}` — 맨 뒤에 추가 |
+| DELETE | `/api/playlists/:id/tracks/:itemId` | 빼고 `position` 재정렬 |
+| PUT | `/api/playlists/:id/tracks/order` | `{itemIds: [...]}` — 전체 순서 교체 |
+| GET | `/api/likes` | 마이페이지. `likes` / `albums` / `playlists` 로 나눠서 응답 |
+| PUT/DELETE | `/api/likes/albums/:id` | 앨범 좋아요 · 취소 |
+| PUT/DELETE | `/api/likes/playlists/:id` | 플레이리스트 좋아요 · 취소 |
+
+**응답 키는 camelCase 다.** DB 컬럼(`total_tracks`, `play_url`)을 그대로 노출하지
+않고 `backend/serializers.py` 에서 한 번 변환한다.
+
+주의할 동작:
+
+- `POST /api/playlists/:id/tracks` 와 `DELETE .../tracks/:itemId` 가
+  `playlists.total_tracks` 를 함께 갱신한다. 이 경로를 우회해 `playlist_tracks` 를
+  직접 건드리면 카운트가 어긋난다.
+- 순서 변경은 `itemIds` 에 **모든 항목을 한 번씩** 담아야 한다. 빠지거나 중복이면
+  `400`. `position` UNIQUE 가 DEFERRABLE 이라 한 트랜잭션에서 통째로 갈아끼운다.
+- 좋아요는 `PUT` 이 멱등이다. 중복 체크를 애플리케이션이 아니라 UNIQUE 제약에
+  맡기고(`ON CONFLICT DO NOTHING`) `{"liked": true, "created": false}` 로 알린다.
+- 비공개 플레이리스트에는 **새로** 좋아요를 누를 수 없지만(`403`), 이미 눌러둔
+  좋아요 행은 주인이 비공개로 바꿔도 남는다. 목록의 `playlist.isPublic` 으로
+  프론트가 판단한다.
+
+### 비밀번호
+
+`backend/security.py` 가 `hashlib.scrypt`(표준 라이브러리)로 해싱한다.
+`scrypt$N$r$p$salt$hash` 형식이라 파라미터가 해시에 같이 들어간다 —
+나중에 비용을 올려도 기존 해시를 그대로 검증할 수 있다.
+**bcrypt/argon2 의존성을 일부러 추가하지 않았다.** `requirements.txt` 는 그대로다.
+
 ---
 
 ## 파일
@@ -124,18 +182,39 @@ iTunes 전환 시 `/api/auth/*` 와 `/api/player/*` 는 전부 사라진다.
 
 | 경로 | 역할 |
 |---|---|
-| `backend/main.py` | 라우트 + 응답 정규화 + 예외 핸들러 |
+| `backend/main.py` | Spotify 라우트 + 응답 정규화 + 예외 핸들러 + 라우터 등록 |
+| `backend/routers/users.py` | 자체 계정 가입 · 로그인 · 프로필 |
+| `backend/routers/playlists.py` | 플레이리스트 CRUD + 수록곡 + 순서 |
+| `backend/routers/likes.py` | 앨범 / 플레이리스트 좋아요 |
+| `backend/serializers.py` | 모델 → camelCase 응답 변환 (한 곳에 모음) |
+| `backend/accounts.py` | `uid` 쿠키 → `User` 의존성 (`current_user` / `optional_user`) |
+| `backend/security.py` | scrypt 비밀번호 해싱 |
 | `backend/spotify.py` | 토큰 교환/갱신, Spotify API 래퍼 |
 | `backend/sessions.py` | 인메모리 세션 (서버 재시작하면 로그아웃) |
 | `backend/config.py` | `.env` → DB 접속 문자열 + Spotify 설정 (단일 `get_settings()`) |
+| `backend/db/session.py` | async 엔진 + `get_db` 의존성 |
 | `backend/models/*.py` | SQLAlchemy 모델 (`from backend.models import Track`) |
 | `backend/db/base.py` | `Base`, 제약조건 네이밍 규칙, 공통 mixin |
 | `backend/migrations/` | Alembic |
 | `backend/schema.sql` | 순수 SQL 생성 스크립트. 스택 무관 |
 | `backend/docker-compose.yml` | 로컬 개발용 postgres 17 |
-| `client/src/App.jsx` | 화면 전체 |
+| `client/src/App.jsx` | 뷰 전환 + Spotify 화면 전체 |
+| `client/src/ApiLab.jsx` | `API 확인` 탭 — DB API 를 직접 눌러보는 화면 |
 | `client/src/usePlayer.js` | Web Playback SDK 연결 훅 |
-| `client/src/api.js` | 백엔드 호출 |
+| `client/src/api.js` | 백엔드 호출 + 요청 로그 이벤트(`onApiEvent`) |
+
+### API 확인 페이지
+
+`http://127.0.0.1:5173` 상단의 **`API 확인`** 탭. Spotify 로그인 없이 열린다.
+가입 → 플레이리스트 생성 → 공개 전환 → 좋아요를 순서대로 눌러보게 되어 있고,
+오른쪽 패널에 **모든 요청의 method · path · status · 소요시간**이 쌓인다.
+`client/src/api.js` 의 `request()` 가 이벤트를 쏘기 때문에 Spotify 화면의 호출도
+같은 방식으로 볼 수 있다.
+
+곡 담기와 앨범 좋아요는 `tracks` / `albums` 에 행이 있어야 눌러볼 수 있다.
+현재 그 행을 만드는 API 가 없어서 SQL 로 직접 넣어야 한다.
+
+선택한 탭은 `localStorage` 의 `jungle:view` 에 저장된다.
 
 ---
 
@@ -414,9 +493,16 @@ iTunes 의 "Bohemian Rhapsody" 와 YouTube 의 같은 곡은 `source` 가 달라
 **`artist` 가 단순 텍스트다.**
 아티스트 테이블이 없어서 플랫폼 간 동일 아티스트를 식별할 수 없다.
 
-**DB 세션이 아직 FastAPI 에 연결되지 않았다.**
-모델과 마이그레이션은 있지만 async 엔진 / `get_db` 의존성이 없어서, `main.py` 의
-어떤 라우터도 아직 DB 를 읽거나 쓰지 않는다.
+**계정이 두 개다.**
+Spotify OAuth 세션(`sid`)과 자체 계정(`uid`)이 서로 모른다. Spotify 로 로그인해도
+플레이리스트를 만들 수 없고, 자체 계정으로 로그인해도 재생은 안 된다.
+iTunes 로 완전히 넘어가면 `sid` 쪽이 통째로 사라지면서 자연히 해소된다.
+
+**검색 결과가 DB 로 들어오지 않는다.**
+`/api/search` 는 Spotify 응답을 그대로 내려줄 뿐 `tracks`/`albums` 를 채우지
+않는다. 그래서 플레이리스트에 담을 곡의 출처가 없다. iTunes 검색을 붙일 때
+결과를 `(source, source_id)` 로 upsert 하는 단계를 함께 넣어야 한다
+(쿼리 예시는 "자주 쓸 쿼리" 참고). `search_cache` 도 그때 쓰인다.
 
 ---
 
@@ -452,7 +538,6 @@ Daily Mix / Discover Weekly / Wrapped / 상위 아티스트에 반영된다. Spo
 - 세션이 **인메모리**라 서버 재시작 시 재로그인 (실서비스는 Redis/DB)
 - 단일 사용자 기준. 동시 사용자 테스트 안 함
 - 다음곡/이전곡/셔플/볼륨/시크 미구현 (재생·일시정지만)
-- 플레이리스트, 앨범 상세, 좋아요 미구현 — DB 스키마만 준비된 상태
 - 브라우저는 EME(DRM) 필요. 일부 브라우저·시크릿 모드에서 SDK 연결 실패
 
 ### 코드에 주석으로 있던 주의사항

@@ -12,6 +12,8 @@ from pydantic import BaseModel
 
 from . import spotify
 from .config import SPOTIFY_SCOPES, get_settings
+from .db.session import dispose_engine
+from .routers import likes_router, playlists_router, users_router
 from .sessions import (
     SESSION_COOKIE,
     STATE_COOKIE,
@@ -42,9 +44,14 @@ async def lifespan(app: FastAPI):
             print(f".env 누락: {', '.join(missing)} - 로그인 불가")
         yield
         spotify.set_client(None)
+        await dispose_engine()
 
 
 app = FastAPI(title="Jungle Music API", lifespan=lifespan)
+
+app.include_router(users_router)
+app.include_router(playlists_router)
+app.include_router(likes_router)
 
 
 @app.exception_handler(HTTPException)
