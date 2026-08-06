@@ -86,16 +86,36 @@ What it adds, aimed at frontend developers who are still learning:
 - A realistic flow (sign up → search → add track → reorder → like) rather than a
   flat endpoint list.
 
+## Dummy accounts
+
+Anything involving another user — 403, `viewCount` incrementing only for
+non-owners, liking someone else's public playlist — needs a second account.
+Asking a frontend developer to invent and remember credentials for that is
+friction, so the page creates them: one click makes `테스터N` /
+`testerN@devlab.test`, and the password is the constant `devlab-pw-0000`.
+
+The password is fixed rather than random on purpose. It has to be typeable into
+curl or Swagger, and a random one would have to be read off the screen every
+time. These accounts only exist in a developer's local database.
+
+The roster lives in `localStorage`, not in a backend table. No product code
+changes, nothing to clean up on the server beyond the rows themselves, and it
+disappears with the folder. `PATCH /api/users/me` writes back into the roster so
+changing an email or password does not orphan the stored credentials.
+
+Deleting a dummy logs in as it and calls `DELETE /api/users/me`, which is also
+the cheapest way to exercise the cascade.
+
 ## Two accounts, one browser
 
-Cookies are per-browser, so two sessions cannot be live in one tab. The account
-switcher stores previously used credentials in `localStorage` and logs out then
-back in. That makes 403, `viewCount` increments and liking someone else's public
-playlist reachable **sequentially**.
+Cookies are per-browser, so two sessions cannot be live in one tab. Switching is
+a logout followed by a login, which makes the cross-account cases reachable
+**sequentially** rather than side by side.
 
 Viewing both at once still requires a second browser profile or an incognito
-window. This is a real limitation, not an oversight; header-based session
-override was rejected because it would mean adding an auth bypass to product code.
+window. This is a real limitation, not an oversight; a header-based session
+override was rejected because it would mean adding an auth bypass to product
+code.
 
 ## `client/index.html`
 

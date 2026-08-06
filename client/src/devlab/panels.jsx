@@ -1,28 +1,24 @@
 import { useState } from 'react'
 import { api } from '../api.js'
+import {
+  DEV_PASSWORD,
+  forgetAccount,
+  listAccounts,
+  nextIdentity,
+  saveAccount,
+  updateAccount,
+} from './accounts.js'
 import { catalogApi } from './catalogApi.js'
 import { Field, Panel, Reference } from './parts.jsx'
-
-const SAVED_ACCOUNTS = 'devlab:accounts'
-
-function readAccounts() {
-  try {
-    return JSON.parse(localStorage.getItem(SAVED_ACCOUNTS) ?? '[]')
-  } catch {
-    return []
-  }
-}
-
-function rememberAccount(email, password) {
-  const kept = readAccounts().filter((a) => a.email !== email)
-  localStorage.setItem(SAVED_ACCOUNTS, JSON.stringify([{ email, password }, ...kept].slice(0, 4)))
-}
 
 export function AccountPanel({ me, run, onChanged }) {
   const [mode, setMode] = useState('login')
   const [form, setForm] = useState({ nickname: '', email: '', password: '' })
   const [patch, setPatch] = useState({ nickname: '', email: '', password: '' })
-  const accounts = readAccounts()
+  const [roster, setRoster] = useState(listAccounts)
+  const [busy, setBusy] = useState(false)
+
+  const sync = () => setRoster(listAccounts())
 
   const field = (state, setState) => (key) => ({
     value: state[key],
@@ -31,24 +27,176 @@ export function AccountPanel({ me, run, onChanged }) {
   const signupField = field(form, setForm)
   const patchField = field(patch, setPatch)
 
+  const createDummies = async (count) => {
+    setBusy(true)
+    await run(async () => {
+      for (let i = 0; i < count; i += 1) {
+        let created = null
+        for (let attempt = 0; attempt < 5 && !created; attempt += 1) {
+          const identity = nextIdentity()
+          try {
+            const user = await api.users.signup(identity)
+            saveAccount({ ...identity, id: user.id })
+            created = user
+          } catch (e) {
+            if (e.status !== 409) throw e
+          }
+        }
+        if (!created) throw new Error('닉네임·이메일 중복이 반복돼 더미 계정을 못 만들었다')
+      }
+    })
+    setBusy(false)
+    sync()
+    await onChanged()
+  }
+
+  const switchTo = async (account) => {
+    setBusy(true)
+    await run(async () => {
+      await api.users.logout()
+      await api.users.login({ email: account.email, password: account.password })
+    })
+    setBusy(false)
+    await onChanged()
+  }
+
+  const removeAccount = async (account) => {
+    setBusy(true)
+    await run(async () => {
+      await api.users.login({ email: account.email, password: account.password })
+      await api.users.remove()
+    })
+    forgetAccount(account.email)
+    setBusy(false)
+    sync()
+    await onChanged()
+  }
+
+  const removeAll = async () => {
+    if (!window.confirm(`더미 계정 ${roster.length}개와 그 사람들의 플레이리스트·좋아요를 전부 지운다. 진행할까?`)) return
+    setBusy(true)
+    for (const account of roster) {
+      await run(async () => {
+        await api.users.login({ email: account.email, password: account.password })
+        await api.users.remove()
+      })
+      forgetAccount(account.email)
+    }
+    setBusy(false)
+    sync()
+    await onChanged()
+  }
+
   const submitAuth = async (e) => {
     e.preventDefault()
     const body = mode === 'signup' ? form : { email: form.email, password: form.password }
     const ok = await run(() => (mode === 'signup' ? api.users.signup(body) : api.users.login(body)))
     if (ok) {
-      rememberAccount(form.email.trim().toLowerCase(), form.password)
+      saveAccount({
+        nickname: ok.nickname,
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+        id: ok.id,
+      })
+      sync()
       await onChanged()
     }
   }
 
-  const switchTo = async (account) => {
-    await run(() => api.users.logout())
-    const ok = await run(() => api.users.login(account))
-    if (ok) await onChanged()
+  const submitPatch = async (e) => {
+    e.preventDefault()
+    const body = Object.fromEntries(Object.entries(patch).filter(([, v]) => v.trim()))
+    if (!Object.keys(body).length) return
+    const ok = await run(() => api.users.update(body))
+    if (ok && me?.email) {
+      updateAccount(me.email, {
+        ...(body.nickname ? { nickname: body.nickname.trim() } : {}),
+        ...(body.email ? { email: body.email.trim().toLowerCase() } : {}),
+        ...(body.password ? { password: body.password } : {}),
+      })
+      sync()
+    }
+    setPatch({ nickname: '', email: '', password: '' })
+    await onChanged()
   }
 
   return (
     <>
+      <Panel
+        title="더미 계정"
+        hint="유저 관련 동작을 눌러보려면 계정이 여러 개 필요하다. 여기서 만든다."
+      >
+        <div className="row-form">
+          <button className="btn-primary" disabled={busy} onClick={() => createDummies(1)}>
+            1명 만들기
+          </button>
+          <button className="btn-ghost" disabled={busy} onClick={() => createDummies(3)}>
+            3명 만들기
+          </button>
+          {roster.length > 0 && (
+            <button className="btn-ghost danger" disabled={busy} onClick={removeAll}>
+              전부 삭제 ({roster.length})
+            </button>
+          )}
+        </div>
+
+        <p className="muted small">
+          닉네임 <code className="mono">테스터N</code>, 이메일{' '}
+          <code className="mono">testerN@devlab.test</code>, 비밀번호는 전부{' '}
+          <code className="mono">{DEV_PASSWORD}</code> 로 고정이다. curl 이나 Swagger 에서도
+          같은 값으로 로그인할 수 있다. <b>만들면 마지막에 만든 계정으로 로그인된다.</b>
+        </p>
+
+        {roster.length === 0 ? (
+          <p className="empty muted">아직 만든 계정이 없다.</p>
+        ) : (
+          <ul className="lab-list">
+            {roster.map((account) => {
+              const current = me?.loggedIn && me.email === account.email
+              return (
+                <li key={account.email} className={current ? 'active' : undefined}>
+                  <div className="meta">
+                    <div className="title">
+                      {account.nickname || account.email.split('@')[0]}
+                      {current && <span className="tag">현재</span>}
+                    </div>
+                    <div className="sub mono">
+                      id {account.id ?? '?'} · {account.email}
+                    </div>
+                  </div>
+                  <button
+                    className="btn-ghost"
+                    disabled={busy || current}
+                    onClick={() => switchTo(account)}
+                  >
+                    전환
+                  </button>
+                  <button
+                    className="btn-ghost danger"
+                    disabled={busy}
+                    onClick={() => removeAccount(account)}
+                  >
+                    삭제
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
+        <p className="muted small">
+          쿠키는 브라우저당 하나라 두 계정을 동시에 붙일 수 없다. <b>전환</b>은 로그아웃 후
+          다시 로그인하는 것이고, 이걸로 403 · <code className="mono">viewCount</code> 증가 ·
+          남의 공개 플레이리스트 좋아요를 확인한다. 정말 동시에 보려면 시크릿 창을 띄운다.
+        </p>
+        <p className="muted small">
+          <b>삭제</b>는 그 계정으로 로그인한 뒤 <code className="mono">DELETE /api/users/me</code> 를
+          부른다. 그 사람의 플레이리스트와 좋아요가 CASCADE 로 함께 사라지고,
+          <code className="mono">tracks</code> · <code className="mono">albums</code> 는 공용이라
+          남는다.
+        </p>
+      </Panel>
+
       <Panel
         title="유저 정보 API"
         hint="이 서비스의 자체 계정이다. Spotify 로그인과 별개이고 쿠키 이름이 uid 다."
@@ -101,25 +249,14 @@ export function AccountPanel({ me, run, onChanged }) {
             </dl>
 
             <h4 className="section-title">PATCH /api/users/me</h4>
-            <p className="muted small">채운 필드만 보낸다. 셋 다 비우면 아무것도 안 바뀐다.</p>
-            <form
-              className="stack-form"
-              onSubmit={async (e) => {
-                e.preventDefault()
-                const body = Object.fromEntries(
-                  Object.entries(patch).filter(([, v]) => v.trim()),
-                )
-                if (!Object.keys(body).length) return
-                await run(() => api.users.update(body))
-                setPatch({ nickname: '', email: '', password: '' })
-                await onChanged()
-              }}
-            >
+            <p className="muted small">
+              채운 필드만 보낸다. 셋 다 비우면 아무것도 안 바뀐다. 더미 계정을 고치면
+              위 목록의 저장된 값도 함께 갱신된다.
+            </p>
+            <form className="stack-form" onSubmit={submitPatch}>
               <Field label="nickname"><input {...patchField('nickname')} maxLength={30} /></Field>
               <Field label="email"><input {...patchField('email')} /></Field>
-              <Field label="password" hint="바꾸면 저장해둔 비밀번호와 달라진다">
-                <input {...patchField('password')} type="password" />
-              </Field>
+              <Field label="password"><input {...patchField('password')} type="password" /></Field>
               <button className="btn-primary" type="submit">보낸 필드만 수정</button>
             </form>
 
@@ -137,36 +274,16 @@ export function AccountPanel({ me, run, onChanged }) {
                 className="btn-ghost danger"
                 onClick={async () => {
                   if (!window.confirm('계정과 그 사람의 플레이리스트·좋아요가 전부 사라진다. 진행할까?')) return
-                  await run(() => api.users.remove())
+                  const ok = await run(() => api.users.remove())
+                  if (ok && me.email) {
+                    forgetAccount(me.email)
+                    sync()
+                  }
                   await onChanged()
                 }}
               >
                 DELETE /me
               </button>
-            </div>
-          </>
-        )}
-
-        {accounts.length > 0 && (
-          <>
-            <h4 className="section-title">계정 전환</h4>
-            <p className="muted small">
-              쿠키는 브라우저당 하나라 두 계정을 동시에 붙일 수 없다. 여기서 갈아타면
-              403 · viewCount · 남의 플레이리스트 좋아요를 확인할 수 있다.
-              동시에 보려면 시크릿 창을 따로 띄운다.
-            </p>
-            <div className="row-form">
-              {accounts.map((a) => (
-                <button
-                  key={a.email}
-                  className="btn-ghost"
-                  disabled={me?.email === a.email}
-                  onClick={() => switchTo(a)}
-                >
-                  {a.email}
-                  {me?.email === a.email ? ' (현재)' : ''}
-                </button>
-              ))}
             </div>
           </>
         )}
@@ -345,6 +462,7 @@ export function PlaylistPanel({
 }) {
   const [create, setCreate] = useState({ name: '', description: '', isPublic: false })
   const [edit, setEdit] = useState({ name: '', description: '' })
+  const [lookup, setLookup] = useState('')
 
   const move = async (index, delta) => {
     const ids = detail.items.map((i) => i.itemId)
@@ -395,6 +513,26 @@ export function PlaylistPanel({
         <div className="row-form">
           <button className="btn-ghost" onClick={onLoadPublic}>GET /api/playlists/public</button>
         </div>
+
+        <form
+          className="row-form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (lookup) onOpen(Number(lookup))
+          }}
+        >
+          <input
+            value={lookup}
+            onChange={(e) => setLookup(e.target.value)}
+            placeholder="playlistId"
+            type="number"
+          />
+          <button className="btn-ghost" type="submit">id 로 열기</button>
+        </form>
+        <p className="muted small">
+          남의 id 를 넣어보면 공개면 200(그리고 <code className="mono">viewCount</code> +1),
+          비공개면 403, 없으면 404 다. 더미 계정 탭에서 전환해 가며 확인한다.
+        </p>
 
         {publicList.length > 0 && (
           <>
@@ -743,8 +881,8 @@ export function ErrorPanel({ me, playlists, run, onChanged }) {
             <div className="meta">
               <div className="title">남의 비공개 플레이리스트 열기</div>
               <div className="sub">
-                유저 탭의 '계정 전환' 으로 다른 계정이 된 뒤, 플레이리스트 탭에서 앞 계정의
-                비공개 리스트 id 를 연다.
+                유저 탭에서 더미 계정을 만들어 전환한 뒤, 플레이리스트 탭의
+                'id 로 열기' 에 앞 계정의 비공개 리스트 id 를 넣는다.
               </div>
             </div>
           </li>
