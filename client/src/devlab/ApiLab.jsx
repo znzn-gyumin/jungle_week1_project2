@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api.js'
-import { SECTIONS } from './meta.js'
+import { PUBLIC_SECTIONS, SECTIONS } from './meta.js'
 import { AccountPanel, CatalogPanel, ErrorPanel, LikePanel, PlaylistPanel } from './panels.jsx'
 import { RequestLog } from './RequestLog.jsx'
 import { useFetchLog } from './useFetchLog.js'
@@ -69,7 +69,7 @@ export default function ApiLab() {
     if (detail) await openDetail(detail.id)
   }
 
-  const active = me?.loggedIn ? section : 'user'
+  const active = me?.loggedIn || PUBLIC_SECTIONS.includes(section) ? section : 'user'
 
   return (
     <div className="lab">
@@ -85,10 +85,10 @@ export default function ApiLab() {
         <span className="muted small">확인할 API</span>
         <select value={active} onChange={(e) => setSection(e.target.value)}>
           {SECTIONS.map((s) => (
-            <option key={s.key} value={s.key} disabled={s.key !== 'user' && !me?.loggedIn}>
+            <option key={s.key} value={s.key} disabled={s.auth && !me?.loggedIn}>
               {s.label}
               {s.prefix ? ` — ${s.prefix}` : ''}
-              {s.key !== 'user' && !me?.loggedIn ? ' (로그인 필요)' : ''}
+              {s.auth && !me?.loggedIn ? ' (로그인 필요)' : ''}
             </option>
           ))}
         </select>
@@ -109,6 +109,7 @@ export default function ApiLab() {
             <CatalogPanel
               playlists={playlists}
               likes={likes}
+              loggedIn={!!me?.loggedIn}
               run={run}
               onTrackAdded={refresh}
               onLiked={loadLikes}

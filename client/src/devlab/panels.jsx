@@ -313,7 +313,7 @@ export function AccountPanel({ me, run, onChanged }) {
   )
 }
 
-export function CatalogPanel({ playlists, likes, run, onTrackAdded, onLiked }) {
+export function CatalogPanel({ playlists, likes, loggedIn, run, onTrackAdded, onLiked }) {
   const [query, setQuery] = useState('')
   const [limit, setLimit] = useState(10)
   const [source, setSource] = useState('all')
@@ -328,8 +328,13 @@ export function CatalogPanel({ playlists, likes, run, onTrackAdded, onLiked }) {
     <>
       <Panel
         title="곡 · 앨범"
-        hint="제품 API 인 /api/search · /api/albums · /api/tracks 를 그대로 부른다. 검색하면 tracks/albums 에 행이 생기므로, 플레이리스트·좋아요를 눌러보려면 이게 먼저다."
+        hint="제품 API 인 /api/search · /api/albums · /api/tracks 를 그대로 부른다. 셋 다 인증이 필요 없어서 로그인 없이 눌러볼 수 있다. 검색하면 tracks/albums 에 행이 생기므로, 플레이리스트·좋아요를 눌러보려면 이게 먼저다."
       >
+        {!loggedIn && (
+          <p className="muted small">
+            검색·조회는 그대로 되고, 담기·좋아요만 로그인이 필요하다.
+          </p>
+        )}
         <form
           className="row-form"
           onSubmit={async (e) => {
@@ -462,6 +467,7 @@ export function CatalogPanel({ playlists, likes, run, onTrackAdded, onLiked }) {
                   </button>
                   <button
                     className="btn-ghost"
+                    disabled={!loggedIn}
                     onClick={async () => {
                       const liked = likedAlbums.has(a.id)
                       await run(() =>

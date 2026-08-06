@@ -1,10 +1,12 @@
 export const SECTIONS = [
-  { key: 'user', label: '유저 정보 API', prefix: '/api/users' },
-  { key: 'catalog', label: '곡 · 앨범', prefix: '/api/search · /api/tracks · /api/albums' },
-  { key: 'playlists', label: '플레이리스트 API', prefix: '/api/playlists' },
-  { key: 'likes', label: '좋아요 API', prefix: '/api/likes' },
-  { key: 'errors', label: '실패 응답 모아보기', prefix: '' },
+  { key: 'user', label: '유저 정보 API', prefix: '/api/users', auth: false },
+  { key: 'catalog', label: '곡 · 앨범', prefix: '/api/search · /api/tracks · /api/albums', auth: false },
+  { key: 'playlists', label: '플레이리스트 API', prefix: '/api/playlists', auth: true },
+  { key: 'likes', label: '좋아요 API', prefix: '/api/likes', auth: true },
+  { key: 'errors', label: '실패 응답 모아보기', prefix: '', auth: true },
 ]
+
+export const PUBLIC_SECTIONS = SECTIONS.filter((s) => !s.auth).map((s) => s.key)
 
 export const ENDPOINTS = {
   user: [
