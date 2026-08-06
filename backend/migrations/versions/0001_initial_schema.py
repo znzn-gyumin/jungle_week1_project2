@@ -192,6 +192,7 @@ def upgrade() -> None:
         "likes",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.BigInteger(), nullable=False),
+        sa.Column("track_id", sa.BigInteger(), nullable=True),
         sa.Column("playlist_id", sa.BigInteger(), nullable=True),
         sa.Column("album_id", sa.BigInteger(), nullable=True),
         sa.Column(
@@ -203,6 +204,12 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name="pk_likes"),
         sa.ForeignKeyConstraint(
             ["user_id"], ["users.id"], name="fk_likes_user_id_users", ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["track_id"],
+            ["tracks.id"],
+            name="fk_likes_track_id_tracks",
+            ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
             ["playlist_id"],
@@ -217,9 +224,10 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.CheckConstraint(
-            "num_nonnulls(playlist_id, album_id) = 1",
+            "num_nonnulls(track_id, playlist_id, album_id) = 1",
             name="exactly_one_target",
         ),
+        sa.UniqueConstraint("user_id", "track_id", name="uq_likes_user_id_track_id"),
         sa.UniqueConstraint(
             "user_id", "playlist_id", name="uq_likes_user_id_playlist_id"
         ),
@@ -230,11 +238,73 @@ def upgrade() -> None:
         "likes",
         ["user_id", sa.text("created_at DESC")],
     )
+    op.create_index("ix_likes_track_id", "likes", ["track_id"])
     op.create_index("ix_likes_playlist_id", "likes", ["playlist_id"])
     op.create_index("ix_likes_album_id", "likes", ["album_id"])
 
+    op.create_table(
+        "search_cache",
+        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
+        sa.Column("source", source_type, nullable=False),
+        sa.Column("search_type", sa.String(length=16), nullable=False),
+        sa.Column("query", sa.Text(), nullable=False),
+        sa.Column(
+            "fetched_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.PrimaryKeyConstraint("id", name="pk_search_cache"),
+        sa.UniqueConstraint(
+            "source",
+            "search_type",
+            "query",
+            name="uq_search_cache_source_search_type_query",
+        ),
+    )
+    op.create_index("ix_search_cache_fetched_at", "search_cache", ["fetched_at"])
+
+    op.create_table(
+        "search_cache_items",
+        sa.Column("cache_id", sa.BigInteger(), nullable=False),
+        sa.Column("position", sa.Integer(), nullable=False),
+        sa.Column("track_id", sa.BigInteger(), nullable=True),
+        sa.Column("album_id", sa.BigInteger(), nullable=True),
+        sa.PrimaryKeyConstraint("cache_id", "position", name="pk_search_cache_items"),
+        sa.ForeignKeyConstraint(
+            ["cache_id"],
+            ["search_cache.id"],
+            name="fk_search_cache_items_cache_id_search_cache",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["track_id"],
+            ["tracks.id"],
+            name="fk_search_cache_items_track_id_tracks",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["album_id"],
+            ["albums.id"],
+            name="fk_search_cache_items_album_id_albums",
+            ondelete="CASCADE",
+        ),
+        sa.CheckConstraint(
+            "num_nonnulls(track_id, album_id) = 1", name="exactly_one_target"
+        ),
+        sa.CheckConstraint("position >= 0", name="position_non_negative"),
+    )
+    op.create_index(
+        "ix_search_cache_items_track_id", "search_cache_items", ["track_id"]
+    )
+    op.create_index(
+        "ix_search_cache_items_album_id", "search_cache_items", ["album_id"]
+    )
+
 
 def downgrade() -> None:
+    op.drop_table("search_cache_items")
+    op.drop_table("search_cache")
     op.drop_table("likes")
     op.drop_table("playlist_tracks")
     op.drop_table("playlists")

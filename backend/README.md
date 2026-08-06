@@ -143,9 +143,14 @@ iTunes 전환 시 `/api/auth/*` 와 `/api/player/*` 는 전부 사라진다.
 
 ```
 users ──< playlists ──< playlist_tracks >── tracks >── albums
-  │           │                                          │
-  └──< likes ────────────────────────────────────────────┘
+  │           │                              │  │         │
+  └──< likes ─┴──────────────────────────────┘  │         │
+                                                │         │
+       search_cache ──< search_cache_items >────┴─────────┘
 ```
+
+`likes` 는 곡·플레이리스트·앨범 중 하나를 가리키고,
+`search_cache_items` 는 곡 또는 앨범을 가리킨다.
 
 `source_type` = ENUM(`'itunes'`, `'youtube'`)
 
@@ -200,19 +205,45 @@ iTunes 필드 매핑: `trackId`→`source_id`, `trackName`→`title`, `artistNam
 UNIQUE `(playlist_id, position)` **DEFERRABLE INITIALLY DEFERRED**
 두 FK 모두 **CASCADE**
 
-### likes — 플레이리스트/앨범 좋아요 (마이페이지 목록의 원본)
+### likes — 곡/플레이리스트/앨범 좋아요 (마이페이지 목록의 원본)
 
-`id` · `user_id` · `playlist_id` · `album_id` · `created_at`
+`id` · `user_id` · `track_id` · `playlist_id` · `album_id` · `created_at`
 
-CHECK `num_nonnulls(playlist_id, album_id) = 1`
-UNIQUE `(user_id, playlist_id)` · UNIQUE `(user_id, album_id)`
-세 FK 모두 **CASCADE** · INDEX `(user_id, created_at DESC)`, `playlist_id`, `album_id`
+CHECK `num_nonnulls(track_id, playlist_id, album_id) = 1`
+UNIQUE `(user_id, track_id)` · `(user_id, playlist_id)` · `(user_id, album_id)`
+네 FK 모두 **CASCADE** · INDEX `(user_id, created_at DESC)`, `track_id`, `playlist_id`, `album_id`
+
+검색 결과에서 곡을 바로 담는 게 가장 흔한 동선이라 `track_id` 가 있다.
+
+### search_cache / search_cache_items — 검색어 캐시
+
+```
+search_cache        id · source · search_type · query · fetched_at
+                    UNIQUE (source, search_type, query) · INDEX fetched_at
+
+search_cache_items  cache_id · position · track_id · album_id
+                    PK (cache_id, position)
+                    CHECK num_nonnulls(track_id, album_id) = 1
+                    세 FK 모두 CASCADE
+```
+
+`query` 는 정규화(소문자·trim)해서 넣는다. `search_type` 은 `'track'` / `'album'`.
+`fetched_at` 으로 TTL 을 판정하고, 만료된 행은 지우면 `items` 가 CASCADE 로 따라간다.
+
+**왜 필요한가** — iTunes 는 IP 당 약 20회/분(초과 시 429), YouTube 는 하루 100회다.
+둘 다 **개발자 크레덴셜 하나를 전체 사용자가 공유**하므로 사용자가 늘수록 빨리
+소진된다. 검색어 단위 캐시 없이는 시연 중에 막힐 수 있다.
+
+결과를 배열(`bigint[]`)이 아니라 별도 테이블에 둔 이유는 FK 로 무결성을 걸기
+위해서다. 배열에는 FK 를 못 걸어 삭제된 곡의 id 가 남는다.
 
 ### 삭제 전파
 
 유저를 지우면 그 사람의 `playlists` / `playlist_tracks` / `likes` 가 함께 사라지고,
-공용 캐시인 `tracks` / `albums` 는 남는다.
+공용 캐시인 `tracks` / `albums` / `search_cache` 는 남는다.
 앨범을 지우면 그 앨범의 트랙은 `album_id` 만 NULL 이 되고 트랙 자체는 유지된다.
+곡을 지우면 그 곡을 가리키던 `likes` · `playlist_tracks` · `search_cache_items` 가
+CASCADE 로 사라진다.
 
 ---
 
@@ -231,11 +262,25 @@ RETURNING id;
 **좋아요 토글** — 중복 체크는 애플리케이션이 아니라 DB 에 맡긴다.
 
 ```sql
-INSERT INTO likes (user_id, album_id) VALUES (?, ?)
-ON CONFLICT (user_id, album_id) DO NOTHING;
+INSERT INTO likes (user_id, track_id) VALUES (?, ?)
+ON CONFLICT (user_id, track_id) DO NOTHING;
 
-DELETE FROM likes WHERE user_id = ? AND album_id = ?;
+DELETE FROM likes WHERE user_id = ? AND track_id = ?;
 ```
+
+**검색 캐시 조회** — TTL 안이면 DB, 아니면 API 호출 후 갱신.
+
+```sql
+SELECT t.*
+FROM search_cache sc
+JOIN search_cache_items i ON i.cache_id = sc.id
+JOIN tracks t             ON t.id = i.track_id
+WHERE sc.source = ? AND sc.search_type = 'track' AND sc.query = ?
+  AND sc.fetched_at > now() - interval '24 hours'
+ORDER BY i.position;
+```
+
+두 소스를 동시에 검색하려면 `sc.source` 조건을 빼고 `ORDER BY sc.source, i.position`.
 
 **마이페이지** — `ix_likes_user_id_created_at` 를 탄다.
 
