@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const app = express();
-const PORT = 5000; // 원하시는 포트 번호
+const PORT = 3000; // 원하시는 포트 번호
 
 
 
