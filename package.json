@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "db": "./scripts/db.sh start",
+    "db:stop": "./scripts/db.sh stop",
+    "db:reset": "./scripts/db.sh reset && .venv/bin/alembic -c backend/alembic.ini upgrade head",
+    "predev": "npm run db",
     "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": ".venv/bin/uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000",
     "dev:web": "vite",
