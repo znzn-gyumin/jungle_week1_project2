@@ -91,28 +91,28 @@
 
 /* ---------- FLYING BEE DOODLE ---------- */
 .bee-fly-layer{
-  position:absolute; inset:0;
-  z-index:7;
-  overflow:visible;
-  pointer-events:none;
+    position:absolute; inset:0;
+    z-index:7;
+    overflow:visible;
+    pointer-events:none;
 }
 .bee-fly-svg{ width:100%; height:100%; overflow:visible; }
 .bee-flight-path{
-  fill:none;
-  stroke:#FF5A45;
-  stroke-width:2.5;
-  stroke-linecap:round;
-  stroke-dasharray:9 10;
-  opacity:0;
-  transition:opacity 1.2s ease .5s;
+    fill:none;
+    stroke:#FF5A45;
+    stroke-width:2.5;
+    stroke-linecap:round;
+    stroke-dasharray:9 10;
+    opacity:0;
+    transition:opacity 1.2s ease .5s;
 }
 .hero.revealed .bee-flight-path{ opacity:0.8; }
 .bee-doodle{ opacity:0; transition:opacity .6s ease 1.1s; }
 .hero.revealed .bee-doodle{ opacity:1; }
 .bee-doodle .wing{
-  transform-box:fill-box;
-  transform-origin:center;
-  animation:bee-wing .15s ease-in-out infinite alternate;
+    transform-box:fill-box;
+    transform-origin:center;
+    animation:bee-wing .15s ease-in-out infinite alternate;
 }
 @keyframes bee-wing{ from{ transform:scaleY(1); } to{ transform:scaleY(0.55); } }
 
