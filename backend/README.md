@@ -59,7 +59,7 @@ pip install -r requirements.txt
 python -m backend
 ```
 
-`.env` 의 `SERVER_HOST` / `SERVER_PORT` / `RELOAD` 을 읽는다.
+`.env` 의 `SERVER_HOST` / `SERVER_PORT` / `SERVER_RELOAD` 을 읽는다.
 API 문서는 <http://127.0.0.1:8000/docs>.
 
 uvicorn 을 직접 부르면 `.env` 의 포트 설정을 무시하고 인자를 따른다.
@@ -408,6 +408,19 @@ alembic -c backend/alembic.ini check     # 모델과 DB 스키마 drift 확인
 아무도 안 잡아주므로 직접 챙긴다.
 
 ### 밟기 쉬운 함정
+
+**`.env` 경로는 `config.py` 기준으로 고정되어 있다**
+`env_file` 을 `".env"` 같은 상대 경로로 두면 **실행 위치(CWD)** 기준이 되어,
+저장소 루트가 아닌 곳에서 실행하면 `.env` 를 못 찾고 **에러 없이 전부 기본값**으로
+떨어진다. 다른 DB 에 붙고 YouTube 가 조용히 비활성화된다. `ROOT / ".env"` 로
+고정한 이유다.
+
+**비밀값은 `SecretStr` 이라 그대로 쓰면 안 된다**
+`postgres_password` 와 `youtube_api_key` 는 `SecretStr` 이다. `repr` 에
+`'**********'` 로 찍혀 로그·트레이스백 유출을 막는다. 대신 **문자열이 필요한
+자리에 그대로 넣으면 마스킹된 값이 나간다** — `urlencode({'key': secret})` 은
+`key=%2A%2A...` 를 만들어 API 호출이 조용히 실패한다. `settings.youtube_key`
+처럼 `.get_secret_value()` 를 거친 값을 쓸 것.
 
 **`alembic.ini` 에 비 ASCII 문자 금지**
 configparser 가 로케일 인코딩(한국어 Windows 는 cp949)으로 읽어서

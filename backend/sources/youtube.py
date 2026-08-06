@@ -39,14 +39,14 @@ def _http() -> httpx.AsyncClient:
 
 
 def configured() -> bool:
-    return bool(settings.youtube_api_key)
+    return bool(settings.youtube_key)
 
 
 async def _get(path: str, params: dict[str, Any]) -> dict[str, Any]:
     if not configured():
         raise YouTubeError("YOUTUBE_API_KEY 가 설정되지 않았다", 503)
     res = await _http().get(
-        f"{BASE}{path}?{urlencode({**params, 'key': settings.youtube_api_key})}"
+        f"{BASE}{path}?{urlencode({**params, 'key': settings.youtube_key})}"
     )
     body: Any = None
     if res.content:

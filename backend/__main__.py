@@ -9,7 +9,7 @@ def main() -> None:
         "backend.main:app",
         host=settings.server_host,
         port=settings.server_port,
-        reload=settings.reload,
+        reload=settings.server_reload,
     )
 
 
