@@ -1,11 +1,8 @@
 const express = require('express');
 const path = require('path');
 const app = express();
-const PORT = 3000; // 원하시는 포트 번호
+const port = process.env.PORT || 3001;
 
-
-
-// 정적 파일 연결 (CSS, 이미지, 프론트 JS)
 app.use(express.static(path.join(__dirname, 'static')));
 
 // body 데이터 해석을 위한 미들웨어
@@ -37,7 +34,17 @@ app.get('/forgot-password', (req, res) => {
   res.sendFile(path.join(__dirname, 'templates', 'forgot-password.html'));
 });
 
+// 앨범 페이지 (templates/album.html 파일 전달)
+app.get(['/album', '/album.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'album.html'));
+});
+
+// 플레이리스트 페이지 (templates/playlist.html 파일 전달)
+app.get(['/playlist', '/playlist.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'playlist.html'));
+});
+
 // 서버 실행
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
 });
