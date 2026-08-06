@@ -1,0 +1,11 @@
+{
+  "name": "jungle_week1_project2",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
