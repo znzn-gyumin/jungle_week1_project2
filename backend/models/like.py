@@ -18,7 +18,6 @@ from backend.db.base import Base, PKMixin
 if TYPE_CHECKING:
     from backend.models.album import Album
     from backend.models.playlist import Playlist
-    from backend.models.track import Track
     from backend.models.user import User
 
 
@@ -26,16 +25,14 @@ class Like(PKMixin, Base):
     __tablename__ = "likes"
     __table_args__ = (
         CheckConstraint(
-            "num_nonnulls(track_id, album_id, playlist_id) = 1",
+            "num_nonnulls(album_id, playlist_id) = 1",
             name="exactly_one_target",
         ),
-        UniqueConstraint("user_id", "track_id", name="uq_likes_user_id_track_id"),
         UniqueConstraint("user_id", "album_id", name="uq_likes_user_id_album_id"),
         UniqueConstraint(
             "user_id", "playlist_id", name="uq_likes_user_id_playlist_id"
         ),
         Index("ix_likes_user_id_created_at", "user_id", text("created_at DESC")),
-        Index("ix_likes_track_id", "track_id"),
         Index("ix_likes_album_id", "album_id"),
         Index("ix_likes_playlist_id", "playlist_id"),
     )
@@ -44,10 +41,6 @@ class Like(PKMixin, Base):
         BigInteger,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
-    )
-    track_id: Mapped[int | None] = mapped_column(
-        BigInteger,
-        ForeignKey("tracks.id", ondelete="CASCADE"),
     )
     album_id: Mapped[int | None] = mapped_column(
         BigInteger,
@@ -62,7 +55,6 @@ class Like(PKMixin, Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="likes")
-    track: Mapped["Track | None"] = relationship(back_populates="likes")
     album: Mapped["Album | None"] = relationship(back_populates="likes")
     playlist: Mapped["Playlist | None"] = relationship(back_populates="likes")
 

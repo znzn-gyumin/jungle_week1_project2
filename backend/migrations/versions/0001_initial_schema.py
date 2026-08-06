@@ -196,7 +196,6 @@ def upgrade() -> None:
         "likes",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.BigInteger(), nullable=False),
-        sa.Column("track_id", sa.BigInteger(), nullable=True),
         sa.Column("album_id", sa.BigInteger(), nullable=True),
         sa.Column("playlist_id", sa.BigInteger(), nullable=True),
         sa.Column(
@@ -208,12 +207,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name="pk_likes"),
         sa.ForeignKeyConstraint(
             ["user_id"], ["users.id"], name="fk_likes_user_id_users", ondelete="CASCADE"
-        ),
-        sa.ForeignKeyConstraint(
-            ["track_id"],
-            ["tracks.id"],
-            name="fk_likes_track_id_tracks",
-            ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
             ["album_id"],
@@ -228,10 +221,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.CheckConstraint(
-            "num_nonnulls(track_id, album_id, playlist_id) = 1",
+            "num_nonnulls(album_id, playlist_id) = 1",
             name="exactly_one_target",
         ),
-        sa.UniqueConstraint("user_id", "track_id", name="uq_likes_user_id_track_id"),
         sa.UniqueConstraint("user_id", "album_id", name="uq_likes_user_id_album_id"),
         sa.UniqueConstraint(
             "user_id", "playlist_id", name="uq_likes_user_id_playlist_id"
@@ -242,7 +234,6 @@ def upgrade() -> None:
         "likes",
         ["user_id", sa.text("created_at DESC")],
     )
-    op.create_index("ix_likes_track_id", "likes", ["track_id"])
     op.create_index("ix_likes_album_id", "likes", ["album_id"])
     op.create_index("ix_likes_playlist_id", "likes", ["playlist_id"])
 

@@ -17,7 +17,6 @@ from backend.models.enums import SourceType, source_enum
 
 if TYPE_CHECKING:
     from backend.models.album import Album
-    from backend.models.like import Like
     from backend.models.playlist import PlaylistTrack
 
 
@@ -47,11 +46,6 @@ class Track(PKMixin, TimestampMixin, Base):
 
     album: Mapped["Album | None"] = relationship(back_populates="tracks")
     playlist_links: Mapped[list["PlaylistTrack"]] = relationship(
-        back_populates="track",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
-    likes: Mapped[list["Like"]] = relationship(
         back_populates="track",
         cascade="all, delete-orphan",
         passive_deletes=True,

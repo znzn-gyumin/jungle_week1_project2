@@ -221,17 +221,15 @@ iTunes 필드 매핑: `trackId`→`source_id`, `trackName`→`title`, `artistNam
 UNIQUE `(playlist_id, position)` **DEFERRABLE INITIALLY DEFERRED**
 두 FK 모두 **CASCADE**
 
-### likes — 곡/플레이리스트/앨범 좋아요 (마이페이지 목록의 원본)
+### likes — 앨범/플레이리스트 좋아요 (마이페이지 목록의 원본)
 
-`id` · `user_id` · `track_id` · `album_id` · `playlist_id` · `created_at`
+`id` · `user_id` · `album_id` · `playlist_id` · `created_at`
 
-CHECK `num_nonnulls(track_id, album_id, playlist_id) = 1`
-UNIQUE `(user_id, track_id)` · `(user_id, album_id)` · `(user_id, playlist_id)`
-네 FK 모두 **CASCADE** · INDEX `(user_id, created_at DESC)`, `track_id`, `album_id`, `playlist_id`
+CHECK `num_nonnulls(album_id, playlist_id) = 1`
+UNIQUE `(user_id, album_id)` · `(user_id, playlist_id)`
+세 FK 모두 **CASCADE** · INDEX `(user_id, created_at DESC)`, `album_id`, `playlist_id`
 
-컬럼 순서는 대상 크기 순이다 — 곡 → 앨범 → 플레이리스트.
-
-검색 결과에서 곡을 바로 담는 게 가장 흔한 동선이라 `track_id` 가 있다.
+**곡 단위 좋아요는 없다.** 앨범과 플레이리스트만 담는다.
 
 ### search_cache / search_cache_items — 검색어 캐시
 
@@ -260,7 +258,7 @@ search_cache_items  cache_id · position · track_id · album_id
 유저를 지우면 그 사람의 `playlists` / `playlist_tracks` / `likes` 가 함께 사라지고,
 공용 캐시인 `tracks` / `albums` / `search_cache` 는 남는다.
 앨범을 지우면 그 앨범의 트랙은 `album_id` 만 NULL 이 되고 트랙 자체는 유지된다.
-곡을 지우면 그 곡을 가리키던 `likes` · `playlist_tracks` · `search_cache_items` 가
+곡을 지우면 그 곡을 가리키던 `playlist_tracks` · `search_cache_items` 가
 CASCADE 로 사라진다.
 
 ---
@@ -280,10 +278,10 @@ RETURNING id;
 **좋아요 토글** — 중복 체크는 애플리케이션이 아니라 DB 에 맡긴다.
 
 ```sql
-INSERT INTO likes (user_id, track_id) VALUES (?, ?)
-ON CONFLICT (user_id, track_id) DO NOTHING;
+INSERT INTO likes (user_id, album_id) VALUES (?, ?)
+ON CONFLICT (user_id, album_id) DO NOTHING;
 
-DELETE FROM likes WHERE user_id = ? AND track_id = ?;
+DELETE FROM likes WHERE user_id = ? AND album_id = ?;
 ```
 
 **검색 캐시 조회** — TTL 안이면 DB, 아니면 API 호출 후 갱신.

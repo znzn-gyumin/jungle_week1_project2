@@ -60,8 +60,8 @@ CREATE INDEX ix_tracks_title_lower ON tracks (lower(title));
 
 
 CREATE TABLE playlists (
-    id          bigserial    NOT NULL,
-    user_id     bigint       NOT NULL,
+    id           bigserial    NOT NULL,
+    user_id      bigint       NOT NULL,
     name         varchar(100) NOT NULL,
     description  text,
     total_tracks integer      NOT NULL DEFAULT 0,
@@ -105,7 +105,6 @@ CREATE INDEX ix_playlist_tracks_track_id ON playlist_tracks (track_id);
 CREATE TABLE likes (
     id          bigserial   NOT NULL,
     user_id     bigint      NOT NULL,
-    track_id    bigint,
     album_id    bigint,
     playlist_id bigint,
     created_at  timestamptz NOT NULL DEFAULT now(),
@@ -113,21 +112,17 @@ CREATE TABLE likes (
     CONSTRAINT pk_likes PRIMARY KEY (id),
     CONSTRAINT fk_likes_user_id_users
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-    CONSTRAINT fk_likes_track_id_tracks
-        FOREIGN KEY (track_id) REFERENCES tracks (id) ON DELETE CASCADE,
     CONSTRAINT fk_likes_album_id_albums
         FOREIGN KEY (album_id) REFERENCES albums (id) ON DELETE CASCADE,
     CONSTRAINT fk_likes_playlist_id_playlists
         FOREIGN KEY (playlist_id) REFERENCES playlists (id) ON DELETE CASCADE,
     CONSTRAINT ck_likes_exactly_one_target
-        CHECK (num_nonnulls(track_id, album_id, playlist_id) = 1),
-    CONSTRAINT uq_likes_user_id_track_id    UNIQUE (user_id, track_id),
+        CHECK (num_nonnulls(album_id, playlist_id) = 1),
     CONSTRAINT uq_likes_user_id_album_id    UNIQUE (user_id, album_id),
     CONSTRAINT uq_likes_user_id_playlist_id UNIQUE (user_id, playlist_id)
 );
 
 CREATE INDEX ix_likes_user_id_created_at ON likes (user_id, created_at DESC);
-CREATE INDEX ix_likes_track_id           ON likes (track_id);
 CREATE INDEX ix_likes_album_id           ON likes (album_id);
 CREATE INDEX ix_likes_playlist_id        ON likes (playlist_id);
 
