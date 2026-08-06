@@ -95,9 +95,18 @@ uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 한 번 더 받는다.
 `videos.list` 는 1 유닛이라 비용은 사실상 검색값과 같다.
 
-`videoCategoryId=10`(Music) 필터는 쓰지 않는다. 음악 영상이라고 모두 Music
-카테고리로 분류되어 있지 않아서, 필터를 걸면 라이브·플래시몹·개인 업로드가
-빠진다. 대신 음악과 무관한 영상이 섞일 수 있다.
+검색에는 `videoCategoryId=10`(Music) 필터를 건다. 카테고리는 **업로더가 직접
+고르는 값**(`assignable=true`)이라 음악 영상이 다른 카테고리에 있을 수 있지만,
+실측상 커버·라이브는 필터가 있어도 대부분 나왔고 오히려 리액션·강의 같은
+무관한 영상이 섞이는 쪽이 더 거슬렸다. 다만 `limit` 대비 결과가 몇 건 적게
+오기도 한다.
+
+끄려면 `sources/youtube.py` 의 `search_videos` 에서 `videoCategoryId` 한 줄을
+지우면 된다. 카테고리 목록은 `videoCategories.list` 로 확인할 수 있다 (1 유닛).
+
+임베드 불가 영상 필터(`status.embeddable`)는 넣지 않았다. 실측 74건 중 0건이라
+지금은 문제가 되지 않는다. 재생 시 "동영상을 재생할 수 없음" 이 잦아지면
+`videos.list` 의 `part` 에 `status` 를 더해 걸러낼 수 있다 (추가 비용 없음).
 
 **검색 캐시는 DB 에 두지 않는다.** 서버를 재시작하면 버려도 되는 값이라 테이블로
 만들 이유가 없다. 필요해지면 인메모리 dict + TTL 로 충분하다. `tracks` / `albums` 는

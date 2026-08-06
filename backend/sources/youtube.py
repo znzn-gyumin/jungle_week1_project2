@@ -11,6 +11,7 @@ from backend.models.enums import SourceType
 BASE = "https://www.googleapis.com/youtube/v3"
 EMBED = "https://www.youtube.com/embed"
 YOUTUBE_MAX_RESULTS = 50
+MUSIC_CATEGORY_ID = "10"
 
 _DURATION = re.compile(
     r"^P(?:(?P<days>\d+)D)?T(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?$"
@@ -95,6 +96,7 @@ async def search_videos(term: str, limit: int = 25) -> list[dict[str, Any]]:
             "part": "snippet",
             "q": term,
             "type": "video",
+            "videoCategoryId": MUSIC_CATEGORY_ID,
             "maxResults": min(limit, YOUTUBE_MAX_RESULTS),
         },
     )
