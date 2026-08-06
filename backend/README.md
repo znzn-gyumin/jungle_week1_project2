@@ -28,14 +28,19 @@ cp .env.example .env
 ### 2. 데이터베이스
 
 ```bash
-docker compose -f backend/docker-compose.yml up -d
+docker compose up -d
 alembic -c backend/alembic.ini upgrade head
 ```
 
-파이썬 없이 만들려면 대신 `psql -U jungle -d jungle_music -f backend/schema.sql`.
+파이썬 없이 만들려면 대신 `psql -U jungle -d flowbee -f backend/schema.sql`.
 두 경로는 **완전히 동일한 구조**를 만든다 (pg_dump 로 비교 검증함).
 SQL 로 만든 DB에 나중에 Alembic 을 붙이려면
 `alembic -c backend/alembic.ini stamp head` 로 현재 리비전을 기록시킨다.
+
+**`docker-compose.yml` 은 루트에 있어야 한다.** Compose 는 compose 파일이 있는
+디렉터리의 `.env` 를 읽는다. `backend/` 에 두면 루트 `.env` 의 `POSTGRES_PORT` 등이
+무시되고 기본값으로 뜬다. 또 Compose 프로젝트 이름이 디렉터리명에서 오므로 위치를
+옮기면 볼륨 이름도 바뀌어 **기존 데이터가 딸린 다른 볼륨에 남는다.**
 
 `-c` 로 ini 위치를 지정해야 한다. `alembic.ini` 의 `script_location` 이
 루트 기준(`backend/migrations`)이라 다른 디렉터리에서 실행하면 경로를 못 찾는다.
@@ -51,34 +56,26 @@ pip install -r requirements.txt
 ### 4. 실행
 
 ```bash
+python -m backend
+```
+
+`.env` 의 `SERVER_HOST` / `SERVER_PORT` / `RELOAD` 을 읽는다.
+API 문서는 <http://127.0.0.1:8000/docs>.
+
+uvicorn 을 직접 부르면 `.env` 의 포트 설정을 무시하고 인자를 따른다.
+
+```bash
 uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-API 문서는 <http://127.0.0.1:8000/docs>.
+### CORS
 
-### 프론트엔드를 붙일 때 — CORS
+`CLIENT_ORIGINS` 에 적힌 오리진만 허용한다. **쉼표로 여러 개**를 넣을 수 있고
+기본값에 `127.0.0.1:5173` 과 `localhost:5173` 이 둘 다 들어 있다 —
+브라우저는 이 둘을 **다른 오리진**으로 취급하므로 하나만 넣으면 다른 쪽에서 막힌다.
 
-**지금 CORS 미들웨어가 없다.** 예전에는 프론트가 같은 저장소에 있고 Vite 가
-`/api` 를 `127.0.0.1:8000` 으로 프록시해서 브라우저에는 same-origin 이었다.
-프론트를 다른 오리진에서 띄우면 브라우저가 요청을 막는다.
-
-`backend/main.py` 에 아래를 추가한다. 허용할 오리진은 `.env` 의 `CLIENT_ORIGIN`
-에 이미 있다.
-
-```python
-from fastapi.middleware.cors import CORSMiddleware
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[settings.client_origin],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-```
-
-쿠키 인증을 붙일 계획이라면 `allow_origins` 에 `"*"` 를 쓸 수 없다
-(`allow_credentials=True` 와 함께 쓰면 브라우저가 거부한다).
+`allow_credentials=True` 라서 `allow_origins` 에 `"*"` 를 쓸 수 없다.
+와일드카드와 자격증명을 함께 쓰면 브라우저가 거부한다.
 
 ---
 
@@ -155,7 +152,7 @@ YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 �
 ## 디렉터리 구조
 
 ```
-.env  .env.example  requirements.txt
+.env  .env.example  requirements.txt  docker-compose.yml
 │
 └── backend/                 파이썬 패키지는 backend 하나
     ├── main.py              앱 생성 · lifespan · 예외 핸들러 · 라우터 등록
@@ -183,7 +180,6 @@ YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 �
     ├── models/              SQLAlchemy 모델 (from backend.models import Track)
     ├── migrations/          Alembic
     ├── schema.sql           순수 SQL 생성 스크립트. 스택 무관
-    ├── docker-compose.yml   로컬 개발용 postgres 17
     └── README.md            이 문서
 ```
 

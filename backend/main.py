@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException, RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.api import albums, health, search, tracks
@@ -20,8 +21,8 @@ async def lifespan(app: FastAPI):
     async with httpx.AsyncClient(timeout=15.0) as client:
         itunes.set_client(client)
         youtube.set_client(client)
-        print(f"server  http://127.0.0.1:{settings.server_port}")
-        print(f"client  {settings.client_origin}")
+        print(f"server  http://{settings.server_host}:{settings.server_port}")
+        print(f"client  {', '.join(settings.allowed_origins)}")
         if not youtube.configured():
             print("YOUTUBE_API_KEY 없음 - YouTube 검색 비활성")
         yield
@@ -31,6 +32,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Flowbee API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.exception_handler(HTTPException)

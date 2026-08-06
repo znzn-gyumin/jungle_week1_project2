@@ -20,8 +20,10 @@ class Settings(BaseSettings):
     youtube_api_key: str = ""
     itunes_country: str = "KR"
 
-    client_origin: str = "http://127.0.0.1:5173"
+    client_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
+    server_host: str = "127.0.0.1"
     server_port: int = 8000
+    reload: bool = True
 
     def _dsn(self, scheme: str) -> str:
         return str(
@@ -42,6 +44,10 @@ class Settings(BaseSettings):
     @property
     def async_database_url(self) -> str:
         return self._dsn("postgresql+asyncpg")
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        return [o.strip() for o in self.client_origins.split(",") if o.strip()]
 
 
 @lru_cache
