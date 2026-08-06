@@ -79,6 +79,7 @@ Compose 경로와 동일하다.
 | `ITUNES_COUNTRY` | `KR` | iTunes 는 국가별로 카탈로그가 다르다 |
 | `CLIENT_ORIGINS` | `127.0.0.1:5173,localhost:5173` | CORS 허용 오리진. 쉼표로 여러 개 |
 | `SERVER_HOST` / `SERVER_PORT` / `SERVER_RELOAD` | `127.0.0.1` / `8000` / `false` | `python -m backend` 가 읽는다 |
+| `COOKIE_SECURE` | `false` | HTTPS 배포에서 `true`. 세션 쿠키에 `Secure` 가 붙는다 |
 | `POSTGRES_*` | `jungle` / `flowbee` | `docker-compose.yml` 기본값과 맞춰져 있다 |
 
 `YOUTUBE_API_KEY` 는 **`.env` 에만** 둔다. `config.py` 의 기본값 자리에 넣으면
@@ -183,7 +184,7 @@ package.json  vite.config.js
 │   ├── models/              SQLAlchemy 모델 (from backend.models import Track)
 │   ├── migrations/          Alembic
 │   ├── schema.sql           순수 SQL 생성 스크립트. 스택 무관
-│   ├── devtools/            배포 전 삭제 대상. 지금은 integration_test.py 하나
+│   ├── devtools/            배포 전 삭제 대상. integration_test.py · regression_test.py
 │   └── README.md            이 문서
 │
 └── client/                  API Lab. Vite + React
@@ -310,11 +311,15 @@ routers  ->  db (Postgres)
 
 ### 인증
 
-로그인하면 `uid` 쿠키(HttpOnly · SameSite=Lax · 30일)가 나가고, 세션 본문은
-**서버 프로세스 메모리**(`sessions.py`)에 있다. 서버를 재시작하면 전원 로그아웃
-된다. 워커를 여러 개 띄우면 요청마다 다른 프로세스에 붙어 로그인이 오락가락하므로,
-지금 구조에서는 **단일 워커로만 돌려야 한다.** Redis 나 DB 로 옮기는 것이 다음
-단계다.
+로그인하면 `uid` 쿠키(HttpOnly · SameSite=Lax · 30일 · `COOKIE_SECURE=true` 면
+Secure)가 나가고, 세션 본문은 **서버 프로세스 메모리**(`sessions.py`)에 있다.
+서버를 재시작하면 전원 로그아웃 된다. 워커를 여러 개 띄우면 요청마다 다른 프로세스에
+붙어 로그인이 오락가락하므로, 지금 구조에서는 **단일 워커로만 돌려야 한다.**
+Redis 나 DB 로 옮기는 것이 다음 단계다.
+
+서버 쪽 세션에도 쿠키와 같은 수명(`sessions.SESSION_TTL`)이 붙어 있다. 만료된
+세션은 조회 시점에 사라지고, 새 세션을 만들 때 남은 항목을 한 번씩 청소한다.
+로그아웃 없이 재로그인만 반복해도 dict 가 무한히 자라지 않는다.
 
 `/api/users/me` 만 비로그인을 정상 응답으로 취급한다. 나머지 보호 라우트는
 `{"error": "로그인이 필요합니다", "loggedIn": false}` 와 함께 401 이다.
@@ -535,6 +540,14 @@ uv pip install --python .venv-test/Scripts/python.exe pgserver -r requirements.t
 ```
 
 macOS/Linux 는 `.venv-test/bin/python`. 모든 단언이 통과하면 종료 코드 0 이다.
+
+같은 환경에서 도는 `backend/devtools/regression_test.py` 는 좁게 네 가지만 본다 —
+세션 TTL 만료·정리, `add_track` 동시 요청의 position/`total_tracks` 무결성,
+핸들되지 않은 예외의 `{"error": ...}` 500 응답, 쿠키 `Secure` 플래그.
+
+```bash
+.venv-test/bin/python backend/devtools/regression_test.py
+```
 
 `uv` 가 없으면 `pip install uv` 로 넣는다. `uv venv` 가
 `Missing expected target directory for Python minor version link` 로 실패하면

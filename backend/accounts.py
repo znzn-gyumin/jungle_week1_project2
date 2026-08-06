@@ -5,9 +5,10 @@ from fastapi.exceptions import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config import get_settings
 from backend.db.session import get_db
 from backend.models import User
-from backend.sessions import create_session, destroy_session, get_session
+from backend.sessions import SESSION_TTL, create_session, destroy_session, get_session
 
 USER_COOKIE = "uid"
 
@@ -15,7 +16,8 @@ USER_COOKIE_OPTS: dict[str, Any] = {
     "httponly": True,
     "samesite": "lax",
     "path": "/",
-    "max_age": 30 * 24 * 3600,
+    "max_age": SESSION_TTL,
+    "secure": get_settings().cookie_secure,
 }
 
 

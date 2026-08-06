@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     youtube_api_key: SecretStr = SecretStr("")
     itunes_country: str = "KR"
 
+    # HTTPS 배포에서는 true - 쿠키가 평문 HTTP 로 나가지 않는다.
+    cookie_secure: bool = False
+
     client_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
     server_host: str = "127.0.0.1"
     server_port: int = 8000

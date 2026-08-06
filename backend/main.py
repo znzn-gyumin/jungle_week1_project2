@@ -62,6 +62,17 @@ async def validation_error(
     return JSONResponse({"error": f"{field}: {first['msg']}"}, status_code=422)
 
 
+@app.exception_handler(Exception)
+async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
+    """핸들되지 않은 예외도 {"error": ...} 계약을 지키게 한다.
+
+    Starlette 는 이 핸들러의 응답을 보낸 뒤 예외를 다시 raise 하므로
+    스택트레이스는 uvicorn 로그에 그대로 남는다.
+    """
+    log.exception("unhandled error: %s %s", request.method, request.url.path)
+    return JSONResponse({"error": "서버 내부 오류가 발생했습니다"}, status_code=500)
+
+
 app.include_router(health.router)
 app.include_router(albums.router)
 app.include_router(search.router)

@@ -3,7 +3,8 @@ from typing import Any
 from fastapi import APIRouter, Query
 from fastapi.exceptions import HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, literal, select
+from sqlalchemy import insert as sql_insert
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -35,8 +36,15 @@ class ReorderBody(BaseModel):
     itemIds: list[int]
 
 
-async def _owned(playlist_id: int, user: User, db: AsyncSession) -> Playlist:
-    playlist = await db.get(Playlist, playlist_id)
+async def _owned(
+    playlist_id: int, user: User, db: AsyncSession, lock: bool = False
+) -> Playlist:
+    """lock=True 면 플레이리스트 행에 FOR UPDATE 를 건다.
+
+    같은 플레이리스트에 동시에 곡을 담는 요청들을 줄 세워서
+    position 계산과 total_tracks 증가가 서로를 덮어쓰지 않게 한다.
+    """
+    playlist = await db.get(Playlist, playlist_id, with_for_update=lock)
     if playlist is None:
         raise HTTPException(404, "플레이리스트를 찾을 수 없습니다")
     if playlist.user_id != user.id:
@@ -161,23 +169,37 @@ async def add_track(
     user: User = CurrentUser,
     db: AsyncSession = DbSession,
 ) -> dict[str, Any]:
-    playlist = await _owned(playlist_id, user, db)
+    await _owned(playlist_id, user, db, lock=True)
     if await db.get(Track, body.trackId) is None:
         raise HTTPException(404, "곡을 찾을 수 없습니다")
 
-    next_position = await db.scalar(
-        select(func.coalesce(func.max(PlaylistTrack.position), -1) + 1).where(
-            PlaylistTrack.playlist_id == playlist_id
+    # position 을 파이썬에서 읽고 쓰지 않는다. 한 문장 안에서 DB 가 계산한다.
+    next_position = (
+        select(func.coalesce(func.max(PlaylistTrack.position), -1) + 1)
+        .where(PlaylistTrack.playlist_id == playlist_id)
+        .scalar_subquery()
+    )
+    item = (
+        await db.execute(
+            sql_insert(PlaylistTrack)
+            .from_select(
+                ["playlist_id", "track_id", "position"],
+                select(literal(playlist_id), literal(body.trackId), next_position),
+            )
+            .returning(PlaylistTrack.id, PlaylistTrack.position)
         )
+    ).one()
+
+    # total_tracks 도 read-modify-write 대신 SQL 식으로 증가시킨다.
+    total_tracks = await db.scalar(
+        sql_update(Playlist)
+        .where(Playlist.id == playlist_id)
+        .values(total_tracks=Playlist.total_tracks + 1)
+        .returning(Playlist.total_tracks)
+        .execution_options(synchronize_session=False)
     )
-    item = PlaylistTrack(
-        playlist_id=playlist_id, track_id=body.trackId, position=next_position or 0
-    )
-    db.add(item)
-    playlist.total_tracks += 1
     await db.commit()
-    await db.refresh(item)
-    return {"itemId": item.id, "position": item.position, "totalTracks": playlist.total_tracks}
+    return {"itemId": item.id, "position": item.position, "totalTracks": total_tracks}
 
 
 @router.delete("/{playlist_id}/tracks/{item_id}")
@@ -187,7 +209,7 @@ async def remove_track(
     user: User = CurrentUser,
     db: AsyncSession = DbSession,
 ) -> dict[str, Any]:
-    playlist = await _owned(playlist_id, user, db)
+    playlist = await _owned(playlist_id, user, db, lock=True)
     item = await db.get(PlaylistTrack, item_id)
     if item is None or item.playlist_id != playlist_id:
         raise HTTPException(404, "항목을 찾을 수 없습니다")
@@ -218,7 +240,7 @@ async def reorder(
     db: AsyncSession = DbSession,
 ) -> dict[str, Any]:
     """position UNIQUE 가 DEFERRABLE 이라 한 트랜잭션에서 통째로 갈아끼울 수 있다."""
-    await _owned(playlist_id, user, db)
+    await _owned(playlist_id, user, db, lock=True)
     rows = list(
         (
             await db.execute(
