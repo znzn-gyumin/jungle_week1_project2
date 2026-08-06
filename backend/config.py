@@ -3,7 +3,6 @@ from functools import lru_cache
 from pydantic import PostgresDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Web Playback SDK 는 streaming + user-read-email + user-read-private 가 반드시 필요하다.
 SPOTIFY_SCOPES = " ".join(
     (
         "streaming",

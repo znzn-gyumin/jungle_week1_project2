@@ -27,9 +27,6 @@ settings = get_settings()
 
 COOKIE_OPTS: dict[str, Any] = {"httponly": True, "samesite": "lax", "path": "/"}
 
-# Development Mode 앱은 search 의 limit 상한이 10 이다.
-# 11 이상을 보내면 값과 무관하게 400 "Invalid limit" 이 돌아온다.
-# (Extended Quota 승인을 받으면 50 까지 올려도 된다.)
 MAX_LIMIT = 10
 
 
@@ -50,10 +47,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Jungle Music API", lifespan=lifespan)
 
 
-# ---------------------------------------------------------------- 오류 형식
-# 프론트는 모든 실패 응답에서 `error` 키를 읽는다. FastAPI 기본값(`detail`)을 맞춘다.
-
-
 @app.exception_handler(HTTPException)
 async def http_error(request: Request, exc: HTTPException) -> JSONResponse:
     detail = exc.detail
@@ -70,14 +63,9 @@ async def validation_error(request: Request, exc: RequestValidationError) -> JSO
 
 @app.exception_handler(SpotifyError)
 async def spotify_error(request: Request, exc: SpotifyError) -> JSONResponse:
-    # 토큰이 죽은 경우에만 세션을 버려 재로그인을 유도한다.
-    # 400 은 잘못된 쿼리 파라미터에서도 나므로 로그아웃 사유가 아니다.
     if exc.status == 401:
         destroy_session(request.cookies.get(SESSION_COOKIE))
     return JSONResponse({"error": exc.message, "detail": exc.body}, status_code=exc.status)
-
-
-# ------------------------------------------------------------------ 의존성
 
 
 class Auth(BaseModel):
@@ -95,9 +83,6 @@ async def require_auth(request: Request) -> Auth:
 
 
 AuthDep = Depends(require_auth)
-
-
-# ---------------------------------------------------------------------- auth
 
 
 @app.get("/api/health")
@@ -182,9 +167,6 @@ async def token(auth: Auth = AuthDep) -> dict[str, str]:
     return {"accessToken": auth.token}
 
 
-# -------------------------------------------------------------------- search
-
-
 @app.get("/api/search")
 async def search(
     q: str = "",
@@ -241,9 +223,6 @@ async def tracks_by_artist_search(
     items = (data.get("tracks") or {}).get("items", [])
     exact = [t for t in items if any(a.get("id") == artist_id for a in t.get("artists", []))]
     return exact or items
-
-
-# ------------------------------------------------------------------ playback
 
 
 class TransferBody(BaseModel):
@@ -326,9 +305,6 @@ async def pause(deviceId: str = "", auth: Auth = AuthDep) -> dict[str, bool]:
     return {"ok": True}
 
 
-# ------------------------------------------------------------------- helpers
-
-
 async def user_market(auth: Auth) -> str:
     """
     검색/top-tracks 는 market 이 있어야 재생 가능한 버전으로 relink 된다.
@@ -379,9 +355,6 @@ def pick_image(images: list[dict[str, Any]] | None) -> str | None:
     small = next((i for i in images if i.get("width") and i["width"] <= 400), None)
     return (small or images[-1])["url"]
 
-
-# ------------------------------------------------- static build (선택)
-# API 라우트가 먼저 등록되어 있으므로 마운트는 마지막에 한다.
 
 _dist = Path(__file__).resolve().parent.parent / "dist"
 if _dist.is_dir():

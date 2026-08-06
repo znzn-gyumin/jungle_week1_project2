@@ -1,8 +1,6 @@
 import secrets
 from typing import Any
 
-# MVP 용 인메모리 세션 저장소. 서버를 재시작하면 로그인도 사라진다.
-# 실서비스로 가면 Redis 나 DB 로 교체할 자리.
 _sessions: dict[str, dict[str, Any]] = {}
 
 SESSION_COOKIE = "sid"

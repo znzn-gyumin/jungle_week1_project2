@@ -45,9 +45,7 @@ def _basic_auth() -> str:
 def _to_tokens(body: dict[str, Any], fallback_refresh: str | None = None) -> dict[str, Any]:
     return {
         "access_token": body["access_token"],
-        # 리프레시 응답에는 refresh_token 이 없을 수 있다. 그때는 기존 것을 유지한다.
         "refresh_token": body.get("refresh_token") or fallback_refresh,
-        # 만료 60초 전을 만료로 취급해 경계 상황을 피한다.
         "expires_at": time.time() + body.get("expires_in", 3600) - 60,
     }
 

@@ -30,7 +30,6 @@ button { font: inherit; cursor: pointer; }
   padding-bottom: 96px;
 }
 
-/* ---------------------------------------------------------------- splash */
 
 .splash {
   min-height: 100vh;
@@ -59,7 +58,6 @@ button { font: inherit; cursor: pointer; }
 .small { font-size: 12px; }
 .error { color: var(--error); }
 
-/* ---------------------------------------------------------------- topbar */
 
 .topbar {
   position: sticky;
@@ -152,7 +150,6 @@ button { font: inherit; cursor: pointer; }
 
 .dev-note { color: var(--warn); }
 
-/* --------------------------------------------------------------- banners */
 
 .banner {
   display: flex;
@@ -168,7 +165,6 @@ button { font: inherit; cursor: pointer; }
 .banner.warn { background: rgba(217, 164, 65, 0.12); color: var(--warn); }
 .banner.error { background: rgba(229, 72, 77, 0.12); color: var(--error); }
 
-/* -------------------------------------------------------------- content */
 
 .content { flex: 1; padding: 20px 24px 40px; }
 
@@ -234,7 +230,6 @@ button { font: inherit; cursor: pointer; }
   color: #04160a;
 }
 
-/* ----------------------------------------------------------------- grid */
 
 .grid {
   display: grid;
@@ -260,7 +255,6 @@ button { font: inherit; cursor: pointer; }
 .artist-head img { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; }
 .artist-head h2 { margin: 4px 0; font-size: 32px; }
 
-/* ------------------------------------------------------------ playerbar */
 
 .playerbar {
   position: fixed;

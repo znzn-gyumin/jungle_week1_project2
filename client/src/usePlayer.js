@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api.js'
 
-/** SDK 스크립트는 index.html 에서 로드된다. 이미 준비됐으면 즉시 resolve. */
 function sdkReady() {
   return new Promise((resolve) => {
     if (window.Spotify) return resolve(window.Spotify)
@@ -9,10 +8,6 @@ function sdkReady() {
   })
 }
 
-/**
- * Player 인스턴스는 앱 전체에서 하나여야 한다.
- * StrictMode 가 effect 를 두 번 실행해도 중복 연결되지 않도록 모듈 스코프에 둔다.
- */
 let singleton = null
 
 function connectPlayer(handlers) {
@@ -55,7 +50,6 @@ export function usePlayer(enabled) {
       onError: (msg) => alive && setError(msg),
       rebind: (player) => {
         playerRef.current = player
-        // 같은 이벤트에 리스너가 중복 등록되지 않도록 먼저 해제한다.
         for (const ev of ['ready', 'not_ready', 'player_state_changed']) player.removeListener(ev)
 
         player.addListener('ready', ({ device_id }) => alive && setDeviceId(device_id))
@@ -81,10 +75,8 @@ export function usePlayer(enabled) {
     }
   }, [enabled])
 
-  /** SDK 는 position 을 이벤트로만 준다. 재생 중에는 로컬에서 보간한다. */
   const [tick, setTick] = useState(0)
   useEffect(() => {
-    // 새 state 이벤트가 곧 새 기준점이다. 보간 카운터를 리셋한다.
     setTick(0)
     if (!state || state.paused) return
     const id = setInterval(() => setTick((t) => t + 1), 500)
@@ -95,11 +87,6 @@ export function usePlayer(enabled) {
     ? Math.min(state.position + (state.paused ? 0 : tick * 500), state.duration)
     : 0
 
-  /**
-   * 재생 명령은 서버(REST API)에서 나가므로 브라우저에는 사용자 제스처가 없다.
-   * 그러면 autoplay 정책이 SDK 의 audio 엘리먼트를 막아 소리가 안 난다.
-   * 클릭 핸들러 안에서 이걸 먼저 불러 오디오를 해제해야 한다.
-   */
   const activate = useCallback(async () => {
     const player = playerRef.current
     if (!player?.activateElement) return

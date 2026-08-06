@@ -23,8 +23,6 @@ export default function App() {
     api.me().then(setMe).catch((e) => setAuthError(authErrorMessage(e)))
   }, [])
 
-  // me 를 못 받으면 me 는 계속 null 이라 아래 스플래시에 갇힌다.
-  // 에러를 먼저 렌더해야 사유가 화면에 보인다.
   if (!me && authError) {
     return (
       <Splash>
@@ -75,10 +73,6 @@ function Home({ me, onLogout }) {
     autoStopRef.current = null
   }, [])
 
-  /**
-   * 개발 모드에서 재생을 짧게 끊어 계정 청취 기록에 남는 양을 줄인다.
-   * 30초 스트림 집계는 피하지만, 짧은 재생이 스킵 신호로 잡힐 수 있어 완전한 보호는 아니다.
-   */
   const scheduleAutoStop = useCallback(() => {
     cancelAutoStop()
     if (!devMode || !deviceId) return
@@ -88,7 +82,6 @@ function Home({ me, onLogout }) {
     }, DEV_STOP_MS)
   }, [cancelAutoStop, devMode, deviceId])
 
-  // 모드를 끄거나 화면을 떠날 때 예약된 정지가 남지 않게 한다.
   useEffect(() => {
     if (!devMode) cancelAutoStop()
     return cancelAutoStop
@@ -101,7 +94,6 @@ function Home({ me, onLogout }) {
     })
   }
 
-  // 브라우저 플레이어가 준비되면 활성 디바이스로 넘긴다. 안 하면 play 가 404 로 실패한다.
   useEffect(() => {
     if (!deviceId || transferred.current) return
     transferred.current = true
@@ -138,7 +130,6 @@ function Home({ me, onLogout }) {
   const playTrack = async (track) => {
     if (!deviceId) return setApiError('플레이어가 아직 준비되지 않았습니다.')
     setApiError(null)
-    // 클릭 제스처가 살아있는 동안 오디오를 해제한다. await 보다 먼저 와야 한다.
     await activate()
     try {
       await api.play(deviceId, [track.uri])
@@ -336,8 +327,6 @@ function PlayerBar({ deviceId, state, position, devMode, onToggle }) {
   )
 }
 
-// Spotify 는 일부 오류를 JSON 이 아닌 평문으로 준다. 그때 백엔드가 만드는 message 는
-// "Spotify 403" 뿐이라 쓸모가 없다. 실제 사유가 담긴 detail.raw 를 우선 보여준다.
 function authErrorMessage(e) {
   const raw = e.data?.detail?.raw
   if (typeof raw === 'string' && raw.includes('not registered for this application')) {
