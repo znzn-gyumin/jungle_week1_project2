@@ -1,30 +1,66 @@
-from typing import Any
+from datetime import date
 
-from backend.models import Album, Track
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 
-
-def album_out(album: Album) -> dict[str, Any]:
-    return {
-        "id": album.id,
-        "source": album.source.value,
-        "sourceId": album.source_id,
-        "name": album.name,
-        "artist": album.artist,
-        "releaseDate": album.release_date.isoformat() if album.release_date else None,
-        "totalTracks": album.total_tracks,
-        "thumbnailUrl": album.thumbnail_url,
-    }
+from backend.models.enums import SourceType
 
 
-def track_out(track: Track) -> dict[str, Any]:
-    return {
-        "id": track.id,
-        "source": track.source.value,
-        "sourceId": track.source_id,
-        "title": track.title,
-        "artist": track.artist,
-        "album": album_out(track.album) if track.album else None,
-        "durationMs": track.duration_ms,
-        "thumbnailUrl": track.thumbnail_url,
-        "playUrl": track.play_url,
-    }
+class Schema(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
+class AlbumOut(Schema):
+    id: int
+    source: SourceType
+    source_id: str
+    name: str
+    artist: str
+    release_date: date | None = None
+    total_tracks: int | None = None
+    thumbnail_url: str | None = None
+
+
+class TrackOut(Schema):
+    id: int
+    source: SourceType
+    source_id: str
+    title: str
+    artist: str
+    album: AlbumOut | None = None
+    duration_ms: int | None = None
+    thumbnail_url: str | None = None
+    play_url: str | None = None
+
+
+class SourceError(Schema):
+    source: str
+    error: str
+
+
+class SearchResponse(Schema):
+    tracks: list[TrackOut] = []
+    albums: list[AlbumOut] = []
+    errors: list[SourceError] = []
+
+
+class TrackListResponse(Schema):
+    tracks: list[TrackOut]
+
+
+class AlbumListResponse(Schema):
+    albums: list[AlbumOut]
+
+
+class HealthResponse(Schema):
+    ok: bool
+    youtube: bool
+
+
+class DbHealthResponse(Schema):
+    ok: bool
+    tables: int

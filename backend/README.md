@@ -175,7 +175,7 @@ YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 �
 └── backend/                 파이썬 패키지는 backend 하나
     ├── main.py              앱 생성 · lifespan · 예외 핸들러 · 라우터 등록
     ├── config.py            .env -> 접속 문자열 + API 키
-    ├── schemas.py           DB 모델 -> JSON 응답 변환 (track_out · album_out)
+    ├── schemas.py           Pydantic 응답 모델 (TrackOut · AlbumOut · ...)
     │
     ├── api/                 HTTP 계층. 라우터만. 비즈니스 로직 없음
     │   ├── health.py        /api/health
@@ -438,6 +438,19 @@ alembic -c backend/alembic.ini check     # 모델과 DB 스키마 drift 확인
 저장소 루트가 아닌 곳에서 실행하면 `.env` 를 못 찾고 **에러 없이 전부 기본값**으로
 떨어진다. 다른 DB 에 붙고 YouTube 가 조용히 비활성화된다. `ROOT / ".env"` 로
 고정한 이유다.
+
+**`alembic.ini` 에 DB URL 을 넣지 않는다**
+`config.set_main_option("sqlalchemy.url", ...)` 은 ConfigParser 를 거치는데
+`%` 를 보간 문법으로 해석한다. 비밀번호에 `%` 가 있으면
+`ValueError: invalid interpolation syntax` 로 마이그레이션이 죽는다.
+`env.py` 는 `settings.sync_database_url` 을 `create_engine` 에 직접 넘긴다.
+덤으로 비밀번호가 alembic config 객체에 남지 않는다.
+
+**응답은 Pydantic 모델로 돌려준다**
+`-> dict[str, Any]` 로 두면 `/docs` 와 `/openapi.json` 에 응답 스키마가 비어
+프론트가 계약을 볼 수 없다. `schemas.py` 의 모델을 `response_model` 로 지정하면
+자동으로 채워진다. 필드는 snake_case 로 쓰고 `alias_generator=to_camel` 이
+JSON 에서 camelCase 로 바꾼다.
 
 **`SourceType` 은 `enum.StrEnum` 이다**
 `class X(str, Enum)` 은 Python 3.11 부터 `str(...)` 과 f-string 이
