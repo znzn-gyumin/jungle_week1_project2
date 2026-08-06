@@ -173,7 +173,8 @@ package.json  vite.config.js
 │   │   └── users.py  playlists.py  likes.py
 │   ├── accounts.py          로그인 의존성 (CurrentUser · OptionalUser · DbSession)
 │   ├── security.py          비밀번호 해시 · 검증
-│   ├── sessions.py          인메모리 세션 저장소
+│   ├── sessions.py          인메모리 세션 저장소 (TTL · 유저별 색인)
+│   ├── ratelimit.py         로그인 실패 카운터 (인메모리, 고정 창)
 │   ├── serializers.py       위 라우터들의 dict 응답 (camelCase 수기 변환)
 │   │
 │   ├── db/                  DB 접근 계층. HTTP 를 모른다
@@ -271,13 +272,25 @@ routers  ->  db (Postgres)
 | Method | Path | 본문 | 설명 |
 |---|---|---|---|
 | POST | `/api/users/signup` | `{nickname, email, password}` | 가입 즉시 로그인. 201 |
-| POST | `/api/users/login` | `{email, password}` | 틀리면 401 |
+| POST | `/api/users/login` | `{email, password}` | 틀리면 401. 실패가 쌓이면 429 |
 | POST | `/api/users/logout` | | 세션 파기 |
 | GET | `/api/users/me` | | 비로그인이면 **401 이 아니라** `{"loggedIn": false}` |
 | PATCH | `/api/users/me` | `{nickname?, email?, password?}` | 보낸 필드만 바뀐다 |
 | DELETE | `/api/users/me` | | 플레이리스트·좋아요 CASCADE |
 
-닉네임·이메일 중복은 409. 유일성은 `lower(nickname)` · `lower(email)` 함수 인덱스
+로그인은 계정이 없어도 더미 해시로 같은 비용의 scrypt 검증을 돌린다. 응답 시간으로
+가입 여부를 알아내지 못하게 하려는 것이다. 실패는 (클라이언트 IP, 이메일) 별로
+세어서 `ratelimit.LOGIN_MAX_ATTEMPTS` 회에 닿으면 창이 끝날 때까지 429 (`Retry-After`
+헤더 포함) — 그 동안은 **비밀번호가 맞아도 거절**한다. 카운터는 세션과 마찬가지로
+프로세스 메모리라 단일 워커 전제다.
+
+비밀번호를 바꾸면 그 계정의 **다른 세션은 전부 끊긴다** (요청을 보낸 세션만 남는다).
+계정 삭제도 현재 쿠키가 아니라 그 계정의 모든 세션을 파기한다.
+
+닉네임·이메일 중복은 409. 어느 쪽인지는 제약조건 이름(`uq_users_email_lower` ·
+`uq_users_nickname_lower`)으로 가른다. 그 밖의 `IntegrityError` 는 409 로 감추지
+않고 그대로 올려보낸다 — FK·NOT NULL 위반이 "닉네임 중복"으로 둔갑하면 안 된다.
+유일성은 `lower(nickname)` · `lower(email)` 함수 인덱스
 라서 **대소문자를 무시한다** — `Alice` 와 `alice` 는 같은 닉네임이다. 이메일은
 추가로 소문자 정규화해서 저장하지만, 닉네임은 입력한 표기 그대로 남는다.
 
@@ -286,7 +299,7 @@ routers  ->  db (Postgres)
 | Method | Path | 본문 | 설명 |
 |---|---|---|---|
 | POST | `/api/playlists` | `{name, description?, isPublic?}` | 기본 비공개 |
-| GET | `/api/playlists` | | 내 것만 |
+| GET | `/api/playlists?limit=` | | 내 것만. 기본 50, 최대 200 |
 | GET | `/api/playlists/public` | | `view_count` 내림차순 |
 | GET | `/api/playlists/{id}` | | 수록곡 포함. 타인이 열면 `view_count` +1 |
 | PATCH | `/api/playlists/{id}` | `{name?, description?, isPublic?}` | |
@@ -303,7 +316,7 @@ routers  ->  db (Postgres)
 
 | Method | Path | 설명 |
 |---|---|---|
-| GET | `/api/likes` | `likes` / `albums` / `playlists` 세 벌로 내려준다 |
+| GET | `/api/likes?limit=` | `albums` / `playlists` 로 나눠서. 기본 50, 최대 200 |
 | PUT | `/api/likes/albums/{id}` | 멱등. 이미 있으면 `created: false` |
 | DELETE | `/api/likes/albums/{id}` | 없어도 200, `removed: false` |
 | PUT | `/api/likes/playlists/{id}` | 비공개 남의 것이면 403 |
@@ -675,6 +688,11 @@ PG enum 라벨이 소문자라 insert 시 `invalid input value for enum source_t
 
 이 DB 로케일(`en_US.utf8`)에서는 `LIKE 'prefix%'` 조차 btree 를 못 쓴다.
 `text_pattern_ops` 로 만들어야 한다.
+
+**정렬만 하는 목록도 인덱스가 필요하다**
+`repository.list_tracks` 는 `ORDER BY updated_at DESC LIMIT n` 이다. 검색어가
+없어도 인덱스가 없으면 전체를 읽고 정렬한다 — 2만 건 실측 `Seq Scan` + `Sort`
+(cost 971). `ix_tracks_updated_at` 을 두면 정렬 노드 자체가 사라진다.
 
 **검색어의 `%` `_` 는 이스케이프한다**
 LIKE 에서 `%` 는 "아무 글자 0개 이상", `_` 는 "아무 글자 1개"다. 사용자가 `100%`
