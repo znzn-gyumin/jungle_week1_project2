@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     # HTTPS 배포에서는 true - 쿠키가 평문 HTTP 로 나가지 않는다.
     cookie_secure: bool = False
 
+    # X-Forwarded-For 를 믿을 프록시. app.js 가 같은 호스트에서 도는 게 기본이다.
+    # 넓히면 클라이언트가 IP 를 위조해 로그인 시도 제한을 우회할 수 있다.
+    trusted_proxies: str = "127.0.0.1"
+
     client_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
     server_host: str = "127.0.0.1"
     server_port: int = 8000

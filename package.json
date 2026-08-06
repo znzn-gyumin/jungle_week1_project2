@@ -9,7 +9,7 @@
     "db:reset": "./scripts/db.sh reset && .venv/bin/alembic -c backend/alembic.ini upgrade head",
     "predev": "npm run db",
     "dev": "concurrently -n api,pages,devlab -c cyan,green,magenta \"npm:dev:api\" \"npm:dev:pages\" \"npm:dev:devlab\"",
-    "dev:api": ".venv/bin/uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000",
+    "dev:api": ".venv/bin/uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000 --forwarded-allow-ips=127.0.0.1",
     "dev:pages": "nodemon --watch app.js app.js",
     "dev:devlab": "vite",
     "build": "vite build",

@@ -17,6 +17,18 @@ app.use(
     pathFilter: '/api',
     target: apiTarget,
     changeOrigin: false,
+    // 원 IP 를 X-Forwarded-For 로 넘긴다. 없으면 FastAPI 가 모든 요청을
+    // 127.0.0.1 로 보고, 로그인 시도 제한이 IP 를 구분하지 못한다.
+    // 받는 쪽은 --forwarded-allow-ips 로 이 프록시만 믿어야 한다.
+    //
+    // xfwd: true 는 쓰지 않는다 - 헤더가 이미 있으면 그대로 통과시켜서
+    // 클라이언트가 보낸 위조값이 그대로 백엔드에 도달한다. 항상 덮어쓴다.
+    on: {
+      proxyReq(proxyReq, req) {
+        const ip = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+        proxyReq.setHeader('x-forwarded-for', ip);
+      },
+    },
   }),
 );
 

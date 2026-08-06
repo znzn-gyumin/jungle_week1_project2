@@ -80,6 +80,7 @@ Compose 경로와 동일하다.
 | `CLIENT_ORIGINS` | `127.0.0.1:5173,localhost:5173` | CORS 허용 오리진. 쉼표로 여러 개 |
 | `SERVER_HOST` / `SERVER_PORT` / `SERVER_RELOAD` | `127.0.0.1` / `8000` / `false` | `python -m backend` 가 읽는다 |
 | `COOKIE_SECURE` | `false` | HTTPS 배포에서 `true`. 세션 쿠키에 `Secure` 가 붙는다 |
+| `TRUSTED_PROXIES` | `127.0.0.1` | `X-Forwarded-For` 를 믿을 프록시. 넓히면 IP 위조가 가능해진다 |
 | `POSTGRES_*` | `jungle` / `flowbee` | `docker-compose.yml` 기본값과 맞춰져 있다 |
 
 `YOUTUBE_API_KEY` 는 **`.env` 에만** 둔다. `config.py` 의 기본값 자리에 넣으면
@@ -283,6 +284,13 @@ routers  ->  db (Postgres)
 세어서 `ratelimit.LOGIN_MAX_ATTEMPTS` 회에 닿으면 창이 끝날 때까지 429 (`Retry-After`
 헤더 포함) — 그 동안은 **비밀번호가 맞아도 거절**한다. 카운터는 세션과 마찬가지로
 프로세스 메모리라 단일 워커 전제다.
+
+**IP 는 프록시를 거쳐 온다.** 브라우저는 `app.js`(3001) 를 보고, `/api` 는 거기서
+FastAPI 로 넘어간다. 그대로 두면 모든 요청이 `127.0.0.1` 로 보여서 IP 로 가를 수가
+없다. 그래서 `app.js` 가 `proxyReq` 에서 `X-Forwarded-For` 를 **덮어쓰고**
+(`xfwd: true` 는 헤더가 이미 있으면 통과시켜 위조가 그대로 들어온다 — 쓰지 않는다),
+uvicorn 은 `--forwarded-allow-ips`(`TRUSTED_PROXIES`) 로 그 프록시만 믿는다.
+신뢰 목록을 넓히면 클라이언트가 IP 를 위조해 제한을 우회할 수 있다.
 
 비밀번호를 바꾸면 그 계정의 **다른 세션은 전부 끊긴다** (요청을 보낸 세션만 남는다).
 계정 삭제도 현재 쿠키가 아니라 그 계정의 모든 세션을 파기한다.
