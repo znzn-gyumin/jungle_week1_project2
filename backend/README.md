@@ -242,8 +242,14 @@ users ──< playlists ──< playlist_tracks >── tracks >── albums
 
 ### users — 계정
 
-`id` · `nickname`(30, uniq) · `email`(255, uniq) · `password_hash`(255) ·
+`id` · `nickname`(30) · `email`(255) · `password_hash`(255) ·
 `created_at` · `updated_at`
+
+UNIQUE INDEX `lower(nickname)` · `lower(email)`
+
+유일성을 **대소문자 무시**로 건다. 평범한 UNIQUE 는 대소문자를 구분해서
+`Gyumin` 과 `gyumin`, `A@x.com` 과 `a@x.com` 이 서로 다른 계정이 된다.
+조회할 때도 `lower(email) = lower(?)` 로 해야 인덱스를 탄다.
 
 ### albums — 외부 플랫폼 앨범 캐시
 
@@ -432,6 +438,17 @@ alembic -c backend/alembic.ini check     # 모델과 DB 스키마 drift 확인
 저장소 루트가 아닌 곳에서 실행하면 `.env` 를 못 찾고 **에러 없이 전부 기본값**으로
 떨어진다. 다른 DB 에 붙고 YouTube 가 조용히 비활성화된다. `ROOT / ".env"` 로
 고정한 이유다.
+
+**`SourceType` 은 `enum.StrEnum` 이다**
+`class X(str, Enum)` 은 Python 3.11 부터 `str(...)` 과 f-string 이
+`"SourceType.ITUNES"` 를 돌려준다. `__repr__` 이나 로그에 그대로 새는 값이라
+`enum.StrEnum` 을 쓴다. `== "itunes"` 비교와 `.value` 는 양쪽 다 동작한다.
+
+**`ondelete` 를 걸었으면 관계에도 `passive_deletes` 를 준다**
+`Album.tracks` 는 FK 가 `ON DELETE SET NULL` 인데 `passive_deletes` 가 없으면
+ORM 이 곡을 전부 로드해 **한 곡씩 UPDATE** 한다 (수록곡 30개면 UPDATE 30번).
+`passive_deletes="all"` 을 주면 DB 가 한 번에 처리한다.
+`CASCADE` 쪽 관계들은 `passive_deletes=True` 를 이미 쓰고 있다.
 
 **부분검색은 인덱스를 못 탄다**
 `title ILIKE '%queen%'` 처럼 앞에 `%` 가 붙으면 btree 인덱스가 무용지물이다.

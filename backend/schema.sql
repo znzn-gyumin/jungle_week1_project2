@@ -11,10 +11,11 @@ CREATE TABLE users (
     created_at    timestamptz  NOT NULL DEFAULT now(),
     updated_at    timestamptz  NOT NULL DEFAULT now(),
 
-    CONSTRAINT pk_users          PRIMARY KEY (id),
-    CONSTRAINT uq_users_nickname UNIQUE (nickname),
-    CONSTRAINT uq_users_email    UNIQUE (email)
+    CONSTRAINT pk_users PRIMARY KEY (id)
 );
+
+CREATE UNIQUE INDEX uq_users_nickname_lower ON users (lower(nickname));
+CREATE UNIQUE INDEX uq_users_email_lower    ON users (lower(email));
 
 
 CREATE TABLE albums (

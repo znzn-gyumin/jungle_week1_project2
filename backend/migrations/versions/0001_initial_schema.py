@@ -44,8 +44,12 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.PrimaryKeyConstraint("id", name="pk_users"),
-        sa.UniqueConstraint("nickname", name="uq_users_nickname"),
-        sa.UniqueConstraint("email", name="uq_users_email"),
+    )
+    op.create_index(
+        "uq_users_nickname_lower", "users", [sa.text("lower(nickname)")], unique=True
+    )
+    op.create_index(
+        "uq_users_email_lower", "users", [sa.text("lower(email)")], unique=True
     )
 
     op.create_table(
