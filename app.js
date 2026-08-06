@@ -3,6 +3,8 @@ const path = require('path');
 const app = express();
 const PORT = 5000; // 원하시는 포트 번호
 
+
+
 // 정적 파일 연결 (CSS, 이미지, 프론트 JS)
 app.use(express.static(path.join(__dirname, 'static')));
 
