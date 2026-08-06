@@ -23,8 +23,8 @@ def track_out(track: Track) -> dict[str, Any]:
         "sourceId": track.source_id,
         "title": track.title,
         "artist": track.artist,
+        "album": album_out(track.album) if track.album else None,
         "durationMs": track.duration_ms,
         "thumbnailUrl": track.thumbnail_url,
         "playUrl": track.play_url,
-        "album": album_out(track.album) if track.album else None,
     }

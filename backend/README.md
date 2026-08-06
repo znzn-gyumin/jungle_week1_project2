@@ -95,6 +95,10 @@ uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 한 번 더 받는다.
 `videos.list` 는 1 유닛이라 비용은 사실상 검색값과 같다.
 
+`videoCategoryId=10`(Music) 필터는 쓰지 않는다. 음악 영상이라고 모두 Music
+카테고리로 분류되어 있지 않아서, 필터를 걸면 라이브·플래시몹·개인 업로드가
+빠진다. 대신 음악과 무관한 영상이 섞일 수 있다.
+
 **검색 캐시는 DB 에 두지 않는다.** 서버를 재시작하면 버려도 되는 값이라 테이블로
 만들 이유가 없다. 필요해지면 인메모리 dict + TTL 로 충분하다. `tracks` / `albums` 는
 검색 결과를 upsert 해두는 곳이지 검색어 캐시가 아니다.
@@ -419,6 +423,15 @@ alembic -c backend/alembic.ini check     # 모델과 DB 스키마 drift 확인
 저장소 루트가 아닌 곳에서 실행하면 `.env` 를 못 찾고 **에러 없이 전부 기본값**으로
 떨어진다. 다른 DB 에 붙고 YouTube 가 조용히 비활성화된다. `ROOT / ".env"` 로
 고정한 이유다.
+
+**YouTube 는 제목을 HTML 이스케이프해서 준다**
+`snippet.title` 과 `channelTitle` 에 `&#39;` `&quot;` `&amp;` 가 그대로 들어온다.
+`html.unescape()` 를 거치지 않으면 화면에 `Don&#39;t` 이 그대로 보인다.
+
+**iTunes 아트워크는 URL 로 크기를 바꾼다**
+API 는 `artworkUrl100`(100x100) 만 준다. URL 의 `100x100bb` 를 `600x600bb` 로
+바꾸면 큰 이미지가 나온다. **추가 API 호출이 없다.** 크기는
+`sources/itunes.py` 의 `ARTWORK_SIZE` 로 조절한다.
 
 **`AsyncSession` 은 동시에 쓸 수 없다**
 `asyncio.gather` 로 여러 코루틴을 돌리면서 **같은 세션**에 쓰면

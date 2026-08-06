@@ -8,6 +8,7 @@ from backend.models.enums import SourceType
 
 BASE = "https://itunes.apple.com"
 ITUNES_MAX_LIMIT = 200
+ARTWORK_SIZE = "600x600bb"
 
 _client: httpx.AsyncClient | None = None
 
@@ -84,6 +85,10 @@ def _release_date(value: str | None) -> date | None:
         return None
 
 
+def _artwork(url: str | None) -> str | None:
+    return url.replace("100x100bb", ARTWORK_SIZE) if url else None
+
+
 def to_track(result: dict[str, Any]) -> dict[str, Any]:
     return {
         "source": SourceType.ITUNES,
@@ -91,7 +96,7 @@ def to_track(result: dict[str, Any]) -> dict[str, Any]:
         "title": result.get("trackName") or "",
         "artist": result.get("artistName") or "",
         "duration_ms": result.get("trackTimeMillis"),
-        "thumbnail_url": result.get("artworkUrl100"),
+        "thumbnail_url": _artwork(result.get("artworkUrl100")),
         "play_url": result.get("previewUrl"),
     }
 
@@ -104,7 +109,7 @@ def to_album(result: dict[str, Any]) -> dict[str, Any]:
         "artist": result.get("artistName") or "",
         "release_date": _release_date(result.get("releaseDate")),
         "total_tracks": result.get("trackCount"),
-        "thumbnail_url": result.get("artworkUrl100"),
+        "thumbnail_url": _artwork(result.get("artworkUrl100")),
     }
 
 

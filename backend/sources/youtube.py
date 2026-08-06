@@ -1,3 +1,4 @@
+import html
 import re
 from typing import Any
 from urllib.parse import urlencode
@@ -9,7 +10,6 @@ from backend.models.enums import SourceType
 
 BASE = "https://www.googleapis.com/youtube/v3"
 EMBED = "https://www.youtube.com/embed"
-MUSIC_CATEGORY_ID = "10"
 YOUTUBE_MAX_RESULTS = 50
 
 _DURATION = re.compile(
@@ -95,7 +95,6 @@ async def search_videos(term: str, limit: int = 25) -> list[dict[str, Any]]:
             "part": "snippet",
             "q": term,
             "type": "video",
-            "videoCategoryId": MUSIC_CATEGORY_ID,
             "maxResults": min(limit, YOUTUBE_MAX_RESULTS),
         },
     )
@@ -122,8 +121,8 @@ def to_track(item: dict[str, Any]) -> dict[str, Any]:
     return {
         "source": SourceType.YOUTUBE,
         "source_id": video_id,
-        "title": snippet.get("title") or "",
-        "artist": snippet.get("channelTitle") or "",
+        "title": html.unescape(snippet.get("title") or ""),
+        "artist": html.unescape(snippet.get("channelTitle") or ""),
         "duration_ms": item.get("_duration_ms"),
         "thumbnail_url": _thumbnail(snippet),
         "play_url": f"{EMBED}/{video_id}",
