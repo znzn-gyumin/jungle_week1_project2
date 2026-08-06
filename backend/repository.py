@@ -1,6 +1,6 @@
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,58 +8,61 @@ from backend.models import Album, Track
 from backend.models.enums import SourceType
 
 
-async def upsert_album(db: AsyncSession, values: dict[str, Any]) -> int:
-    stmt = (
-        insert(Album)
-        .values(**values)
-        .on_conflict_do_update(
-            index_elements=[Album.source, Album.source_id],
-            set_={
-                "name": values["name"],
-                "artist": values["artist"],
-                "release_date": values.get("release_date"),
-                "total_tracks": values.get("total_tracks"),
-                "thumbnail_url": values.get("thumbnail_url"),
-            },
-        )
-        .returning(Album.id)
-    )
-    return (await db.execute(stmt)).scalar_one()
+def _dedupe(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: dict[tuple[Any, str], dict[str, Any]] = {}
+    for row in rows:
+        seen[(row["source"], row["source_id"])] = row
+    return list(seen.values())
 
 
-async def upsert_tracks(
+async def upsert_albums(
     db: AsyncSession, rows: list[dict[str, Any]]
-) -> list[Track]:
+) -> dict[str, int]:
+    rows = _dedupe(rows)
+    if not rows:
+        return {}
+
+    stmt = insert(Album).values(rows)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[Album.source, Album.source_id],
+        set_={
+            "name": stmt.excluded.name,
+            "artist": stmt.excluded.artist,
+            "release_date": stmt.excluded.release_date,
+            "total_tracks": stmt.excluded.total_tracks,
+            "thumbnail_url": stmt.excluded.thumbnail_url,
+        },
+    ).returning(Album.id, Album.source_id)
+
+    result = await db.execute(stmt)
+    return {source_id: album_id for album_id, source_id in result.all()}
+
+
+async def upsert_tracks(db: AsyncSession, rows: list[dict[str, Any]]) -> list[Track]:
+    rows = _dedupe(rows)
     if not rows:
         return []
 
-    for row in rows:
-        stmt = (
-            insert(Track)
-            .values(**row)
-            .on_conflict_do_update(
-                index_elements=[Track.source, Track.source_id],
-                set_={
-                    "title": row["title"],
-                    "artist": row["artist"],
-                    "album_id": row.get("album_id"),
-                    "duration_ms": row.get("duration_ms"),
-                    "thumbnail_url": row.get("thumbnail_url"),
-                    "play_url": row.get("play_url"),
-                },
-            )
-        )
-        await db.execute(stmt)
+    stmt = insert(Track).values(rows)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[Track.source, Track.source_id],
+        set_={
+            "title": stmt.excluded.title,
+            "artist": stmt.excluded.artist,
+            "album_id": stmt.excluded.album_id,
+            "duration_ms": stmt.excluded.duration_ms,
+            "thumbnail_url": stmt.excluded.thumbnail_url,
+            "play_url": stmt.excluded.play_url,
+        },
+    )
+    await db.execute(stmt)
     await db.commit()
 
     keys = [(r["source"], r["source_id"]) for r in rows]
     found = (
         (
             await db.execute(
-                select(Track).where(
-                    Track.source.in_({k[0] for k in keys}),
-                    Track.source_id.in_({k[1] for k in keys}),
-                )
+                select(Track).where(tuple_(Track.source, Track.source_id).in_(keys))
             )
         )
         .scalars()
@@ -69,26 +72,17 @@ async def upsert_tracks(
     return [by_key[k] for k in keys if k in by_key]
 
 
-async def tracks_by_source(
-    db: AsyncSession, source: SourceType, limit: int
+async def list_tracks(
+    db: AsyncSession,
+    query: str | None = None,
+    source: SourceType | None = None,
+    limit: int = 25,
 ) -> list[Track]:
-    stmt = (
-        select(Track)
-        .where(Track.source == source)
-        .order_by(Track.updated_at.desc())
-        .limit(limit)
-    )
-    return list((await db.execute(stmt)).scalars().all())
-
-
-async def search_tracks_local(
-    db: AsyncSession, query: str, limit: int
-) -> list[Track]:
-    pattern = f"%{query.lower()}%"
-    stmt = (
-        select(Track)
-        .where(Track.title.ilike(pattern) | Track.artist.ilike(pattern))
-        .order_by(Track.updated_at.desc())
-        .limit(limit)
-    )
+    stmt = select(Track)
+    if query:
+        pattern = f"%{query}%"
+        stmt = stmt.where(Track.title.ilike(pattern) | Track.artist.ilike(pattern))
+    if source is not None:
+        stmt = stmt.where(Track.source == source)
+    stmt = stmt.order_by(Track.updated_at.desc()).limit(limit)
     return list((await db.execute(stmt)).scalars().all())

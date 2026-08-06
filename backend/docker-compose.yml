@@ -1,17 +1,17 @@
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: jungle_music_db
+    container_name: flowbee_db
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-jungle}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jungle}
-      POSTGRES_DB: ${POSTGRES_DB:-jungle_music}
+      POSTGRES_DB: ${POSTGRES_DB:-flowbee}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jungle} -d ${POSTGRES_DB:-jungle_music}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jungle} -d ${POSTGRES_DB:-flowbee}"]
       interval: 5s
       timeout: 5s
       retries: 10

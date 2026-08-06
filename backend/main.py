@@ -103,11 +103,8 @@ async def _itunes_tracks(db: AsyncSession, q: str, limit: int) -> list[Track]:
     if not results:
         return []
 
-    album_ids: dict[str, int] = {}
-    for r in results:
-        key = itunes.album_source_id(r)
-        if key and key not in album_ids:
-            album_ids[key] = await repository.upsert_album(db, itunes.to_album(r))
+    albums = [itunes.to_album(r) for r in results if itunes.album_source_id(r)]
+    album_ids = await repository.upsert_albums(db, albums)
 
     rows = []
     for r in results:
@@ -169,16 +166,19 @@ async def get_track(track_id: int, db: AsyncSession = Depends(get_db)) -> dict[s
 
 @app.get("/api/tracks")
 async def list_tracks(
+    q: str | None = None,
     source: str | None = None,
     limit: int = Query(25, ge=1, le=MAX_LIMIT),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    if source is None:
-        rows = await repository.search_tracks_local(db, "", limit)
-    else:
-        if source not in ("itunes", "youtube"):
-            raise HTTPException(400, f"지원하지 않는 source: {source}")
-        rows = await repository.tracks_by_source(db, SourceType(source), limit)
+    if source is not None and source not in ("itunes", "youtube"):
+        raise HTTPException(400, f"지원하지 않는 source: {source}")
+    rows = await repository.list_tracks(
+        db,
+        query=q,
+        source=SourceType(source) if source else None,
+        limit=limit,
+    )
     return {"tracks": [serialize(t) for t in rows]}
 
 
