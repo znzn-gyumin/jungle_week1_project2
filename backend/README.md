@@ -121,25 +121,72 @@ YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 �
 
 ---
 
-## 파일
+## 디렉터리 구조
 
-파이썬 패키지는 `backend` 하나다.
+```
+.env  .env.example  requirements.txt  package.json  vite.config.js
+│
+├── backend/                 파이썬 패키지는 backend 하나
+│   ├── main.py              앱 생성 · lifespan · 예외 핸들러 · 라우터 등록
+│   ├── config.py            .env -> 접속 문자열 + API 키
+│   ├── schemas.py           DB 모델 -> JSON 응답 변환
+│   │
+│   ├── api/                 HTTP 계층. 라우터만. 비즈니스 로직 없음
+│   │   ├── health.py        /api/health
+│   │   ├── search.py        /api/search
+│   │   └── tracks.py        /api/tracks
+│   │
+│   ├── services/            여러 계층을 엮는 곳
+│   │   └── search.py        소스 동시 호출 + 부분 실패 수집 + upsert 호출
+│   │
+│   ├── sources/             외부 플랫폼 클라이언트. DB 를 모른다
+│   │   ├── itunes.py        Search API 호출 + 응답 -> 컬럼 매핑
+│   │   └── youtube.py       Data API 호출 + ISO8601 길이 파싱
+│   │
+│   ├── db/                  DB 접근 계층. HTTP 를 모른다
+│   │   ├── base.py          Base · 제약조건 네이밍 규칙 · 공통 mixin
+│   │   ├── session.py       asyncpg 엔진 + get_db 의존성
+│   │   └── repository.py    ON CONFLICT upsert · 로컬 조회
+│   │
+│   ├── models/              SQLAlchemy 모델 (from backend.models import Track)
+│   ├── migrations/          Alembic
+│   ├── schema.sql           순수 SQL 생성 스크립트. 스택 무관
+│   ├── docker-compose.yml   로컬 개발용 postgres 17
+│   └── README.md            이 문서
+│
+└── client/
+    ├── index.html
+    └── src/
+        ├── App.jsx          검색 폼 + 상태
+        ├── api.js           백엔드 호출
+        ├── styles.css
+        └── components/      TrackList · PlayerBar · Banner
+```
 
-| 경로 | 역할 |
-|---|---|
-| `backend/main.py` | 라우트 + 예외 핸들러 + 응답 직렬화 |
-| `backend/itunes.py` | iTunes Search API 클라이언트 + 매퍼 |
-| `backend/youtube.py` | YouTube Data API 클라이언트 + 매퍼 + ISO8601 길이 파싱 |
-| `backend/repository.py` | `ON CONFLICT` upsert, 로컬 조회 |
-| `backend/config.py` | `.env` → 접속 문자열 + API 키 |
-| `backend/db/session.py` | asyncpg 엔진 + `get_db` 의존성 |
-| `backend/db/base.py` | `Base`, 제약조건 네이밍 규칙, 공통 mixin |
-| `backend/models/*.py` | SQLAlchemy 모델 (`from backend.models import Track`) |
-| `backend/migrations/` | Alembic |
-| `backend/schema.sql` | 순수 SQL 생성 스크립트. 스택 무관 |
-| `backend/docker-compose.yml` | 로컬 개발용 postgres 17 |
-| `client/src/App.jsx` | 검색 화면 + 플레이어 바 |
-| `client/src/api.js` | 백엔드 호출 |
+### 계층 규칙
+
+```
+api  ->  services  ->  sources (외부 API)
+                  ->  db (Postgres)
+```
+
+- **`api/`** 는 요청을 받아 검증하고 `services` 를 부른 뒤 응답으로 바꾼다.
+  외부 API 나 SQL 을 직접 부르지 않는다.
+- **`sources/`** 는 외부 API 만 안다. `AsyncSession` 을 받지 않고, 반환값은
+  DB 컬럼 이름에 맞춘 평범한 dict 다. 그래서 DB 없이 단위 테스트가 된다.
+- **`db/repository.py`** 는 SQL 만 안다. 어느 플랫폼에서 온 데이터인지 모른다.
+- **`services/search.py`** 가 둘을 잇는다. 두 소스를 `asyncio.gather` 로 동시에
+  호출하고, 한쪽이 실패해도 나머지를 반환하며 실패를 `errors` 로 모은다.
+
+새 소스(예: SoundCloud)를 붙이려면 `sources/` 에 파일 하나를 더하고
+`services/search.py` 의 `_FETCHERS` 에 등록하면 된다. `api/` 는 건드리지 않는다.
+
+### 담당 구분
+
+이 저장소의 `gyumin_dev` 는 **외부 API 검색·재생**을 맡는다.
+`users` / `playlists` / `likes` 관리는 `junho_dev` 에서 진행한다.
+세 테이블은 스키마에 이미 있지만 이 브랜치에는 해당 라우터가 없다.
+붙일 때는 `api/` 에 라우터를 추가하고 `db/repository.py` 에 조회를 더하면 된다.
 
 ---
 

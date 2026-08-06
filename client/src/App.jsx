@@ -1,5 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { api } from './api.js'
+import { Banner } from './components/Banner.jsx'
+import { PlayerBar } from './components/PlayerBar.jsx'
+import { TrackList } from './components/TrackList.jsx'
 
 const SOURCES = [
   { key: 'all', label: '전체' },
@@ -49,7 +52,11 @@ export default function App() {
             placeholder="곡 또는 아티스트 검색"
             aria-label="검색어"
           />
-          <select value={source} onChange={(e) => setSource(e.target.value)} aria-label="검색 대상">
+          <select
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            aria-label="검색 대상"
+          >
             {SOURCES.map((s) => (
               <option key={s.key} value={s.key}>
                 {s.label}
@@ -80,77 +87,4 @@ export default function App() {
       {current && <PlayerBar track={current} onClose={() => setCurrent(null)} />}
     </div>
   )
-}
-
-function TrackList({ tracks, currentId, onPlay }) {
-  return (
-    <ul className="tracks">
-      {tracks.map((t) => (
-        <li key={t.id} className={t.id === currentId ? 'row playing' : 'row'}>
-          <button className="rowMain" onClick={() => onPlay(t)}>
-            {t.thumbnailUrl ? (
-              <img src={t.thumbnailUrl} alt="" width="48" height="48" />
-            ) : (
-              <span className="thumbFallback" />
-            )}
-            <span className="meta">
-              <span className="title">{t.title}</span>
-              <span className="muted">{t.artist}</span>
-            </span>
-          </button>
-          <span className={`badge ${t.source}`}>{t.source}</span>
-          <span className="muted dur">{fmt(t.durationMs)}</span>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-function PlayerBar({ track, onClose }) {
-  const audioRef = useRef(null)
-
-  useEffect(() => {
-    if (track.source === 'itunes' && audioRef.current) {
-      audioRef.current.play().catch(() => {})
-    }
-  }, [track])
-
-  return (
-    <div className="playerBar">
-      <div className="nowPlaying">
-        <strong>{track.title}</strong>
-        <span className="muted">{track.artist}</span>
-      </div>
-
-      {track.source === 'itunes' ? (
-        track.playUrl ? (
-          <audio ref={audioRef} src={track.playUrl} controls autoPlay />
-        ) : (
-          <p className="muted">미리듣기를 제공하지 않는 곡입니다.</p>
-        )
-      ) : (
-        <iframe
-          title={track.title}
-          src={`${track.playUrl}?autoplay=1`}
-          allow="autoplay; encrypted-media"
-          frameBorder="0"
-        />
-      )}
-
-      {track.source === 'itunes' && <span className="muted hint">30초 미리듣기</span>}
-      <button className="close" onClick={onClose} aria-label="닫기">
-        ×
-      </button>
-    </div>
-  )
-}
-
-function Banner({ tone, children }) {
-  return <div className={`banner ${tone}`}>{children}</div>
-}
-
-function fmt(ms) {
-  if (!ms) return ''
-  const s = Math.floor(ms / 1000)
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
