@@ -1,12 +1,24 @@
 from typing import Any
 
-from sqlalchemy import select, tuple_
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.models import Album, Track
 from backend.models.enums import SourceType
+
+
+LIKE_ESCAPE = "\\"
+
+
+def _like(value: str) -> str:
+    escaped = (
+        value.replace(LIKE_ESCAPE, LIKE_ESCAPE * 2)
+        .replace("%", LIKE_ESCAPE + "%")
+        .replace("_", LIKE_ESCAPE + "_")
+    )
+    return f"%{escaped}%"
 
 
 def _dedupe(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -30,6 +42,7 @@ async def upsert_albums(db: AsyncSession, rows: list[dict[str, Any]]) -> dict[st
             "release_date": stmt.excluded.release_date,
             "total_tracks": stmt.excluded.total_tracks,
             "thumbnail_url": stmt.excluded.thumbnail_url,
+            "updated_at": func.now(),
         },
     ).returning(Album.id, Album.source_id)
 
@@ -52,6 +65,7 @@ async def upsert_tracks(db: AsyncSession, rows: list[dict[str, Any]]) -> list[Tr
             "duration_ms": stmt.excluded.duration_ms,
             "thumbnail_url": stmt.excluded.thumbnail_url,
             "play_url": stmt.excluded.play_url,
+            "updated_at": func.now(),
         },
     )
     await db.execute(stmt)
@@ -85,8 +99,11 @@ async def list_tracks(
 ) -> list[Track]:
     stmt = select(Track).options(selectinload(Track.album))
     if query:
-        pattern = f"%{query}%"
-        stmt = stmt.where(Track.title.ilike(pattern) | Track.artist.ilike(pattern))
+        pattern = _like(query)
+        stmt = stmt.where(
+            Track.title.ilike(pattern, escape=LIKE_ESCAPE)
+            | Track.artist.ilike(pattern, escape=LIKE_ESCAPE)
+        )
     if source is not None:
         stmt = stmt.where(Track.source == source)
     stmt = stmt.order_by(Track.updated_at.desc()).limit(limit)
@@ -102,8 +119,11 @@ async def list_albums(
 ) -> list[Album]:
     stmt = select(Album)
     if query:
-        pattern = f"%{query}%"
-        stmt = stmt.where(Album.name.ilike(pattern) | Album.artist.ilike(pattern))
+        pattern = _like(query)
+        stmt = stmt.where(
+            Album.name.ilike(pattern, escape=LIKE_ESCAPE)
+            | Album.artist.ilike(pattern, escape=LIKE_ESCAPE)
+        )
     stmt = stmt.order_by(Album.updated_at.desc()).limit(limit)
     return list((await db.execute(stmt)).scalars().all())
 

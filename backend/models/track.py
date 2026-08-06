@@ -8,7 +8,6 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,7 +23,6 @@ class Track(PKMixin, TimestampMixin, Base):
     __tablename__ = "tracks"
     __table_args__ = (
         UniqueConstraint("source", "source_id", name="uq_tracks_source_source_id"),
-        Index("ix_tracks_title_lower", text("lower(title)")),
         Index("ix_tracks_album_id", "album_id"),
     )
 

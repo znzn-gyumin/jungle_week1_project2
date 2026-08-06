@@ -54,7 +54,6 @@ CREATE TABLE tracks (
 );
 
 CREATE INDEX ix_tracks_album_id    ON tracks (album_id);
-CREATE INDEX ix_tracks_title_lower ON tracks (lower(title));
 
 
 CREATE TABLE playlists (

@@ -106,7 +106,6 @@ def upgrade() -> None:
         ),
         sa.UniqueConstraint("source", "source_id", name="uq_tracks_source_source_id"),
     )
-    op.create_index("ix_tracks_title_lower", "tracks", [sa.text("lower(title)")])
     op.create_index("ix_tracks_album_id", "tracks", ["album_id"])
 
     op.create_table(

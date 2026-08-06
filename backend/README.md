@@ -259,7 +259,7 @@ YouTube 에는 앨범 개념이 없어 실질적으로 전부 iTunes(`collection
 `id` · `source` · `source_id`(128) · `title` · `artist` · `album_id` ·
 `duration_ms` · `thumbnail_url` · `play_url` · `created_at` · `updated_at`
 
-UNIQUE `(source, source_id)` · INDEX `album_id`, `lower(title)`
+UNIQUE `(source, source_id)` · INDEX `album_id`
 `album_id` → `albums` **ON DELETE SET NULL** (YouTube 곡은 NULL)
 
 **재생 방식이 소스마다 다르다.**
@@ -432,6 +432,35 @@ alembic -c backend/alembic.ini check     # 모델과 DB 스키마 drift 확인
 저장소 루트가 아닌 곳에서 실행하면 `.env` 를 못 찾고 **에러 없이 전부 기본값**으로
 떨어진다. 다른 DB 에 붙고 YouTube 가 조용히 비활성화된다. `ROOT / ".env"` 로
 고정한 이유다.
+
+**부분검색은 인덱스를 못 탄다**
+`title ILIKE '%queen%'` 처럼 앞에 `%` 가 붙으면 btree 인덱스가 무용지물이다.
+정렬된 목차로는 "중간에 들어간 값"을 찾을 수 없기 때문이다. 실측(30만 건):
+
+| | 실행 계획 | 시간 |
+|---|---|---|
+| 인덱스 없음 | Seq Scan | 65 ms |
+| btree on `lower(title)` | Seq Scan (인덱스 무시) | 51 ms |
+| pg_trgm GIN | Bitmap Index Scan | **0.45 ms** |
+
+그래서 쓰이지 않던 `ix_tracks_title_lower` 를 지웠다 (`idx_scan` 0회). 데이터가
+수만 건을 넘어가 검색이 느려지면 `CREATE EXTENSION pg_trgm` 후
+`CREATE INDEX ... USING gin (title gin_trgm_ops)` 로 되살리면 된다.
+
+참고로 이 DB 로케일(`en_US.utf8`)에서는 `LIKE 'prefix%'` 조차 btree 를 못 쓴다.
+`text_pattern_ops` 로 만들어야 한다. 지금 남은 btree 는 등호 비교용이다.
+
+**검색어의 `%` `_` 는 이스케이프한다**
+LIKE 에서 `%` 는 "아무 글자 0개 이상", `_` 는 "아무 글자 1개"다. 사용자가 `100%`
+를 검색하면 의도와 다른 패턴 매칭이 된다 (`%` 하나만 넣으면 전곡이 나왔다).
+`repository._like()` 가 이스케이프하고 `ilike(..., escape=LIKE_ESCAPE)` 로 넘긴다.
+SQL 인젝션은 아니고(파라미터 바인딩은 됨) 검색 의미가 틀어지는 문제다.
+
+**`updated_at` 은 upsert 에서 자동 갱신되지 않는다**
+`TimestampMixin` 의 `onupdate=func.now()` 는 ORM UPDATE 에서만 동작한다.
+`insert().on_conflict_do_update()` 는 Core 구문이라 발동하지 않아서, `set_` 에
+`"updated_at": func.now()` 를 직접 넣어야 한다. `list_tracks` 가 `updated_at DESC`
+로 정렬하므로 빠뜨리면 "최근" 순서가 최초 저장 순서에 고정된다.
 
 **YouTube 는 제목을 HTML 이스케이프해서 준다**
 `snippet.title` 과 `channelTitle` 에 `&#39;` `&quot;` `&amp;` 가 그대로 들어온다.
