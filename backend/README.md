@@ -42,6 +42,35 @@ python -m backend                                 # 4. 실행
 
 API 문서는 <http://127.0.0.1:8000/docs>.
 
+### Docker 없이 DB 띄우기
+
+`docker` 그룹 권한이 없거나 데몬을 못 쓰면 `scripts/db.sh` 를 쓴다. `pgserver`
+패키지가 들고 오는 PostgreSQL 바이너리를 루트 권한 없이 `.pgdata/` 에 띄운다.
+
+```bash
+uv venv --python 3.12 .venv-pg                    # 1. 서버 전용 venv (앱 venv 와 별개)
+uv pip install --python .venv-pg/bin/python pgserver
+
+npm run db                                        # 2. initdb + 기동 + flowbee DB 생성
+alembic -c backend/alembic.ini upgrade head       # 3. 스키마 적용
+```
+
+`pgserver` 는 `cp39`~`cp312` 휠만 있다. 앱 venv 가 3.13 이상이면 위처럼 3.12
+전용 venv 를 따로 판다. 접속 정보는 `.env` 의 `POSTGRES_*` 를 그대로 읽으므로
+Compose 경로와 동일하다.
+
+| 명령 | 하는 일 |
+|---|---|
+| `npm run db` | 없으면 initdb, 이미 떠 있으면 그대로 둔다 |
+| `npm run db:stop` | fast shutdown |
+| `npm run db:reset` | `.pgdata/` 삭제 후 재생성 + 마이그레이션 |
+| `./scripts/db.sh psql` | `flowbee` 에 psql 접속 |
+
+`npm run dev` 는 `predev` 로 `npm run db` 를 먼저 부른다. Compose 로 이미 5432 를
+띄운 상태면 `db.sh` 가 그걸 감지하고 손대지 않고 빠진다.
+
+`.pgdata/` 와 `.venv-pg/` 는 `.gitignore` 에 있다.
+
 ### 환경변수
 
 | 키 | 기본값 | 설명 |
@@ -91,6 +120,22 @@ npm run dev          # API(8000) + Vite(5173) 동시 실행
 <http://127.0.0.1:5173> 로 연다. Vite 가 `/api` 를 8000 으로 프록시하므로 쿠키가
 same-origin 으로 붙는다. **8000 을 직접 열면 로그인 쿠키가 다르게 동작하니
 5173 으로 볼 것.**
+
+패널은 상단 `확인할 API` 셀렉트로 고른다. 기본값이 `유저 정보 API` 라, 검색을
+눌러보려면 `곡 · 앨범` 로 바꿔야 한다. `곡 · 앨범` 과 `유저 정보 API` 는
+비로그인 상태에서도 열린다 — `/api/search` · `/api/tracks` · `/api/albums` 는
+인증이 필요 없다. 나머지 세 패널만 로그인을 요구한다.
+
+헤더의 배지 세 개는 `/api/health` 와 `/api/health/db` 를 부른 결과다.
+
+| 배지 | 뜻 |
+|---|---|
+| `api` | 서버가 떠 있는지 |
+| `db` | `public` 스키마 테이블 수. `0 tables` 면 마이그레이션이 안 됐다 |
+| `youtube` | `YOUTUBE_API_KEY` 로드 여부. `off` 면 iTunes 만 검색된다 |
+
+`youtube off` 는 대개 서버가 낡은 `.env` 를 물고 있다는 뜻이다. `get_settings()`
+가 `lru_cache` 라 `.env` 를 고쳐도 프로세스를 다시 띄우기 전에는 안 바뀐다.
 
 배포 대상이 아니다. 지울 때는 `client/`, `package.json`, `package-lock.json`,
 `vite.config.js` 를 지우면 백엔드는 그대로 돈다.
