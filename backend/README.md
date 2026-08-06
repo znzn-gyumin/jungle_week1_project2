@@ -86,7 +86,15 @@ npm run dev     # uvicorn(:8000) + vite(:5173) 동시 실행
 
 iTunes 로 넘어가면 이 준비물이 전부 사라진다. 인증이 없고, 로그인도 필요 없고,
 `previewUrl` 30초 미리듣기를 누구나 동시에 재생할 수 있다. 대신 **전체 재생은
-불가능**하다. IP 당 약 20회/분 제한이 있어 캐싱이 필요하다.
+불가능**하다.
+
+요청 한도는 iTunes 가 IP 당 약 20회/분(초과 시 429), YouTube Data API 가
+하루 10,000 유닛인데 `search.list` 가 1회 100 유닛이라 **하루 100회**다. 둘 다
+개발자 크레덴셜 하나를 전체 사용자가 공유하므로 사용자가 늘면 빨리 소진된다.
+
+**검색 캐시는 DB 에 두지 않는다.** 서버를 재시작하면 버려도 되는 값이라 테이블로
+만들 이유가 없다. 필요해지면 인메모리 dict + TTL 로 충분하고, 규모가 커지면 Redis 로
+옮긴다. `tracks` / `albums` 는 검색 결과를 upsert 해두는 곳이지 검색어 캐시가 아니다.
 
 참고: Spotify 는 2024년 11월부터 신규 앱에 `preview_url` 필드를 `null` 로 내려준다.
 현재 코드가 SDK 경로를 쓰는 이유다.
@@ -143,13 +151,11 @@ iTunes 전환 시 `/api/auth/*` 와 `/api/player/*` 는 전부 사라진다.
 
 ```
 users ──< playlists ──< playlist_tracks >── tracks >── albums
-  │           │                              │  │         │
-  └──< likes ─┴──────────────────────────────┘  │         │
-                                                │         │
-       search_cache ──< search_cache_items >────┴─────────┘
+  │           │                                          │
+  └──< likes ─┴──────────────────────────────────────────┘
 ```
 
-`likes` 는 앨범 또는 플레이리스트를, `search_cache_items` 는 곡 또는 앨범을 가리킨다.
+`likes` 는 앨범 또는 플레이리스트 중 하나를 가리킨다.
 
 `source_type` = ENUM(`'itunes'`, `'youtube'`)
 
@@ -239,35 +245,12 @@ UNIQUE `(user_id, album_id)` · `(user_id, playlist_id)`
 
 **곡 단위 좋아요는 없다.** 앨범과 플레이리스트만 담는다.
 
-### search_cache / search_cache_items — 검색어 캐시
-
-```
-search_cache        id · source · search_type · query · fetched_at
-                    UNIQUE (source, search_type, query) · INDEX fetched_at
-
-search_cache_items  cache_id · position · track_id · album_id
-                    PK (cache_id, position)
-                    CHECK num_nonnulls(track_id, album_id) = 1
-                    세 FK 모두 CASCADE
-```
-
-`query` 는 정규화(소문자·trim)해서 넣는다. `search_type` 은 `'track'` / `'album'`.
-`fetched_at` 으로 TTL 을 판정하고, 만료된 행은 지우면 `items` 가 CASCADE 로 따라간다.
-
-**왜 필요한가** — iTunes 는 IP 당 약 20회/분(초과 시 429), YouTube 는 하루 100회다.
-둘 다 **개발자 크레덴셜 하나를 전체 사용자가 공유**하므로 사용자가 늘수록 빨리
-소진된다. 검색어 단위 캐시 없이는 시연 중에 막힐 수 있다.
-
-결과를 배열(`bigint[]`)이 아니라 별도 테이블에 둔 이유는 FK 로 무결성을 걸기
-위해서다. 배열에는 FK 를 못 걸어 삭제된 곡의 id 가 남는다.
-
 ### 삭제 전파
 
 유저를 지우면 그 사람의 `playlists` / `playlist_tracks` / `likes` 가 함께 사라지고,
-공용 캐시인 `tracks` / `albums` / `search_cache` 는 남는다.
+공용 캐시인 `tracks` / `albums` 는 남는다.
 앨범을 지우면 그 앨범의 트랙은 `album_id` 만 NULL 이 되고 트랙 자체는 유지된다.
-곡을 지우면 그 곡을 가리키던 `playlist_tracks` · `search_cache_items` 가
-CASCADE 로 사라진다.
+곡을 지우면 그 곡을 가리키던 `playlist_tracks` 가 CASCADE 로 사라진다.
 
 ---
 
@@ -290,26 +273,6 @@ INSERT INTO likes (user_id, album_id) VALUES (?, ?)
 ON CONFLICT (user_id, album_id) DO NOTHING;
 
 DELETE FROM likes WHERE user_id = ? AND album_id = ?;
-```
-
-**검색 캐시 조회** — TTL 안이면 DB, 아니면 API 호출 후 갱신.
-
-```sql
-SELECT t.*
-FROM search_cache sc
-JOIN search_cache_items i ON i.cache_id = sc.id
-JOIN tracks t             ON t.id = i.track_id
-WHERE sc.source = ? AND sc.search_type = 'track' AND sc.query = ?
-  AND sc.fetched_at > now() - interval '24 hours'
-ORDER BY i.position;
-```
-
-두 소스를 동시에 검색하려면 `sc.source` 조건을 빼고 `ORDER BY sc.source, i.position`.
-
-**마이페이지** — `ix_likes_user_id_created_at` 를 탄다.
-
-```sql
-SELECT * FROM likes WHERE user_id = ? ORDER BY created_at DESC;
 ```
 
 **플레이리스트 순서 변경** — 한 트랜잭션 안에서 한꺼번에 갱신하면 된다.
