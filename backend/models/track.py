@@ -44,6 +44,7 @@ class Track(PKMixin, TimestampMixin, Base):
     isrc: Mapped[str | None] = mapped_column(String(12))
     thumbnail_url: Mapped[str | None] = mapped_column(Text)
     external_url: Mapped[str | None] = mapped_column(Text)
+    preview_url: Mapped[str | None] = mapped_column(Text)
 
     album: Mapped["Album | None"] = relationship(back_populates="tracks")
     playlist_links: Mapped[list["PlaylistTrack"]] = relationship(

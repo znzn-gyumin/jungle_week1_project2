@@ -1,60 +1,141 @@
-# jungle_music DB
+# Jungle Music
 
-Spotify / YouTube 통합 음악 플랫폼의 데이터베이스. PostgreSQL 17 기준.
+여러 플랫폼의 음악을 한 곳에서 검색하고 재생하는 서비스.
+저장소의 유일한 문서다 (루트 README 없음).
 
-DB 스키마 문서다. 서버 설치·실행은 **루트 README.md** 를 본다.
-DB 코드에는 주석이 없으므로, 설계 근거와 주의사항은 전부 이 문서에 있다.
+- 프론트: React 19 + Vite (`client/`)
+- 백엔드: FastAPI (`backend/`)
+- DB: PostgreSQL 17
+- 코드에는 주석이 거의 없으므로, 설계 근거와 주의사항은 전부 이 문서에 있다.
 
-**모든 명령은 저장소 루트에서 실행한다.** `.env` 와 `requirements.txt` 도 루트에 하나씩만 있다.
+**모든 명령은 저장소 루트에서 실행한다.** `.env` 와 `requirements.txt` 도 루트에
+하나씩만 있다.
 
 ---
 
-## 빠른 시작
+## 설치와 실행
 
-DB 컨테이너를 먼저 띄운다.
+### 1. 환경변수
+
+```bash
+cp .env.example .env
+```
+
+`POSTGRES_*` 는 `backend/docker-compose.yml` 기본값이라 그대로 두면 된다.
+Spotify 키는 아래 "현재 상태" 참고.
+
+### 2. 데이터베이스
 
 ```bash
 docker compose -f backend/docker-compose.yml up -d
-```
-
-그다음 둘 중 **하나**를 고른다.
-
-### A. SQL 파일 직접 실행 — 파이썬 불필요
-
-```bash
-psql -U jungle -d jungle_music -f backend/schema.sql
-```
-
-### B. Alembic — 이후 스키마 변경을 버전 관리하려면
-
-```bash
 alembic -c backend/alembic.ini upgrade head
 ```
 
-`-c` 로 ini 위치를 지정해야 한다. `alembic.ini` 안의 `script_location` 은
+파이썬 없이 만들려면 대신 `psql -U jungle -d jungle_music -f backend/schema.sql`.
+두 경로는 **완전히 동일한 구조**를 만든다 (pg_dump 로 비교 검증함).
+SQL 로 만든 DB에 나중에 Alembic 을 붙이려면
+`alembic -c backend/alembic.ini stamp head` 로 현재 리비전을 기록시킨다.
+
+`-c` 로 ini 위치를 지정해야 한다. `alembic.ini` 의 `script_location` 이
 루트 기준(`backend/migrations`)이라 다른 디렉터리에서 실행하면 경로를 못 찾는다.
 
-두 경로는 **완전히 동일한 구조**를 만든다 (pg_dump 로 비교 검증함).
-A 로 만든 DB에 나중에 Alembic 을 붙이려면
-`alembic -c backend/alembic.ini stamp head` 로 현재 리비전을 기록시킨다.
+### 3. 의존성
+
+```bash
+# .venv 위치를 바꾸지 말 것 — package.json 의 dev:api 가 직접 참조한다
+python -m venv .venv
+.venv/Scripts/activate          # macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+
+npm install
+```
+
+### 4. 실행
+
+```bash
+npm run dev     # uvicorn(:8000) + vite(:5173) 동시 실행
+```
+
+브라우저에서 **<http://127.0.0.1:5173>**. `localhost` 로 열면 쿠키 도메인이 달라져
+로그인이 유지되지 않는다. API 문서는 <http://127.0.0.1:8000/docs>.
+
+백엔드만 따로:
+
+```bash
+.venv/Scripts/uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+> **Windows 주의** — `npm run dev` 의 `dev:api` 는 `.venv/bin/uvicorn` 을 참조한다.
+> Windows 는 `.venv/Scripts/` 라 그대로는 실패한다. 위 명령으로 따로 띄우거나
+> `package.json` 을 고쳐야 한다.
+
+---
+
+## 현재 상태
+
+**재생 방식을 iTunes Search API 로 바꾸는 중이다.** 아직 코드는 Spotify 기준이다.
+
+- DB 는 `source_type` ENUM 에 `'itunes'` 와 `tracks.preview_url` 을 이미 갖고 있다
+- `backend/main.py`, `backend/spotify.py` 는 아직 Spotify OAuth 기반이다
+
+지금 코드를 그대로 돌리려면 Spotify Developer 앱과 **Premium 계정**이 필요하다
+(Web Playback SDK 는 Premium 전용). <https://developer.spotify.com/dashboard> 에서
+앱을 만들고 Redirect URI 에 `http://127.0.0.1:8000/api/auth/callback` 을 정확히
+등록한다 — Spotify 는 `http://localhost` 를 거부한다. `.env` 의
+`SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` 를 채우면 된다.
+
+iTunes 로 넘어가면 이 준비물이 전부 사라진다. 인증이 없고, 로그인도 필요 없고,
+`previewUrl` 30초 미리듣기를 누구나 동시에 재생할 수 있다. 대신 **전체 재생은
+불가능**하다. IP 당 약 20회/분 제한이 있어 캐싱이 필요하다.
+
+참고: Spotify 는 2024년 11월부터 신규 앱에 `preview_url` 을 `null` 로 내려준다.
+현재 코드가 SDK 경로를 쓰는 이유다.
+
+---
+
+## API
+
+전부 세션 쿠키(`sid`) 기반. 로그인 안 하면 `401`.
+실패 응답은 FastAPI 기본 `detail` 대신 `{"error": "..."}` 로 통일되어 있고,
+프론트 `client/src/api.js` 가 이 키를 읽는다.
+
+| Method | Path | 설명 |
+|---|---|---|
+| GET | `/api/health` | 서버 상태 + `.env` 설정 여부 |
+| GET | `/api/auth/login` | Spotify 인증 페이지로 리다이렉트 |
+| GET | `/api/auth/callback` | 코드 → 토큰 교환 후 세션 발급 |
+| GET | `/api/auth/me` | 로그인 유저 (`product` 로 Premium 판별) |
+| GET | `/api/auth/token` | SDK 용 access token (자동 갱신) |
+| POST | `/api/auth/logout` | 세션 파기 |
+| GET | `/api/search?q=&type=track\|artist` | 곡 / 아티스트 검색 |
+| GET | `/api/artists/:id/top-tracks` | 아티스트 인기 트랙 |
+| PUT | `/api/player/transfer` | 브라우저 플레이어를 활성 기기로 전환 |
+| PUT | `/api/player/play` | `{ deviceId, uris }` — uris 생략 시 이어재생 |
+| PUT | `/api/player/pause?deviceId=` | 일시정지 |
+
+iTunes 전환 시 `/api/auth/*` 와 `/api/player/*` 는 전부 사라진다.
+재생은 `<audio src={previewUrl}>` 하나로 끝난다.
 
 ---
 
 ## 파일
 
-모두 `backend/` 아래이며, 파이썬 패키지 이름은 `backend` 하나다.
+파이썬 패키지는 `backend` 하나다.
 
 | 경로 | 역할 |
 |---|---|
-| `schema.sql` | 순수 SQL 생성 스크립트. 스택 무관 |
-| `models/*.py` | SQLAlchemy 모델 (`from backend.models import Track`) |
-| `migrations/versions/0001_initial_schema.py` | Alembic 초기 마이그레이션 |
-| `db/base.py` | `Base`, 제약조건 네이밍 규칙, 공통 mixin |
-| `config.py` | `.env` 를 읽어 DB 접속 문자열 + Spotify 설정 조립 |
-| `docker-compose.yml` | 로컬 개발용 postgres 17 |
-
-`config.py` 는 DB 와 Spotify 설정을 **한 곳에서** 관리한다. `main.py`, `spotify.py`
-도 같은 `get_settings()` 를 쓴다.
+| `backend/main.py` | 라우트 + 응답 정규화 + 예외 핸들러 |
+| `backend/spotify.py` | 토큰 교환/갱신, Spotify API 래퍼 |
+| `backend/sessions.py` | 인메모리 세션 (서버 재시작하면 로그아웃) |
+| `backend/config.py` | `.env` → DB 접속 문자열 + Spotify 설정 (단일 `get_settings()`) |
+| `backend/models/*.py` | SQLAlchemy 모델 (`from backend.models import Track`) |
+| `backend/db/base.py` | `Base`, 제약조건 네이밍 규칙, 공통 mixin |
+| `backend/migrations/` | Alembic |
+| `backend/schema.sql` | 순수 SQL 생성 스크립트. 스택 무관 |
+| `backend/docker-compose.yml` | 로컬 개발용 postgres 17 |
+| `client/src/App.jsx` | 화면 전체 |
+| `client/src/usePlayer.js` | Web Playback SDK 연결 훅 |
+| `client/src/api.js` | 백엔드 호출 |
 
 ---
 
@@ -66,7 +147,7 @@ users ──< playlists ──< playlist_tracks >── tracks >── albums
   └──< likes ────────────────────────────────────────────┘
 ```
 
-`source_type` = ENUM(`'spotify'`, `'youtube'`)
+`source_type` = ENUM(`'spotify'`, `'youtube'`, `'itunes'`)
 
 ### users — 계정
 
@@ -82,14 +163,23 @@ UNIQUE `(source, source_id)`
 
 YouTube 에는 앨범 개념이 없어 실질적으로 대부분 Spotify 레코드다.
 
-### tracks — Spotify 트랙 / YouTube 영상 캐시
+### tracks — 외부 플랫폼 곡 캐시 (Spotify 트랙 / YouTube 영상 / iTunes 곡)
 
 `id` · `source` · `source_id`(128) · `title` · `artist` · `album_id` ·
 `duration_ms` · `isrc`(12) · `thumbnail_url` · `external_url` ·
-`created_at` · `updated_at`
+`preview_url` · `created_at` · `updated_at`
 
 UNIQUE `(source, source_id)` · INDEX `isrc`, `album_id`, `lower(title)`
 `album_id` → `albums` **ON DELETE SET NULL** (YouTube 곡은 NULL)
+
+`external_url` 은 사람이 보는 페이지 링크(Apple Music / Spotify 웹), `preview_url` 은
+**재생 가능한 오디오 파일** 이다. 둘은 다르다. iTunes 의 `previewUrl` 이 여기 들어가고,
+Spotify 는 이 값을 주지 않아 NULL 이 된다.
+
+iTunes 필드 매핑: `trackId`→`source_id`, `trackName`→`title`, `artistName`→`artist`,
+`collectionId`→앨범 조회, `trackTimeMillis`→`duration_ms`, `artworkUrl100`→`thumbnail_url`,
+`trackViewUrl`→`external_url`, `previewUrl`→`preview_url`.
+iTunes 는 ISRC 를 주지 않으므로 `isrc` 는 비게 된다.
 
 ### playlists — 사용자 플레이리스트
 
@@ -251,3 +341,40 @@ Spotify 의 "Bohemian Rhapsody" 와 YouTube 의 같은 곡은 `source` 가 달�
 **DB 세션이 아직 FastAPI 에 연결되지 않았다.**
 모델과 마이그레이션은 있지만 async 엔진 / `get_db` 의존성이 없어서, `main.py` 의
 어떤 라우터도 아직 DB 를 읽거나 쓰지 않는다.
+
+---
+
+## 현재 Spotify 코드의 알려진 제약
+
+iTunes 로 넘어가면 대부분 사라진다. 그전까지 유효한 내용이다.
+
+### Development Mode 앱 제약
+
+Extended Quota 승인 전 앱은 Spotify 가 조용히 기능을 깎는다. 실측으로 확인한 내용:
+
+| 항목 | 실제 동작 | 대응 |
+|---|---|---|
+| `search` 의 `limit` | **11 이상이면 400 `Invalid limit`**. 값과 무관 | `MAX_LIMIT = 10` 고정 (`backend/main.py`) |
+| `search` 결과 개수 | `limit=10` 을 보내도 보통 **5개**만 옴 | 그대로 표시 |
+| `/artists/{id}/top-tracks` | **403 Forbidden**. `market` 무관하게 항상 실패 | `artist:"이름"` 필터 검색으로 자동 대체 |
+| `/artists/{id}`, `/albums` | 정상 | — |
+
+### 재생은 실제 스트리밍이다
+
+**이 앱의 재생은 로그인한 계정의 실제 스트리밍이다.** 최근 재생 기록에 남고
+Daily Mix / Discover Weekly / Wrapped / 상위 아티스트에 반영된다. Spotify 에는
+재생 기록 삭제 기능이 없고, 앱의 Private session 은 SDK 기기에 적용되지 않는다.
+
+우측 상단 `개발 모드` 토글을 켜면 재생 10초 뒤 자동 일시정지한다
+(`client/src/App.jsx` 의 `DEV_STOP_MS`, 설정은 `localStorage` 에 저장). 다만
+30초 집계는 피해도 **짧은 재생이 스킵 신호로 잡힐 수 있어** 완전한 보호는 아니다.
+오염을 아예 피하려면 평소 듣는 곡으로 테스트하거나 `/api/player/devices` 로
+재생 없이 연결만 확인한다.
+
+### 기능 범위
+
+- 세션이 **인메모리**라 서버 재시작 시 재로그인 (실서비스는 Redis/DB)
+- 단일 사용자 기준. 동시 사용자 테스트 안 함
+- 다음곡/이전곡/셔플/볼륨/시크 미구현 (재생·일시정지만)
+- 플레이리스트, 앨범 상세, 좋아요 미구현 — DB 스키마만 준비된 상태
+- 브라우저는 EME(DRM) 필요. 일부 브라우저·시크릿 모드에서 SDK 연결 실패

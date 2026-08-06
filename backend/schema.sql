@@ -1,6 +1,6 @@
 BEGIN;
 
-CREATE TYPE source_type AS ENUM ('spotify', 'youtube');
+CREATE TYPE source_type AS ENUM ('spotify', 'youtube', 'itunes');
 
 
 CREATE TABLE users (
@@ -46,6 +46,7 @@ CREATE TABLE tracks (
     isrc          varchar(12),
     thumbnail_url text,
     external_url  text,
+    preview_url   text,
     created_at    timestamptz  NOT NULL DEFAULT now(),
     updated_at    timestamptz  NOT NULL DEFAULT now(),
 

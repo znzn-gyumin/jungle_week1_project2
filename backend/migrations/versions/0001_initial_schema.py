@@ -18,7 +18,7 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 source_type = postgresql.ENUM(
-    "spotify", "youtube", name="source_type", create_type=False
+    "spotify", "youtube", "itunes", name="source_type", create_type=False
 )
 
 
@@ -87,6 +87,7 @@ def upgrade() -> None:
         sa.Column("isrc", sa.String(length=12), nullable=True),
         sa.Column("thumbnail_url", sa.Text(), nullable=True),
         sa.Column("external_url", sa.Text(), nullable=True),
+        sa.Column("preview_url", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
