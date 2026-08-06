@@ -60,11 +60,12 @@ function emit(entry) {
   for (const fn of listeners) fn(full)
 }
 
+install()
+
 export function useFetchLog() {
   const [log, setLog] = useState([])
 
   useEffect(() => {
-    install()
     const push = (entry) => setLog((prev) => [entry, ...prev].slice(0, LIMIT))
     listeners.add(push)
     return () => listeners.delete(push)

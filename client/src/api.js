@@ -1,8 +1,24 @@
 async function request(path, init) {
   const res = await fetch(path, { credentials: 'same-origin', ...init })
   const text = await res.text()
-  const data = text ? JSON.parse(text) : null
-  if (!res.ok) throw Object.assign(new Error(data?.error ?? res.statusText), { status: res.status, data })
+
+  let data = null
+  let parseFailed = false
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      parseFailed = true
+    }
+  }
+
+  if (!res.ok) {
+    const message = data?.error ?? (parseFailed ? text.slice(0, 200) : '') ?? ''
+    throw Object.assign(new Error(message || res.statusText), { status: res.status, data })
+  }
+  if (parseFailed) {
+    throw Object.assign(new Error('JSON 이 아닌 응답'), { status: res.status, data: text })
+  }
   return data
 }
 
