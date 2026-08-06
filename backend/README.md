@@ -507,11 +507,37 @@ alembic -c backend/alembic.ini check     # 모델과 DB 스키마 drift 확인
 
 **세 곳을 함께 고쳐야 한다** — `backend/models/*.py`,
 `backend/migrations/versions/*.py`, `backend/schema.sql`.
-앞의 둘이 어긋나면 `alembic check` 가 잡아주지만 `schema.sql` 은 아무도 안 잡아준다.
+앞의 둘이 어긋나면 `alembic check` 가, `schema.sql` 은 **통합 테스트**가 잡는다
+(테스트가 `schema.sql` 로 DB 를 만들기 때문이다). 둘 다 돌려야 세 곳이 맞는지 안다.
 
 `-c` 로 ini 위치만 지정하면 **어느 디렉터리에서 실행해도 된다.**
 `script_location` 은 `%(here)s/migrations`(ini 파일 기준)이고 `sys.path` 는
 `env.py` 가 `Path(__file__)` 로 저장소 루트를 잡는다.
+
+---
+
+## 통합 테스트
+
+`backend/devtools/integration_test.py` 는 실제 앱을 ASGI 로 띄우고 실제
+PostgreSQL 을 상대로 계정·플레이리스트·좋아요 전 흐름을 검증한다. DB 는
+**`schema.sql` 로 만들기 때문에 그 파일의 유일한 검증 수단**이기도 하다.
+
+`pgserver` 가 PostgreSQL 바이너리를 함께 배포해서 Docker 도 로컬 설치도 필요 없다.
+다만 **cp313+ 휠이 없어 Python 3.12 전용 환경**이 따로 필요하다.
+
+```bash
+uv venv --python 3.12 .venv-test
+uv pip install --python .venv-test/Scripts/python.exe pgserver -r requirements.txt
+.venv-test/Scripts/python.exe backend/devtools/integration_test.py
+```
+
+macOS/Linux 는 `.venv-test/bin/python`. 모든 단언이 통과하면 종료 코드 0 이다.
+
+`uv` 가 없으면 `pip install uv` 로 넣는다. `uv venv` 가
+`Missing expected target directory for Python minor version link` 로 실패하면
+`%APPDATA%/uv/python/` (macOS/Linux 는 `~/.local/share/uv/python/`) 아래
+`cpython-3.12-...` **링크 디렉터리**가 깨진 것이다. 그 링크만 지우고 다시 실행하면
+된다 — 옆의 `cpython-3.12.13-...` 실제 설치본은 건드리지 않는다.
 
 ---
 
