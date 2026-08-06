@@ -147,7 +147,7 @@ users ──< playlists ──< playlist_tracks >── tracks >── albums
   └──< likes ────────────────────────────────────────────┘
 ```
 
-`source_type` = ENUM(`'spotify'`, `'youtube'`, `'itunes'`)
+`source_type` = ENUM(`'itunes'`, `'youtube'`)
 
 ### users — 계정
 
@@ -161,25 +161,30 @@ users ──< playlists ──< playlist_tracks >── tracks >── albums
 
 UNIQUE `(source, source_id)`
 
-YouTube 에는 앨범 개념이 없어 실질적으로 대부분 Spotify 레코드다.
+YouTube 에는 앨범 개념이 없어 실질적으로 전부 iTunes(`collection`) 레코드다.
 
-### tracks — 외부 플랫폼 곡 캐시 (Spotify 트랙 / YouTube 영상 / iTunes 곡)
+### tracks — 외부 플랫폼 곡 캐시 (iTunes 곡 / YouTube 영상)
 
 `id` · `source` · `source_id`(128) · `title` · `artist` · `album_id` ·
-`duration_ms` · `isrc`(12) · `thumbnail_url` · `external_url` ·
+`duration_ms` · `thumbnail_url` · `external_url` ·
 `preview_url` · `created_at` · `updated_at`
 
-UNIQUE `(source, source_id)` · INDEX `isrc`, `album_id`, `lower(title)`
+UNIQUE `(source, source_id)` · INDEX `album_id`, `lower(title)`
 `album_id` → `albums` **ON DELETE SET NULL** (YouTube 곡은 NULL)
 
-`external_url` 은 사람이 보는 페이지 링크(Apple Music / Spotify 웹), `preview_url` 은
-**재생 가능한 오디오 파일** 이다. 둘은 다르다. iTunes 의 `previewUrl` 이 여기 들어가고,
-Spotify 는 이 값을 주지 않아 NULL 이 된다.
+**재생 방식이 소스마다 다르다.**
+
+| | `source_id` | `preview_url` | 재생 |
+|---|---|---|---|
+| iTunes | `trackId` | 30초 오디오 URL | `<audio src={preview_url}>` |
+| YouTube | video id | NULL | IFrame 임베드에 `source_id` 전달 |
+
+`external_url` 은 사람이 보는 페이지 링크(Apple Music / YouTube 페이지)이고
+`preview_url` 은 **재생 가능한 오디오 파일** 이다. 둘은 다르다.
 
 iTunes 필드 매핑: `trackId`→`source_id`, `trackName`→`title`, `artistName`→`artist`,
 `collectionId`→앨범 조회, `trackTimeMillis`→`duration_ms`, `artworkUrl100`→`thumbnail_url`,
 `trackViewUrl`→`external_url`, `previewUrl`→`preview_url`.
-iTunes 는 ISRC 를 주지 않으므로 `isrc` 는 비게 된다.
 
 ### playlists — 사용자 플레이리스트
 
@@ -256,10 +261,11 @@ COMMIT;
 "`likes.album_id` 는 앨범만" 을 FK 로 강제할 수 없다. 대신 `(source, source_id)`
 라는 외부 식별자 패턴은 두 테이블이 동일하게 쓴다.
 
-**`tracks.isrc`**
-Spotify 가 내려주는 국제 표준 녹음 코드. 같은 곡의 Spotify 버전과 YouTube 버전을
-묶을 때 쓴다. YouTube 는 ISRC 를 주지 않으므로 그쪽은 `lower(title)` + `artist`
-휴리스틱 매칭이 필요하다 (인덱스는 걸어뒀다).
+**ISRC 컬럼은 없앴다**
+국제 표준 녹음 코드로 플랫폼 간 동일 곡을 묶으려 했으나, 이걸 내려주는 소스가
+Spotify 뿐이었다. Spotify 를 빼면 iTunes 도 YouTube 도 ISRC 를 주지 않아 영원히
+NULL 인 컬럼이 된다. 지금 플랫폼 간 매칭 수단은 `lower(title)` + `artist` 휴리스틱
+뿐이다 (인덱스는 걸어뒀다).
 
 **`likes` 의 UNIQUE 두 개가 서로 방해하지 않는 이유**
 PostgreSQL 은 NULL 을 서로 다른 값으로 취급한다. 앨범 좋아요 행은 `playlist_id` 가
@@ -318,7 +324,7 @@ configparser 가 로케일 인코딩(한국어 Windows 는 cp949)으로 읽어�
 `name="foo"` 로 줄 것. (`UniqueConstraint` 는 규칙이 이름을 참조하지 않아 무관.)
 
 **`source_enum()` 의 `values_callable` 을 지우지 말 것**
-지우면 SQLAlchemy 가 멤버 값(`'spotify'`)이 아니라 이름(`'SPOTIFY'`)을 보낸다.
+지우면 SQLAlchemy 가 멤버 값(`'itunes'`)이 아니라 이름(`'ITUNES'`)을 보낸다.
 PG enum 라벨이 소문자라 insert 시 `invalid input value for enum source_type` 로
 실패한다.
 
@@ -327,13 +333,14 @@ PG enum 라벨이 소문자라 insert 시 `invalid input value for enum source_t
 ## 아직 안 정한 것
 
 **같은 곡이 플랫폼별로 별개 행이다.**
-Spotify 의 "Bohemian Rhapsody" 와 YouTube 의 같은 곡은 `source` 가 달라 완전히
+iTunes 의 "Bohemian Rhapsody" 와 YouTube 의 같은 곡은 `source` 가 달라 완전히
 별개의 `tracks` 행이다. 검색 결과에 같은 곡이 두 번 뜨고, 플레이리스트에도 따로
-담긴다. `isrc` 로 묶으려 했지만 YouTube 는 ISRC 를 주지 않는다.
+담긴다. ISRC 같은 공용 식별자가 없어 제목·아티스트 휴리스틱 말고는 방법이 없다.
 
-"Spotify 에서 찾은 곡을 YouTube 로 재생" 같은 걸 하려면 곡의 정체성을 나타내는
+"iTunes 로 찾은 곡을 YouTube 로 전체 재생" 같은 걸 하려면 곡의 정체성을 나타내는
 상위 테이블(예: `songs`)을 두고 `tracks` 가 그 아래 플랫폼별 재생 소스로 붙는
-구조가 필요하다. **"동시에 검색" 의 핵심이라 언젠가는 결정해야 한다.**
+구조가 필요하다. iTunes 는 30초, YouTube 는 전체 재생이라 **이 둘을 잇는 게
+곧 제품의 핵심 가치**가 된다. 언젠가는 결정해야 한다.
 
 **`artist` 가 단순 텍스트다.**
 아티스트 테이블이 없어서 플랫폼 간 동일 아티스트를 식별할 수 없다.

@@ -4,9 +4,8 @@ from sqlalchemy import Enum as SAEnum
 
 
 class SourceType(str, enum.Enum):
-    SPOTIFY = "spotify"
-    YOUTUBE = "youtube"
     ITUNES = "itunes"
+    YOUTUBE = "youtube"
 
 
 def source_enum() -> SAEnum:

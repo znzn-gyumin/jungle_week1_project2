@@ -1,6 +1,6 @@
 BEGIN;
 
-CREATE TYPE source_type AS ENUM ('spotify', 'youtube', 'itunes');
+CREATE TYPE source_type AS ENUM ('itunes', 'youtube');
 
 
 CREATE TABLE users (
@@ -43,7 +43,6 @@ CREATE TABLE tracks (
     artist        text         NOT NULL,
     album_id      bigint,
     duration_ms   integer,
-    isrc          varchar(12),
     thumbnail_url text,
     external_url  text,
     preview_url   text,
@@ -56,7 +55,6 @@ CREATE TABLE tracks (
         FOREIGN KEY (album_id) REFERENCES albums (id) ON DELETE SET NULL
 );
 
-CREATE INDEX ix_tracks_isrc        ON tracks (isrc);
 CREATE INDEX ix_tracks_album_id    ON tracks (album_id);
 CREATE INDEX ix_tracks_title_lower ON tracks (lower(title));
 

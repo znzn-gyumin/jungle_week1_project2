@@ -18,7 +18,7 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 source_type = postgresql.ENUM(
-    "spotify", "youtube", "itunes", name="source_type", create_type=False
+    "itunes", "youtube", name="source_type", create_type=False
 )
 
 
@@ -84,7 +84,6 @@ def upgrade() -> None:
         sa.Column("artist", sa.Text(), nullable=False),
         sa.Column("album_id", sa.BigInteger(), nullable=True),
         sa.Column("duration_ms", sa.Integer(), nullable=True),
-        sa.Column("isrc", sa.String(length=12), nullable=True),
         sa.Column("thumbnail_url", sa.Text(), nullable=True),
         sa.Column("external_url", sa.Text(), nullable=True),
         sa.Column("preview_url", sa.Text(), nullable=True),
@@ -109,7 +108,6 @@ def upgrade() -> None:
         ),
         sa.UniqueConstraint("source", "source_id", name="uq_tracks_source_source_id"),
     )
-    op.create_index("ix_tracks_isrc", "tracks", ["isrc"])
     op.create_index("ix_tracks_title_lower", "tracks", [sa.text("lower(title)")])
     op.create_index("ix_tracks_album_id", "tracks", ["album_id"])
 

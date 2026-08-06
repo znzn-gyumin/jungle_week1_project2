@@ -24,7 +24,6 @@ class Track(PKMixin, TimestampMixin, Base):
     __tablename__ = "tracks"
     __table_args__ = (
         UniqueConstraint("source", "source_id", name="uq_tracks_source_source_id"),
-        Index("ix_tracks_isrc", "isrc"),
         Index("ix_tracks_title_lower", text("lower(title)")),
         Index("ix_tracks_album_id", "album_id"),
     )
@@ -41,7 +40,6 @@ class Track(PKMixin, TimestampMixin, Base):
     )
 
     duration_ms: Mapped[int | None] = mapped_column(Integer)
-    isrc: Mapped[str | None] = mapped_column(String(12))
     thumbnail_url: Mapped[str | None] = mapped_column(Text)
     external_url: Mapped[str | None] = mapped_column(Text)
     preview_url: Mapped[str | None] = mapped_column(Text)
