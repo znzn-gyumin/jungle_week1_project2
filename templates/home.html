@@ -15,7 +15,7 @@
 <body>
 
 <nav class="nav">
-    <div class="nav-logo">
+    <a href="/" class="nav-logo">
         <span class="dot-icon">
             <svg viewBox="0 0 40 40">
                 <path d="M14,9 C13,5 11,3 9,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
@@ -31,14 +31,14 @@
             </svg>
         </span>
     플로비
-    </div>
+    </a>
     <div class="nav-links">
         <a href="#motivation">문제</a>
         <a href="#solutions">기능</a>
         <a href="#pricing">요금제</a>
     </div>
     <div class="nav-right">
-        <a href="#" class="ghost">로그인</a>
+        <a href="/login" class="ghost">로그인</a>
         <a href="#pricing" class="btn btn-primary btn-sm">무료로 시작하기</a>
     </div>
 </nav>
@@ -46,7 +46,7 @@
 <section class="hero" id="hero">
     <div class="hero-inner">
     <span class="eyebrow-tag">SIDE A · TRACK 01</span>
-    <h1 class="hero-title">"이 노래,<br>어디서 <span class="accent">들더라?"</span></h1>
+    <h2 class="hero-title">"이 노래,<br>어디서 <span class="accent">들었더라?"</span></h2>
     <h3 class="hero-sub">음악을 감상하세요</h3>
     <p class="hero-desc">멜론, 유튜브뮤직, 지니, 사운드클라우드까지 — 흩어진 음원을 한 곳에서 검색하고, 광고 없이, 화면을 꺼도 끊김없이 들으세요.</p>
     <div class="hero-ctas">
@@ -142,17 +142,19 @@
         <div class="bee-fly-layer">
             <svg class="bee-fly-svg" viewBox="0 0 360 560" preserveAspectRatio="none">
                 <path id="bee-path" class="bee-flight-path" d="M400,10 C320,40 300,110 210,120 C120,130 40,90 -30,140 C-60,175 -40,230 40,240 C130,250 190,190 280,220 C360,245 400,300 350,340 C300,380 180,340 120,380 C60,420 -30,400 -30,460 C-30,510 80,520 160,500 C240,480 320,520 380,545" />
-                <g class="bee-doodle" stroke="#FFD873" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <ellipse cx="0" cy="3" rx="11" ry="8"/>
-                    <path d="M-10 0 Q0 6 10 0"/>
-                    <path d="M-10 7 Q0 13 10 7"/>
+                <g class="bee-doodle">
+                    <path d="M-6,-14 C-7,-18 -9,-20 -11,-21" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+                    <circle cx="-11" cy="-21" r="1.8" fill="#2A1B06"/>
+                    <path d="M6,-14 C7,-18 9,-20 11,-21" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+                    <circle cx="11" cy="-21" r="1.8" fill="#2A1B06"/>
+                    <circle cx="0" cy="0" r="13" fill="#F4B942"/>
+                    <ellipse cx="0" cy="2" rx="11" ry="3" fill="#2A1B06"/>
                     <g class="wing">
-                        <ellipse cx="-7" cy="-9" rx="6.5" ry="4.5" transform="rotate(-20 -7 -9)"/>
-                        <ellipse cx="7" cy="-9" rx="6.5" ry="4.5" transform="rotate(20 7 -9)"/>
-                        <ellipse cx="-6" cy="-2" rx="4.5" ry="3.2" transform="rotate(-10 -6 -2)"/>
-                        <ellipse cx="6" cy="-2" rx="4.5" ry="3.2" transform="rotate(10 6 -2)"/>
+                        <ellipse cx="-12" cy="-9" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(-20 -12 -9)"/>
+                        <ellipse cx="12" cy="-9" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(20 12 -9)"/>
+                        <ellipse cx="-12" cy="3" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(-10 -12 3)"/>
+                        <ellipse cx="12" cy="3" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(10 12 3)"/>
                     </g>
-                    <path d="M-4 -11c-1-3 0-5 1-6M4 -11c1-3 0-5-1-6"/>
                     <animateMotion dur="13s" repeatCount="indefinite" rotate="auto">
                         <mpath href="#bee-path" xlink:href="#bee-path"/>
                     </animateMotion>
