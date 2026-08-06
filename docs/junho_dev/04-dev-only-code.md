@@ -106,6 +106,14 @@ changing an email or password does not orphan the stored credentials.
 Deleting a dummy logs in as it and calls `DELETE /api/users/me`, which is also
 the cheapest way to exercise the cascade.
 
+Storing the roster client-side has one sharp edge worth knowing: `localStorage`
+is keyed by origin **including the port**, while cookies ignore the port. Open
+the app on `:5173` and then on `:8000` and you stay logged in but the roster
+looks empty. Two mitigations: a logged-in account whose email ends in
+`@devlab.test` re-registers itself automatically, and the sequence number is
+derived from the roster as well as its own counter, so a collision just returns
+409 and the next number is tried.
+
 ## Two accounts, one browser
 
 Cookies are per-browser, so two sessions cannot be live in one tab. Switching is

@@ -2,6 +2,11 @@ const KEY = 'devlab:accounts'
 const SEQ = 'devlab:seq'
 
 export const DEV_PASSWORD = 'devlab-pw-0000'
+export const DEV_DOMAIN = '@devlab.test'
+
+export function isDummyEmail(email) {
+  return typeof email === 'string' && email.endsWith(DEV_DOMAIN)
+}
 
 export function listAccounts() {
   try {
@@ -34,7 +39,10 @@ export function forgetAll() {
 }
 
 export function nextIdentity() {
-  const seq = Number(localStorage.getItem(SEQ) ?? '0') + 1
+  const known = listAccounts()
+    .map((a) => Number(/^tester(\d+)@/.exec(a.email ?? '')?.[1] ?? 0))
+    .reduce((max, n) => Math.max(max, n), 0)
+  const seq = Math.max(Number(localStorage.getItem(SEQ) ?? '0'), known) + 1
   localStorage.setItem(SEQ, String(seq))
   return {
     nickname: `테스터${seq}`,

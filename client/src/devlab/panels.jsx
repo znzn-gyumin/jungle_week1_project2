@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../api.js'
 import {
   DEV_PASSWORD,
   forgetAccount,
+  isDummyEmail,
   listAccounts,
   nextIdentity,
   saveAccount,
@@ -20,6 +21,18 @@ export function AccountPanel({ me, run, onChanged }) {
 
   const sync = () => setRoster(listAccounts())
 
+  useEffect(() => {
+    if (!me?.loggedIn || !isDummyEmail(me.email)) return
+    if (listAccounts().some((a) => a.email === me.email)) return
+    saveAccount({
+      nickname: me.nickname,
+      email: me.email,
+      password: DEV_PASSWORD,
+      id: me.id,
+    })
+    setRoster(listAccounts())
+  }, [me?.loggedIn, me?.email, me?.nickname, me?.id])
+
   const field = (state, setState) => (key) => ({
     value: state[key],
     onChange: (e) => setState((f) => ({ ...f, [key]: e.target.value })),
@@ -32,7 +45,7 @@ export function AccountPanel({ me, run, onChanged }) {
     await run(async () => {
       for (let i = 0; i < count; i += 1) {
         let created = null
-        for (let attempt = 0; attempt < 5 && !created; attempt += 1) {
+        for (let attempt = 0; attempt < 10 && !created; attempt += 1) {
           const identity = nextIdentity()
           try {
             const user = await api.users.signup(identity)
@@ -145,6 +158,12 @@ export function AccountPanel({ me, run, onChanged }) {
           <code className="mono">testerN@devlab.test</code>, 비밀번호는 전부{' '}
           <code className="mono">{DEV_PASSWORD}</code> 로 고정이다. curl 이나 Swagger 에서도
           같은 값으로 로그인할 수 있다. <b>만들면 마지막에 만든 계정으로 로그인된다.</b>
+        </p>
+        <p className="muted small">
+          이 목록은 <code className="mono">localStorage</code> 라 <b>포트가 다르면 따로 논다</b> —
+          쿠키는 포트를 무시하므로 5173 과 8000 사이에서 로그인은 유지되는데 목록만 비어 보인다.
+          그때는 로그인한 더미 계정이 자동으로 다시 등록되고, 나머지는 같은 비밀번호로
+          아래 로그인 폼에서 되찾으면 된다.
         </p>
 
         {roster.length === 0 ? (
