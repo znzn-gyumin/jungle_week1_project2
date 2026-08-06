@@ -6,186 +6,87 @@
 - 외부 소스: iTunes Search API, YouTube Data API
 - **코드에 주석을 두지 않는다.** 설계 근거와 주의사항은 전부 이 문서에 있다.
 
-프론트엔드는 이 저장소에 없다. `users` / `playlists` / `likes` 관리도 여기에 없다
-(아래 "담당 구분" 참고).
+## 이 저장소의 범위
 
-**모든 명령은 저장소 루트에서 실행한다.** `.env` 와 `requirements.txt` 도 루트에
-하나씩만 있다.
+`backend_dev` 는 **외부 API 검색과 재생**을 담당한다. 프론트엔드는 여기에 없다.
+
+`users` / `playlists` / `likes` 는 **테이블과 모델만 있고 라우터가 없다.**
+회원·플레이리스트·좋아요 기능은 `junho_dev` 에서 진행한다. 붙일 때는 `api/` 에
+라우터를 추가하고 `db/repository.py` 에 조회를 더하면 된다.
+
+**모든 명령은 저장소 루트에서 실행한다.** `.env` 와 `requirements.txt`,
+`docker-compose.yml` 은 루트에 하나씩만 있다.
 
 ---
 
-## 설치와 실행
-
-### 1. 환경변수
+## 빠른 시작
 
 ```bash
-cp .env.example .env
-```
+cp .env.example .env                              # 1. 환경변수
+docker compose up -d                              # 2. DB 컨테이너
+alembic -c backend/alembic.ini upgrade head       #    스키마 적용
 
-`POSTGRES_*` 는 `backend/docker-compose.yml` 기본값이라 그대로 두면 된다.
-`YOUTUBE_API_KEY` 를 비워두면 iTunes 만으로 동작한다.
-
-### 2. 데이터베이스
-
-```bash
-docker compose up -d
-alembic -c backend/alembic.ini upgrade head
-```
-
-파이썬 없이 만들려면 대신 `psql -U jungle -d flowbee -f backend/schema.sql`.
-두 경로는 **완전히 동일한 구조**를 만든다 (pg_dump 로 비교 검증함).
-SQL 로 만든 DB에 나중에 Alembic 을 붙이려면
-`alembic -c backend/alembic.ini stamp head` 로 현재 리비전을 기록시킨다.
-
-**`docker-compose.yml` 은 루트에 있어야 한다.** Compose 는 compose 파일이 있는
-디렉터리의 `.env` 를 읽는다. `backend/` 에 두면 루트 `.env` 의 `POSTGRES_PORT` 등이
-무시되고 기본값으로 뜬다. 또 Compose 프로젝트 이름이 디렉터리명에서 오므로 위치를
-옮기면 볼륨 이름도 바뀌어 **기존 데이터가 딸린 다른 볼륨에 남는다.**
-
-`-c` 로 ini 위치만 지정하면 **어느 디렉터리에서 실행해도 된다.**
-`script_location` 은 `%(here)s/migrations`(ini 파일 기준)이고, `sys.path` 는
-`env.py` 가 `Path(__file__)` 로 저장소 루트를 잡는다.
-
-### 3. 의존성
-
-```bash
-python -m venv .venv
-.venv/Scripts/activate          # macOS/Linux: source .venv/bin/activate
+python -m venv .venv                              # 3. 의존성
+.venv/Scripts/activate                            #    macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
+
+python -m backend                                 # 4. 실행
 ```
 
-### 4. 실행
-
-```bash
-python -m backend
-```
-
-`.env` 의 `SERVER_HOST` / `SERVER_PORT` / `SERVER_RELOAD` 을 읽는다.
 API 문서는 <http://127.0.0.1:8000/docs>.
 
-uvicorn 을 직접 부르면 `.env` 의 포트 설정을 무시하고 인자를 따른다.
+### 환경변수
+
+| 키 | 기본값 | 설명 |
+|---|---|---|
+| `YOUTUBE_API_KEY` | (없음) | 비우면 YouTube 검색을 건너뛰고 iTunes 만 쓴다 |
+| `ITUNES_COUNTRY` | `KR` | iTunes 는 국가별로 카탈로그가 다르다 |
+| `CLIENT_ORIGINS` | `127.0.0.1:5173,localhost:5173` | CORS 허용 오리진. 쉼표로 여러 개 |
+| `SERVER_HOST` / `SERVER_PORT` / `SERVER_RELOAD` | `127.0.0.1` / `8000` / `false` | `python -m backend` 가 읽는다 |
+| `POSTGRES_*` | `jungle` / `flowbee` | `docker-compose.yml` 기본값과 맞춰져 있다 |
+
+`YOUTUBE_API_KEY` 는 **`.env` 에만** 둔다. `config.py` 의 기본값 자리에 넣으면
+git 에 커밋된다.
+
+### DB 를 만드는 두 가지 방법
+
+Alembic 대신 순수 SQL 로도 만들 수 있다.
+
+```bash
+psql -U jungle -d flowbee -f backend/schema.sql
+```
+
+두 경로는 **완전히 동일한 구조**를 만든다 (pg_dump 로 비교 검증함).
+SQL 로 만든 DB 에 나중에 Alembic 을 붙이려면
+`alembic -c backend/alembic.ini stamp head` 로 현재 리비전을 기록시킨다.
+
+### uvicorn 을 직접 부를 때
 
 ```bash
 uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### CORS
-
-`CLIENT_ORIGINS` 에 적힌 오리진만 허용한다. **쉼표로 여러 개**를 넣을 수 있고
-기본값에 `127.0.0.1:5173` 과 `localhost:5173` 이 둘 다 들어 있다 —
-브라우저는 이 둘을 **다른 오리진**으로 취급하므로 하나만 넣으면 다른 쪽에서 막힌다.
-
-`allow_credentials=True` 라서 `allow_origins` 에 `"*"` 를 쓸 수 없다.
-와일드카드와 자격증명을 함께 쓰면 브라우저가 거부한다.
+이때는 `.env` 의 `SERVER_*` 대신 명령행 인자를 따른다.
 
 ---
 
-## 소스와 재생
-
-**Spotify 는 제거했다.** 사용자 로그인 없이 개발자 크레덴셜만으로는 Web Playback SDK
-가 동작하지 않아(Client Credentials 미지원 + Premium 필요) 이 제품 구조와 맞지 않았다.
-
-| | 인증 | 검색 | 재생 | 요청 한도 |
-|---|---|---|---|---|
-| **iTunes** | 없음 | `/search?entity=song\|album` | `previewUrl` 30초 오디오 | IP 당 약 20회/분 (429) |
-| **YouTube** | API 키 | `search.list` (100 유닛) | IFrame 임베드 | 하루 10,000 유닛 = **검색 100회** |
-
-`.env` 의 `YOUTUBE_API_KEY` 가 비어 있으면 YouTube 검색은 자동으로 건너뛴다
-(`/api/health` 의 `youtube: false`). iTunes 만으로도 동작한다.
-
-YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 한 번 더 받는다.
-`videos.list` 는 1 유닛이라 비용은 사실상 검색값과 같다.
-
-검색에는 `videoCategoryId=10`(Music) 필터를 건다. 카테고리는 **업로더가 직접
-고르는 값**(`assignable=true`)이라 음악 영상이 다른 카테고리에 있을 수 있지만,
-실측상 커버·라이브는 필터가 있어도 대부분 나왔고 오히려 리액션·강의 같은
-무관한 영상이 섞이는 쪽이 더 거슬렸다. 다만 `limit` 대비 결과가 몇 건 적게
-오기도 한다.
-
-끄려면 `sources/youtube.py` 의 `search_videos` 에서 `videoCategoryId` 한 줄을
-지우면 된다. 카테고리 목록은 `videoCategories.list` 로 확인할 수 있다 (1 유닛).
-
-임베드 불가 영상 필터(`status.embeddable`)는 넣지 않았다. 실측 74건 중 0건이라
-지금은 문제가 되지 않는다. 재생 시 "동영상을 재생할 수 없음" 이 잦아지면
-`videos.list` 의 `part` 에 `status` 를 더해 걸러낼 수 있다 (추가 비용 없음).
-
-**검색 캐시는 DB 에 두지 않는다.** 서버를 재시작하면 버려도 되는 값이라 테이블로
-만들 이유가 없다. 필요해지면 인메모리 dict + TTL 로 충분하다. `tracks` / `albums` 는
-검색 결과를 upsert 해두는 곳이지 검색어 캐시가 아니다.
-
----
-
-## API
-
-인증 없음. **모든 실패 응답이 `{"error": "..."}` 형태다.** 404·405 처럼 라우트에
-닿지 못한 경우까지 포함한다. 클라이언트는 `error` 키만 읽으면 된다.
-
-예외 핸들러는 `starlette.exceptions.HTTPException` 에 등록되어 있다.
-`fastapi.HTTPException` 은 그 하위 클래스라 함께 잡히지만, **반대로 등록하면
-경로를 못 찾았을 때(Starlette 가 던지는 기본 예외) 안 잡혀서** FastAPI 기본
-형식인 `{"detail": ...}` 이 그대로 나간다.
-
-| Method | Path | 설명 |
-|---|---|---|
-| GET | `/api/health` | 서버 상태 + YouTube 키 설정 여부 |
-| GET | `/api/health/db` | DB 연결 + public 스키마 테이블 수 |
-| GET | `/api/search?q=&source=all\|itunes\|youtube&type=track\|album&limit=` | 검색 후 결과를 DB 에 upsert 하고 반환 |
-| GET | `/api/tracks?q=&source=&limit=` | DB 에 쌓인 곡. 외부 API 를 부르지 않는다 |
-| GET | `/api/tracks/{id}` | 곡 하나 |
-| GET | `/api/albums?q=&limit=` | DB 에 쌓인 앨범 |
-| GET | `/api/albums/{id}` | 앨범 하나 |
-
-`type=album` 은 iTunes 만 지원한다. YouTube 에는 앨범 개념이 없어
-`source=youtube&type=album` 은 502 를 준다.
-
-곡 응답에는 앨범이 중첩된다. YouTube 곡은 `album: null` 이다.
-
-```json
-{ "id": 51, "source": "itunes", "title": "Viva La Vida", "artist": "Coldplay",
-  "durationMs": 242373, "playUrl": "https://audio-ssl.itunes.apple.com/....m4a",
-  "album": { "id": 22, "name": "Viva La Vida (Prospekt's March Edition)",
-             "releaseDate": "2008-06-12", "totalTracks": 10 } }
-```
-
-**중첩 앨범은 `selectinload` 로 미리 읽는다.** async SQLAlchemy 는 암묵적 lazy load
-를 허용하지 않아서, 직렬화 시점에 `track.album` 을 건드리면 `MissingGreenlet` 으로
-터진다. 곡을 반환하는 모든 조회(`upsert_tracks`, `list_tracks`, `get_track`)에
-`options(selectinload(Track.album))` 이 붙어 있다. 새 조회를 추가할 때도 필요하다.
-
-`/api/search` 는 두 소스를 `asyncio.gather` 로 동시에 호출한다. 한쪽이 실패해도
-나머지 결과를 반환하고 실패는 `errors` 배열에 담는다. 둘 다 실패하면 502.
-
-```json
-{
-  "tracks": [
-    { "id": 1, "source": "itunes", "sourceId": "1440650711",
-      "title": "...", "artist": "...", "durationMs": 355145,
-      "thumbnailUrl": "...", "playUrl": "https://audio-ssl.itunes.apple.com/....m4a" }
-  ],
-  "errors": [{ "source": "youtube", "error": "YouTube 일일 할당량 소진" }]
-}
-```
-
----
-
-## 디렉터리 구조
+## 아키텍처
 
 ```
 .env  .env.example  requirements.txt  docker-compose.yml
 │
 └── backend/                 파이썬 패키지는 backend 하나
+    ├── __main__.py          python -m backend 진입점
     ├── main.py              앱 생성 · lifespan · 예외 핸들러 · 라우터 등록
     ├── config.py            .env -> 접속 문자열 + API 키
     ├── schemas.py           Pydantic 응답 모델 (TrackOut · AlbumOut · ...)
     │
     ├── api/                 HTTP 계층. 라우터만. 비즈니스 로직 없음
-    │   ├── health.py        /api/health
-    │   ├── search.py        /api/search
-    │   ├── tracks.py        /api/tracks
-    │   └── albums.py        /api/albums
+    │   ├── health.py  search.py  tracks.py  albums.py
+    │   └── __init__.py      DEFAULT_LIMIT · MAX_LIMIT
     │
     ├── services/            여러 계층을 엮는 곳
-    │   └── search.py        소스 동시 호출 + 부분 실패 수집 + upsert 호출
+    │   └── search.py        소스 병렬 호출 · 부분 실패 수집 · upsert 호출
     │
     ├── sources/             외부 플랫폼 클라이언트. DB 를 모른다
     │   ├── itunes.py        Search API 호출 + 응답 -> 컬럼 매핑
@@ -209,27 +110,74 @@ api  ->  services  ->  sources (외부 API)
                   ->  db (Postgres)
 ```
 
-- **`api/`** 는 요청을 받아 검증하고 `services` 를 부른 뒤 응답으로 바꾼다.
-  외부 API 나 SQL 을 직접 부르지 않는다.
-- **`sources/`** 는 외부 API 만 안다. `AsyncSession` 을 받지 않고, 반환값은
-  DB 컬럼 이름에 맞춘 평범한 dict 다. 그래서 DB 없이 단위 테스트가 된다.
+- **`api/`** 는 요청을 검증하고 `services` 나 `repository` 를 부른 뒤 응답으로
+  바꾼다. 외부 API 나 SQL 을 직접 부르지 않는다.
+- **`sources/`** 는 외부 API 만 안다. `AsyncSession` 을 받지 않고 반환값은
+  DB 컬럼 이름에 맞춘 dict 다. 그래서 DB 없이 단위 테스트가 된다.
 - **`db/repository.py`** 는 SQL 만 안다. 어느 플랫폼에서 온 데이터인지 모른다.
-- **`services/search.py`** 가 둘을 잇는다. 두 소스를 `asyncio.gather` 로 동시에
-  호출하고, 한쪽이 실패해도 나머지를 반환하며 실패를 `errors` 로 모은다.
+- **`services/search.py`** 가 둘을 잇는다.
 
-새 소스(예: SoundCloud)를 붙이려면 `sources/` 에 파일 하나를 더하고
-`services/search.py` 의 `_FETCHERS` 에 등록하면 된다. `api/` 는 건드리지 않는다.
+외부 API 를 부르는 라우트는 `/api/search` 하나뿐이다. `/api/tracks` 와
+`/api/albums` 는 DB 만 읽는다.
 
-### 담당 구분
+### 새 소스를 붙이려면
 
-이 저장소의 `gyumin_dev` 는 **외부 API 검색·재생**을 맡는다.
-`users` / `playlists` / `likes` 관리는 `junho_dev` 에서 진행한다.
-세 테이블은 스키마에 이미 있지만 이 브랜치에는 해당 라우터가 없다.
-붙일 때는 `api/` 에 라우터를 추가하고 `db/repository.py` 에 조회를 더하면 된다.
+1. `sources/` 에 파일 하나 (`fetch` 용 함수 + `to_track` 매퍼)
+2. `models/enums.py` 의 `SourceType` 에 값 추가
+3. `services/search.py` 의 `_FETCHERS` 에 `Fetcher(fetch, persist)` 등록
+4. 마이그레이션으로 PG enum 에 값 추가
+
+`api/` 는 건드리지 않는다. 2번만 하고 3번을 빠뜨리면 **import 시점에
+`RuntimeError` 로 즉시 알려준다.**
 
 ---
 
-## 테이블
+## API
+
+인증 없음. **모든 실패 응답이 `{"error": "..."}` 형태다.** 404·405 처럼 라우트에
+닿지 못한 경우까지 포함하므로 클라이언트는 `error` 키만 읽으면 된다.
+
+| Method | Path | 설명 |
+|---|---|---|
+| GET | `/api/health` | 서버 상태 + YouTube 키 설정 여부 |
+| GET | `/api/health/db` | DB 연결 + public 스키마 테이블 수 |
+| GET | `/api/search?q=&source=all\|itunes\|youtube&type=track\|album&limit=` | 외부 검색 후 DB 에 upsert 하고 반환 |
+| GET | `/api/tracks?q=&source=&limit=` | DB 에 쌓인 곡. 외부 API 를 부르지 않는다 |
+| GET | `/api/tracks/{id}` | 곡 하나 |
+| GET | `/api/albums?q=&limit=` | DB 에 쌓인 앨범 |
+| GET | `/api/albums/{id}` | 앨범 하나 |
+
+`limit` 은 기본 25, 최대 50 (`api/__init__.py`).
+`type=album` 은 iTunes 만 지원해서 `source=youtube&type=album` 은 502 다.
+
+응답 스키마는 `/openapi.json` 에 전부 정의되어 있다. 필드는 camelCase 다.
+
+### `/api/search` 응답
+
+한쪽 소스가 실패해도 나머지를 반환하고 실패는 `errors` 에 담는다.
+**둘 다 실패해야 502** 다.
+
+```json
+{
+  "tracks": [
+    { "id": 51, "source": "itunes", "sourceId": "1128141246",
+      "title": "Viva La Vida", "artist": "Coldplay",
+      "album": { "id": 22, "name": "Viva La Vida (Prospekt's March Edition)",
+                 "releaseDate": "2008-06-12", "totalTracks": 10 },
+      "durationMs": 242373,
+      "thumbnailUrl": "https://is1-ssl.mzstatic.com/....jpg",
+      "playUrl": "https://audio-ssl.itunes.apple.com/....m4a" }
+  ],
+  "albums": [],
+  "errors": [{ "source": "youtube", "error": "YouTube 일일 할당량 소진" }]
+}
+```
+
+곡 응답에는 앨범이 중첩된다. YouTube 곡은 `album: null` 이다.
+
+---
+
+## 데이터 모델
 
 ```
 users ──< playlists ──< playlist_tracks >── tracks >── albums
@@ -238,7 +186,6 @@ users ──< playlists ──< playlist_tracks >── tracks >── albums
 ```
 
 `likes` 는 앨범 또는 플레이리스트 중 하나를 가리킨다.
-
 `source_type` = ENUM(`'itunes'`, `'youtube'`)
 
 ### users — 계정
@@ -261,7 +208,7 @@ UNIQUE `(source, source_id)`
 
 YouTube 에는 앨범 개념이 없어 실질적으로 전부 iTunes(`collection`) 레코드다.
 
-### tracks — 외부 플랫폼 곡 캐시 (iTunes 곡 / YouTube 영상)
+### tracks — 곡 캐시 (iTunes 곡 / YouTube 영상)
 
 `id` · `source` · `source_id`(128) · `title` · `artist` · `album_id` ·
 `duration_ms` · `thumbnail_url` · `play_url` · `created_at` · `updated_at`
@@ -273,65 +220,51 @@ UNIQUE `(source, source_id)` · INDEX `album_id`
 
 | | `source_id` | `play_url` | 렌더링 |
 |---|---|---|---|
-| iTunes | `trackId` (숫자) | `previewUrl` — **30초** 오디오 파일 | `<audio src={play_url}>` |
-| YouTube | video id (11자) | `youtube.com/embed/{source_id}` | `<iframe src={play_url}>` |
+| iTunes | `trackId` (숫자) | `previewUrl` — **30초** 오디오 파일 | `<audio src={playUrl}>` |
+| YouTube | video id (11자) | `youtube.com/embed/{source_id}` | `<iframe src={playUrl}>` |
 
 **`play_url` 이 채워져 있어도 프론트는 `source` 로 분기해야 한다.** 두 값은 종류가
 다르다 — iTunes 는 오디오 파일, YouTube 는 임베드 페이지다. `<audio>` 는 임베드
 URL 을 재생하지 못하고 `<iframe>` 은 m4a 를 플레이어로 그리지 못한다.
 
-```jsx
-track.source === 'itunes'
-  ? <audio src={track.play_url} controls />
-  : <iframe src={track.play_url} allow="autoplay" />
-```
+YouTube 의 `play_url` 은 API 응답이 아니라 `source_id` 로 조립한 **파생값**이다.
+Data API 는 재생 가능한 파일 URL 을 주지 않는다. googlevideo 스트림 URL 추출은
+약관 위반이고, 그 URL 들은 만료 시각이 박혀 있어 DB 에 저장하면 몇 시간 뒤 죽는다.
 
-YouTube Data API 는 재생 가능한 오디오 파일 URL 을 주지 않는다. video 리소스의
-`player` 파트가 주는 것은 `<iframe>` 태그 문자열이고, 리소스 어디에도 미디어
-스트림 URL 이 없다. 그래서 YouTube 의 `play_url` 은 `source_id` 로 조립한
-임베드 URL 이다 — API 응답을 그대로 담은 값이 아니라 **파생값**이다.
-
-googlevideo 스트림 URL 추출은 쓰지 않는다. 약관 위반이고, 그 URL 들은 만료 시각이
-박혀 있어 DB 에 저장하면 몇 시간 뒤 죽는다.
-
-**웹페이지 링크(`external_url`)는 두지 않는다.** 재생에 필요 없고, 필요해지면
-`source_id` 에서 파생할 수 있다 (`youtube.com/watch?v={source_id}`,
-`music.apple.com/album/{collectionId}?i={source_id}`).
+**웹페이지 링크는 저장하지 않는다.** 재생에 필요 없고 `source_id` 에서 파생할 수
+있다 (`youtube.com/watch?v=...`, `music.apple.com/album/{collectionId}?i=...`).
 다만 Apple 은 API 의 미리듣기·아트워크를 "스토어 콘텐츠 홍보 목적"으로만 쓰고
-사운드 샘플은 스토어 배지 근처에 두라고 안내한다. 외부 공개 서비스로 확장한다면
+사운드 샘플을 스토어 배지 근처에 두라고 안내한다. 외부 공개 서비스로 확장하면
 그때 다시 볼 지점이다.
-
-iTunes 필드 매핑: `trackId`→`source_id`, `trackName`→`title`, `artistName`→`artist`,
-`collectionId`→앨범 조회, `trackTimeMillis`→`duration_ms`, `artworkUrl100`→`thumbnail_url`,
-`previewUrl`→`play_url`. (`trackViewUrl` 은 저장하지 않는다)
 
 ### playlists — 사용자 플레이리스트
 
 `id` · `user_id` · `name`(100) · `description` · `total_tracks`(기본 0, CHECK ≥ 0) ·
 `is_public`(기본 false) · `view_count`(기본 0, CHECK ≥ 0) · `created_at` · `updated_at`
 
-`total_tracks` 는 `playlist_tracks` 개수의 **비정규화 사본**이다. 곡을 담거나 뺄 때
-애플리케이션이 함께 갱신해야 하며, 안 하면 실제 개수와 어긋난다. 목록 화면에서
-플레이리스트마다 `COUNT(*)` 를 돌리지 않으려는 것이 목적이다.
-
 `user_id` → `users` **CASCADE** · INDEX `user_id`, `(view_count DESC) WHERE is_public`
+
+`total_tracks` 는 `playlist_tracks` 개수의 **비정규화 사본**이다. 곡을 담거나 뺄 때
+애플리케이션이 함께 갱신해야 하며, 안 하면 실제 개수와 어긋난다.
 
 ### playlist_tracks — 플레이리스트 ↔ 트랙 + 재생 순서
 
 `id` · `playlist_id` · `track_id` · `position`(CHECK ≥ 0) · `added_at`
 
-UNIQUE `(playlist_id, position)` **DEFERRABLE INITIALLY DEFERRED**
-두 FK 모두 **CASCADE**
+UNIQUE `(playlist_id, position)` **DEFERRABLE INITIALLY DEFERRED** · 두 FK 모두 CASCADE
 
-### likes — 앨범/플레이리스트 좋아요 (마이페이지 목록의 원본)
+DEFERRABLE 이라 한 트랜잭션 안에서 여러 행의 `position` 을 한꺼번에 갱신하는
+재정렬이 중간 충돌 없이 된다. 같은 곡을 두 번 담는 건 허용한다.
+
+### likes — 앨범/플레이리스트 좋아요
 
 `id` · `user_id` · `album_id` · `playlist_id` · `created_at`
 
 CHECK `num_nonnulls(album_id, playlist_id) = 1`
 UNIQUE `(user_id, album_id)` · `(user_id, playlist_id)`
-세 FK 모두 **CASCADE** · INDEX `(user_id, created_at DESC)`, `album_id`, `playlist_id`
+세 FK 모두 CASCADE · INDEX `(user_id, created_at DESC)`, `album_id`, `playlist_id`
 
-**곡 단위 좋아요는 없다.** 앨범과 플레이리스트만 담는다.
+**곡 단위 좋아요는 없다.**
 
 ### 삭제 전파
 
@@ -340,33 +273,24 @@ UNIQUE `(user_id, album_id)` · `(user_id, playlist_id)`
 앨범을 지우면 그 앨범의 트랙은 `album_id` 만 NULL 이 되고 트랙 자체는 유지된다.
 곡을 지우면 그 곡을 가리키던 `playlist_tracks` 가 CASCADE 로 사라진다.
 
----
-
-## 자주 쓸 쿼리
-
-**검색 결과 캐싱** — 매번 upsert 하면 플레이리스트가 외부 API 응답에 의존하지 않고
-FK 로 곡을 참조할 수 있다.
+### 자주 쓸 쿼리
 
 ```sql
+-- 검색 결과 캐싱 (repository.upsert_tracks 가 하는 일)
 INSERT INTO tracks (source, source_id, title, artist, ...)
 VALUES (...)
-ON CONFLICT (source, source_id) DO UPDATE SET title = EXCLUDED.title
+ON CONFLICT (source, source_id) DO UPDATE
+  SET title = EXCLUDED.title, updated_at = now()
 RETURNING id;
-```
 
-**좋아요 토글** — 중복 체크는 애플리케이션이 아니라 DB 에 맡긴다.
-
-```sql
+-- 좋아요 토글. 중복 체크는 DB 에 맡긴다
 INSERT INTO likes (user_id, album_id) VALUES (?, ?)
 ON CONFLICT (user_id, album_id) DO NOTHING;
 
-DELETE FROM likes WHERE user_id = ? AND album_id = ?;
-```
+-- 마이페이지 (ix_likes_user_id_created_at 사용)
+SELECT * FROM likes WHERE user_id = ? ORDER BY created_at DESC;
 
-**플레이리스트 순서 변경** — 한 트랜잭션 안에서 한꺼번에 갱신하면 된다.
-`position` UNIQUE 가 DEFERRABLE 이라 중간 충돌이 나지 않는다.
-
-```sql
+-- 플레이리스트 순서 변경. DEFERRABLE 이라 한 트랜잭션에서 한꺼번에
 BEGIN;
 UPDATE playlist_tracks SET position = ... WHERE playlist_id = ?;
 COMMIT;
@@ -374,49 +298,38 @@ COMMIT;
 
 ---
 
-## 설계 메모
+## 외부 소스
 
-**`tracks` / `albums` 분리**
-초안의 `music&album` 단일 테이블(+`type` 컬럼)로는 "플레이리스트 항목은 곡만",
-"`likes.album_id` 는 앨범만" 을 FK 로 강제할 수 없다. 대신 `(source, source_id)`
-라는 외부 식별자 패턴은 두 테이블이 동일하게 쓴다.
+**Spotify 는 제거했다.** 사용자 로그인 없이 개발자 크레덴셜만으로는 Web Playback
+SDK 가 동작하지 않아(Client Credentials 미지원 + Premium 필요) 이 구조와 맞지 않았다.
 
-**ISRC 컬럼은 없앴다**
-국제 표준 녹음 코드로 플랫폼 간 동일 곡을 묶으려 했으나, 이걸 내려주는 소스가
-Spotify 뿐이었다. Spotify 를 빼면 iTunes 도 YouTube 도 ISRC 를 주지 않아 영원히
-NULL 인 컬럼이 된다. 지금 플랫폼 간 매칭 수단은 `lower(title)` + `artist` 휴리스틱
-뿐이다 (인덱스는 걸어뒀다).
+| | 인증 | 검색 | 재생 | 요청 한도 |
+|---|---|---|---|---|
+| **iTunes** | 없음 | `/search?entity=song\|album` | `previewUrl` 30초 오디오 | IP 당 약 20회/분 (429) |
+| **YouTube** | API 키 | `search.list` (100 유닛) | IFrame 임베드 | 하루 10,000 유닛 = **검색 100회** |
 
-**`likes` 의 UNIQUE 두 개가 서로 방해하지 않는 이유**
-PostgreSQL 은 NULL 을 서로 다른 값으로 취급한다. 앨범 좋아요 행은 `playlist_id` 가
-전부 NULL 이지만 `uq_likes_user_id_playlist_id` 에 걸리지 않는다.
-한눈에 틀려 보이지만 의도된 구조다 — **지우지 말 것.**
+YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 한 번 더 받는다.
+`videos.list` 는 1 유닛이라 비용은 사실상 검색값과 같다.
 
-**`playlist_tracks` 의 중복 허용**
-같은 곡을 한 플레이리스트에 두 번 담는 것은 막지 않았다. 막으려면
-`(playlist_id, track_id)` UNIQUE 를 추가한다.
+### YouTube 카테고리 필터
 
-**`playlists.view_count`**
-트래픽이 늘면 매 조회마다 `UPDATE ... SET view_count = view_count + 1` 이 행 잠금
-경합을 만든다. 나중에 Redis 카운터 + 주기적 flush 로 옮기는 걸 권장.
+검색에 `videoCategoryId=10`(Music) 을 건다. 카테고리는 **업로더가 직접 고르는
+값**(`assignable=true`)이라 음악 영상이 다른 카테고리에 있을 수 있다. 실측상
+커버·라이브는 필터가 있어도 대부분 나왔고, 오히려 리액션·강의가 섞이는 쪽이 더
+거슬렸다. 다만 `limit` 대비 결과가 몇 건 적게 오기도 한다.
 
-**비공개로 바뀐 플레이리스트**
-좋아요를 누른 뒤 주인이 `is_public` 을 false 로 바꿔도 좋아요 행은 남는다.
-마이페이지에서 `is_public` 확인은 애플리케이션 쪽에서 해야 한다.
+끄려면 `sources/youtube.py` 의 `search_videos` 에서 `videoCategoryId` 한 줄을
+지운다. 카테고리 목록은 `videoCategories.list` 로 확인한다 (1 유닛).
 
----
+임베드 불가 영상 필터(`status.embeddable`)는 넣지 않았다. 실측 74건 중 0건이라
+지금은 문제가 되지 않는다. 재생 실패가 잦아지면 `videos.list` 의 `part` 에
+`status` 를 더해 걸러낼 수 있다 (추가 비용 없음).
 
-## 백엔드 붙일 때
+### 검색 캐시는 DB 에 두지 않는다
 
-**드라이버**: SQLAlchemy async 엔진은 `postgresql+asyncpg` 를 쓸 것.
-psycopg3 의 async 모드는 Windows 기본 이벤트 루프(ProactorEventLoop)에서 동작하지
-않는다. Alembic 은 동기 연결이라 psycopg 를 쓴다.
-접속 문자열은 `backend/config.py` 의 `async_database_url` 참고.
-
-**모델 재사용**: `from backend.models import User, Album, Track, Playlist, PlaylistTrack, Like`
-세션/엔진 생성 코드는 백엔드 쪽에서 만들면 된다.
-
-**추가 후보 테이블**: `follows`, `play_history`
+서버를 재시작하면 버려도 되는 값이라 테이블로 만들 이유가 없다. 필요해지면
+인메모리 dict + TTL 로 충분하다. `tracks` / `albums` 는 검색 **결과**를 upsert 해두는
+곳이지 검색어 캐시가 아니다.
 
 ---
 
@@ -428,79 +341,49 @@ alembic -c backend/alembic.ini upgrade head
 alembic -c backend/alembic.ini check     # 모델과 DB 스키마 drift 확인
 ```
 
-**세 곳을 함께 고쳐야 한다** — `backend/models/*.py`, `migrations/versions/*.py`,
-`schema.sql`. 앞의 둘이 어긋나면 `alembic check` 가 잡아주지만, `schema.sql` 은
-아무도 안 잡아주므로 직접 챙긴다.
+**세 곳을 함께 고쳐야 한다** — `backend/models/*.py`,
+`backend/migrations/versions/*.py`, `backend/schema.sql`.
+앞의 둘이 어긋나면 `alembic check` 가 잡아주지만 `schema.sql` 은 아무도 안 잡아준다.
 
-### 밟기 쉬운 함정
+`-c` 로 ini 위치만 지정하면 **어느 디렉터리에서 실행해도 된다.**
+`script_location` 은 `%(here)s/migrations`(ini 파일 기준)이고 `sys.path` 는
+`env.py` 가 `Path(__file__)` 로 저장소 루트를 잡는다.
 
-**`.env` 경로는 `config.py` 기준으로 고정되어 있다**
+---
+
+## 밟기 쉬운 함정
+
+### 설정과 실행
+
+**`.env` 경로는 `config.py` 기준으로 고정한다**
 `env_file` 을 `".env"` 같은 상대 경로로 두면 **실행 위치(CWD)** 기준이 되어,
 저장소 루트가 아닌 곳에서 실행하면 `.env` 를 못 찾고 **에러 없이 전부 기본값**으로
-떨어진다. 다른 DB 에 붙고 YouTube 가 조용히 비활성화된다. `ROOT / ".env"` 로
-고정한 이유다.
+떨어진다. 다른 DB 에 붙고 YouTube 가 조용히 비활성화된다.
 
-**`alembic.ini` 에 DB URL 을 넣지 않는다**
-`config.set_main_option("sqlalchemy.url", ...)` 은 ConfigParser 를 거치는데
-`%` 를 보간 문법으로 해석한다. 비밀번호에 `%` 가 있으면
-`ValueError: invalid interpolation syntax` 로 마이그레이션이 죽는다.
-`env.py` 는 `settings.sync_database_url` 을 `create_engine` 에 직접 넘긴다.
-덤으로 비밀번호가 alembic config 객체에 남지 않는다.
+**비밀값은 `SecretStr` 이라 그대로 쓰면 안 된다**
+`postgres_password` 와 `youtube_api_key` 는 `SecretStr` 이라 `repr` 에
+`'**********'` 로 찍힌다. 대신 **문자열이 필요한 자리에 그대로 넣으면 마스킹된
+값이 나간다** — `urlencode({'key': secret})` 은 `key=%2A%2A...` 를 만들어 API
+호출이 조용히 실패한다. `settings.youtube_key` 처럼 `.get_secret_value()` 를
+거친 값을 쓸 것.
 
-**응답은 Pydantic 모델로 돌려준다**
-`-> dict[str, Any]` 로 두면 `/docs` 와 `/openapi.json` 에 응답 스키마가 비어
-프론트가 계약을 볼 수 없다. `schemas.py` 의 모델을 `response_model` 로 지정하면
-자동으로 채워진다. 필드는 snake_case 로 쓰고 `alias_generator=to_camel` 이
-JSON 에서 camelCase 로 바꾼다.
+**`docker-compose.yml` 은 루트에 있어야 한다**
+Compose 는 compose 파일이 있는 디렉터리의 `.env` 를 읽는다. `backend/` 에 두면
+루트 `.env` 의 `POSTGRES_PORT` 등이 무시된다. 또 Compose 프로젝트 이름이
+디렉터리명에서 오므로 위치를 옮기면 **볼륨 이름도 바뀌어 기존 데이터가 딸린
+다른 볼륨에 남는다.**
 
-**`SourceType` 은 `enum.StrEnum` 이다**
-`class X(str, Enum)` 은 Python 3.11 부터 `str(...)` 과 f-string 이
-`"SourceType.ITUNES"` 를 돌려준다. `__repr__` 이나 로그에 그대로 새는 값이라
-`enum.StrEnum` 을 쓴다. `== "itunes"` 비교와 `.value` 는 양쪽 다 동작한다.
+**기동 로그는 `uvicorn.error` 로거로 찍는다**
+`logging.getLogger("backend")` 처럼 새 로거를 만들면 uvicorn 이 핸들러를 붙이지
+않아 **메시지가 조용히 버려진다.** `print` 는 잘 나오지만 한국어 Windows
+콘솔(cp949)에서 인코딩 불가 문자를 만나면 `UnicodeEncodeError` 로 startup 이
+죽는다 (실제로 em-dash 때문에 한 번 겪었다).
 
-**`ondelete` 를 걸었으면 관계에도 `passive_deletes` 를 준다**
-`Album.tracks` 는 FK 가 `ON DELETE SET NULL` 인데 `passive_deletes` 가 없으면
-ORM 이 곡을 전부 로드해 **한 곡씩 UPDATE** 한다 (수록곡 30개면 UPDATE 30번).
-`passive_deletes="all"` 을 주면 DB 가 한 번에 처리한다.
-`CASCADE` 쪽 관계들은 `passive_deletes=True` 를 이미 쓰고 있다.
+**CORS 는 `127.0.0.1` 과 `localhost` 를 둘 다 넣는다**
+브라우저는 이 둘을 **다른 오리진**으로 취급한다. `allow_credentials=True` 라서
+`allow_origins` 에 `"*"` 는 쓸 수 없다.
 
-**부분검색은 인덱스를 못 탄다**
-`title ILIKE '%queen%'` 처럼 앞에 `%` 가 붙으면 btree 인덱스가 무용지물이다.
-정렬된 목차로는 "중간에 들어간 값"을 찾을 수 없기 때문이다. 실측(30만 건):
-
-| | 실행 계획 | 시간 |
-|---|---|---|
-| 인덱스 없음 | Seq Scan | 65 ms |
-| btree on `lower(title)` | Seq Scan (인덱스 무시) | 51 ms |
-| pg_trgm GIN | Bitmap Index Scan | **0.45 ms** |
-
-그래서 쓰이지 않던 `ix_tracks_title_lower` 를 지웠다 (`idx_scan` 0회). 데이터가
-수만 건을 넘어가 검색이 느려지면 `CREATE EXTENSION pg_trgm` 후
-`CREATE INDEX ... USING gin (title gin_trgm_ops)` 로 되살리면 된다.
-
-참고로 이 DB 로케일(`en_US.utf8`)에서는 `LIKE 'prefix%'` 조차 btree 를 못 쓴다.
-`text_pattern_ops` 로 만들어야 한다. 지금 남은 btree 는 등호 비교용이다.
-
-**검색어의 `%` `_` 는 이스케이프한다**
-LIKE 에서 `%` 는 "아무 글자 0개 이상", `_` 는 "아무 글자 1개"다. 사용자가 `100%`
-를 검색하면 의도와 다른 패턴 매칭이 된다 (`%` 하나만 넣으면 전곡이 나왔다).
-`repository._like()` 가 이스케이프하고 `ilike(..., escape=LIKE_ESCAPE)` 로 넘긴다.
-SQL 인젝션은 아니고(파라미터 바인딩은 됨) 검색 의미가 틀어지는 문제다.
-
-**`updated_at` 은 upsert 에서 자동 갱신되지 않는다**
-`TimestampMixin` 의 `onupdate=func.now()` 는 ORM UPDATE 에서만 동작한다.
-`insert().on_conflict_do_update()` 는 Core 구문이라 발동하지 않아서, `set_` 에
-`"updated_at": func.now()` 를 직접 넣어야 한다. `list_tracks` 가 `updated_at DESC`
-로 정렬하므로 빠뜨리면 "최근" 순서가 최초 저장 순서에 고정된다.
-
-**YouTube 는 제목을 HTML 이스케이프해서 준다**
-`snippet.title` 과 `channelTitle` 에 `&#39;` `&quot;` `&amp;` 가 그대로 들어온다.
-`html.unescape()` 를 거치지 않으면 화면에 `Don&#39;t` 이 그대로 보인다.
-
-**iTunes 아트워크는 URL 로 크기를 바꾼다**
-API 는 `artworkUrl100`(100x100) 만 준다. URL 의 `100x100bb` 를 `600x600bb` 로
-바꾸면 큰 이미지가 나온다. **추가 API 호출이 없다.** 크기는
-`sources/itunes.py` 의 `ARTWORK_SIZE` 로 조절한다.
+### 비동기 SQLAlchemy
 
 **`AsyncSession` 은 동시에 쓸 수 없다**
 `asyncio.gather` 로 여러 코루틴을 돌리면서 **같은 세션**에 쓰면
@@ -509,58 +392,157 @@ API 는 `artworkUrl100`(100x100) 만 준다. URL 의 `100x100bb` 를 `600x600bb`
 **HTTP 만 병렬로 돌리고 DB 쓰기는 순차로** 처리한다. 병렬로 얻을 이득은
 네트워크 지연이지 DB 가 아니다.
 
+**중첩 관계는 `selectinload` 로 미리 읽는다**
+async SQLAlchemy 는 암묵적 lazy load 를 허용하지 않아, 직렬화 시점에
+`track.album` 을 건드리면 `MissingGreenlet` 으로 터진다. 곡을 반환하는 모든
+조회(`upsert_tracks`, `list_tracks`, `get_track`)에 `options(selectinload(Track.album))`
+이 붙어 있다. 새 조회를 추가할 때도 필요하다.
+
 **트랜잭션 경계는 서비스가 쥔다**
 `repository` 는 `flush` 만 하고 `commit` 하지 않는다. 검색 한 번이 트랜잭션
-하나이며, 도중에 실패하면 아무것도 남지 않는다. 리포지토리가 커밋하면 서비스가
-여러 작업을 하나로 묶을 수 없다.
+하나이며 도중에 실패하면 아무것도 남지 않는다.
 
-**소스 오류만 `errors` 로 삼킨다**
-`SOURCE_ERRORS`(ITunesError · YouTubeError · httpx.HTTPError) 만 `errors` 배열에
-담고, 그 외 예외는 그대로 올려보내 500 으로 드러낸다. `except Exception` 으로
-전부 잡으면 우리 코드의 버그가 "iTunes 오류"로 둔갑해 조용히 묻힌다.
+**`ondelete` 를 걸었으면 관계에도 `passive_deletes` 를 준다**
+`Album.tracks` 는 FK 가 `ON DELETE SET NULL` 인데 설정이 없으면 ORM 이 곡을 전부
+로드해 **한 곡씩 UPDATE** 한다 (수록곡 30개면 UPDATE 30번). `passive_deletes="all"`
+을 주면 DB 가 한 번에 처리한다. `CASCADE` 쪽 관계들은 `passive_deletes=True` 다.
 
-**기동 로그는 `uvicorn.error` 로거로 찍는다**
-`logging.getLogger("backend")` 처럼 새 로거를 만들면 uvicorn 이 핸들러를 붙이지
-않아 **메시지가 조용히 버려진다.** `print` 는 반대로 잘 나오지만 한국어 Windows
-콘솔(cp949)에서 인코딩 불가 문자를 만나면 `UnicodeEncodeError` 로 startup 이
-죽는다 (실제로 em-dash 때문에 한 번 겪었다).
+**`updated_at` 은 upsert 에서 자동 갱신되지 않는다**
+`TimestampMixin` 의 `onupdate=func.now()` 는 ORM UPDATE 에서만 동작한다.
+`insert().on_conflict_do_update()` 는 Core 구문이라 발동하지 않아 `set_` 에
+`"updated_at": func.now()` 를 직접 넣어야 한다. `list_tracks` 가 `updated_at DESC`
+로 정렬하므로 빠뜨리면 "최근" 순서가 최초 저장 순서에 고정된다.
 
-**비밀값은 `SecretStr` 이라 그대로 쓰면 안 된다**
-`postgres_password` 와 `youtube_api_key` 는 `SecretStr` 이다. `repr` 에
-`'**********'` 로 찍혀 로그·트레이스백 유출을 막는다. 대신 **문자열이 필요한
-자리에 그대로 넣으면 마스킹된 값이 나간다** — `urlencode({'key': secret})` 은
-`key=%2A%2A...` 를 만들어 API 호출이 조용히 실패한다. `settings.youtube_key`
-처럼 `.get_secret_value()` 를 거친 값을 쓸 것.
+**벌크 upsert 전에 중복을 제거한다**
+한 배치에 같은 `(source, source_id)` 가 두 번 들어가면 PostgreSQL 이
+`ON CONFLICT DO UPDATE command cannot affect row a second time` 로 실패한다.
+여러 곡이 같은 앨범을 공유하는 건 흔하다 (실측: 25곡 → 앨범 6개).
+`repository._dedupe()` 가 처리한다.
+
+### 스키마와 마이그레이션
+
+**`CheckConstraint(name=...)` 에는 접두사 없는 이름**
+`db/base.py` 의 `NAMING_CONVENTION` 이 `ck_<table>_` 를 붙인다.
+`name="ck_playlists_foo"` 라고 쓰면 `ck_playlists_ck_playlists_foo` 가 된다.
+`name="foo"` 로 줄 것. (`UniqueConstraint` 는 규칙이 이름을 참조하지 않아 무관.)
+
+**`alembic.ini` 에 DB URL 을 넣지 않는다**
+`config.set_main_option("sqlalchemy.url", ...)` 은 ConfigParser 를 거치는데 `%` 를
+보간 문법으로 해석한다. 비밀번호에 `%` 가 있으면
+`ValueError: invalid interpolation syntax` 로 마이그레이션이 죽는다.
+`env.py` 는 `settings.sync_database_url` 을 `create_engine` 에 직접 넘긴다.
 
 **`alembic.ini` 에 비 ASCII 문자 금지**
-configparser 가 로케일 인코딩(한국어 Windows 는 cp949)으로 읽어서
-`UnicodeDecodeError` 로 alembic 이 죽는다. 이 프로젝트는 코드에 주석을 두지
-않으므로 애초에 쓸 일이 없지만, 값에 한글을 넣을 때도 마찬가지다.
+configparser 가 로케일 인코딩(한국어 Windows 는 cp949)으로 읽어
+`UnicodeDecodeError` 로 alembic 이 죽는다.
 
 **`env.py` 는 import 순서가 의도적이다**
 `sys.path` 에 저장소 루트를 넣은 **뒤에야** `backend.*` 를 import 할 수 있다.
-그래서 표준 라이브러리 import 와 `backend` import 사이에 `sys.path` 조작이 끼어
-있다. 린터를 붙이면 E402(module level import not at top of file)가 뜨는데,
-`sys.path` 조작을 위로 올릴 수 없으므로 그 규칙을 끄거나 이 파일만 예외 처리한다.
-
-**`CheckConstraint(name=...)` 에는 접두사 없는 이름**
-`backend/db/base.py` 의 `NAMING_CONVENTION` 이 `ck_<table>_` 를 붙인다.
-`name="ck_playlists_foo"` 라고 쓰면 `ck_playlists_ck_playlists_foo` 가 된다.
-`name="foo"` 로 줄 것. (`UniqueConstraint` 는 규칙이 이름을 참조하지 않아 무관.)
+린터를 붙이면 E402 가 뜨는데 `sys.path` 조작을 위로 올릴 수 없으므로 그 규칙을
+끄거나 이 파일만 예외 처리한다.
 
 **`source_enum()` 의 `values_callable` 을 지우지 말 것**
 지우면 SQLAlchemy 가 멤버 값(`'itunes'`)이 아니라 이름(`'ITUNES'`)을 보낸다.
 PG enum 라벨이 소문자라 insert 시 `invalid input value for enum source_type` 로
 실패한다.
 
+**`SourceType` 은 `enum.StrEnum` 이다**
+`class X(str, Enum)` 은 Python 3.11 부터 `str(...)` 과 f-string 이
+`"SourceType.ITUNES"` 를 돌려준다. `__repr__` 이나 로그에 그대로 새는 값이다.
+`== "itunes"` 비교와 `.value` 는 양쪽 다 동작한다.
+
+### 검색과 인덱스
+
+**부분검색은 인덱스를 못 탄다**
+`title ILIKE '%queen%'` 처럼 앞에 `%` 가 붙으면 btree 인덱스가 무용지물이다.
+정렬된 목차로는 "중간에 들어간 값"을 찾을 수 없다. 실측(30만 건):
+
+| | 실행 계획 | 시간 |
+|---|---|---|
+| 인덱스 없음 | Seq Scan | 65 ms |
+| btree on `lower(title)` | Seq Scan (인덱스 무시) | 51 ms |
+| pg_trgm GIN | Bitmap Index Scan | **0.45 ms** |
+
+그래서 쓰이지 않던 `ix_tracks_title_lower` 를 지웠다 (`idx_scan` 0회). 데이터가
+수만 건을 넘어 검색이 느려지면 `CREATE EXTENSION pg_trgm` 후
+`CREATE INDEX ... USING gin (title gin_trgm_ops)` 로 되살린다.
+
+이 DB 로케일(`en_US.utf8`)에서는 `LIKE 'prefix%'` 조차 btree 를 못 쓴다.
+`text_pattern_ops` 로 만들어야 한다.
+
+**검색어의 `%` `_` 는 이스케이프한다**
+LIKE 에서 `%` 는 "아무 글자 0개 이상", `_` 는 "아무 글자 1개"다. 사용자가 `100%`
+를 검색하면 의도와 다른 매칭이 된다 (`%` 하나만 넣으면 전곡이 나왔다).
+`repository._like()` 가 이스케이프하고 `ilike(..., escape=LIKE_ESCAPE)` 로 넘긴다.
+SQL 인젝션은 아니고(파라미터 바인딩은 됨) 검색 의미가 틀어지는 문제다.
+
+### 응답과 오류
+
+**예외 핸들러는 `starlette.exceptions.HTTPException` 에 등록한다**
+`fastapi.HTTPException` 은 그 하위 클래스라 함께 잡히지만, **반대로 등록하면
+경로를 못 찾았을 때(Starlette 가 던지는 기본 예외) 안 잡혀서** FastAPI 기본
+형식인 `{"detail": ...}` 이 그대로 나간다.
+
+**소스 오류만 `errors` 로 삼킨다**
+`SOURCE_ERRORS`(ITunesError · YouTubeError · httpx.HTTPError) 만 `errors` 배열에
+담고 그 외 예외는 올려보내 500 으로 드러낸다. `except Exception` 으로 전부 잡으면
+우리 코드의 버그가 "iTunes 오류"로 둔갑해 조용히 묻힌다.
+
+**응답은 Pydantic 모델로 돌려준다**
+`-> dict[str, Any]` 로 두면 `/docs` 와 `/openapi.json` 에 응답 스키마가 비어
+프론트가 계약을 볼 수 없다. `schemas.py` 의 모델을 `response_model` 로 지정한다.
+필드는 snake_case 로 쓰고 `alias_generator=to_camel` 이 JSON 에서 camelCase 로 바꾼다.
+
+### 외부 API 응답
+
+**YouTube 는 제목을 HTML 이스케이프해서 준다**
+`snippet.title` 과 `channelTitle` 에 `&#39;` `&quot;` `&amp;` 가 그대로 들어온다.
+`html.unescape()` 를 거치지 않으면 화면에 `Don&#39;t` 이 보인다.
+
+**iTunes 아트워크는 URL 로 크기를 바꾼다**
+API 는 `artworkUrl100`(100x100) 만 준다. URL 의 `100x100bb` 를 `600x600bb` 로
+바꾸면 큰 이미지가 나온다. **추가 API 호출이 없다.** 크기는
+`sources/itunes.py` 의 `ARTWORK_SIZE` 로 조절한다.
+
+---
+
+## 설계 메모
+
+**`tracks` / `albums` 분리**
+초안의 `music&album` 단일 테이블(+`type` 컬럼)로는 "플레이리스트 항목은 곡만",
+"`likes.album_id` 는 앨범만" 을 FK 로 강제할 수 없다. 대신 `(source, source_id)`
+라는 외부 식별자 패턴은 두 테이블이 동일하게 쓴다.
+
+**ISRC 컬럼은 없앴다**
+국제 표준 녹음 코드로 플랫폼 간 동일 곡을 묶으려 했으나 이걸 내려주는 소스가
+Spotify 뿐이었다. iTunes 도 YouTube 도 주지 않아 영원히 NULL 인 컬럼이 된다.
+
+**`likes` 의 UNIQUE 두 개가 서로 방해하지 않는 이유**
+PostgreSQL 은 NULL 을 서로 다른 값으로 취급한다. 앨범 좋아요 행은 `playlist_id` 가
+전부 NULL 이지만 `uq_likes_user_id_playlist_id` 에 걸리지 않는다.
+한눈에 틀려 보이지만 의도된 구조다 — **지우지 말 것.**
+
+**`playlists.view_count`**
+트래픽이 늘면 매 조회마다 `UPDATE ... SET view_count = view_count + 1` 이 행 잠금
+경합을 만든다. 나중에 Redis 카운터 + 주기적 flush 로 옮기는 걸 권장.
+
+**비공개로 바뀐 플레이리스트**
+좋아요를 누른 뒤 주인이 `is_public` 을 false 로 바꿔도 좋아요 행은 남는다.
+마이페이지에서 `is_public` 확인은 애플리케이션 쪽에서 해야 한다.
+
+**드라이버가 두 개인 이유**
+앱은 `postgresql+asyncpg`, Alembic 은 `postgresql+psycopg`(동기)를 쓴다.
+psycopg3 의 async 모드는 Windows 기본 이벤트 루프(ProactorEventLoop)에서 동작하지
+않는다.
+
 ---
 
 ## 아직 없는 것
 
 **자체 로그인** — `users` 테이블은 있지만 회원가입/로그인 경로가 없다. 따라서
-`playlists` / `likes` 도 아직 API 가 없다. 붙일 때는 비밀번호 해시(argon2 등)와
-세션 저장소가 필요하다. 인메모리 dict 는 서버 재시작 시 로그아웃되므로 실제
-운영에서는 Redis 나 DB 로 간다.
+`playlists` / `likes` 도 API 가 없다. 붙일 때는 비밀번호 해시(argon2 등)와 세션
+저장소가 필요하다. 인메모리 dict 는 서버 재시작 시 로그아웃되므로 실제 운영에서는
+Redis 나 DB 로 간다.
 
 **플랫폼 간 같은 곡 병합** — iTunes 의 "Bohemian Rhapsody" 와 YouTube 의 같은 곡은
 `source` 가 달라 별개의 `tracks` 행이다. 검색 결과에 두 번 뜬다. ISRC 같은 공용
@@ -571,5 +553,6 @@ PG enum 라벨이 소문자라 insert 시 `invalid input value for enum source_t
 식별할 수 없다. YouTube 는 `channelTitle` 이 들어가므로 iTunes 의 아티스트명과
 표기가 다를 수 있다.
 
-**`playlists.total_tracks` 자동 갱신** — 비정규화 사본이라 곡을 담고 뺄 때
-애플리케이션이 함께 갱신해야 한다. 트리거는 걸지 않았다.
+**페이지네이션** — `limit` 만 있고 `offset` 이 없다.
+
+**추가 후보 테이블** — `follows`, `play_history`
