@@ -17,6 +17,26 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'templates', 'index.html'));
 });
 
+// 랜딩 페이지 (templates/home.html 파일 전달)
+app.get('/home', (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'home.html'));
+});
+
+// 로그인 페이지 (templates/login.html 파일 전달)
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'login.html'));
+});
+
+// 회원가입 페이지 (templates/signup.html 파일 전달)
+app.get('/signup', (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'signup.html'));
+});
+
+// 비밀번호 재설정 페이지 (templates/forgot-password.html 파일 전달)
+app.get('/forgot-password', (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'forgot-password.html'));
+});
+
 // 서버 실행
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

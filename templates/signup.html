@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>플로비 | 로그인</title>
+<title>플로비 | 회원가입</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/common.css">
 <link rel="stylesheet" href="/css/pages/login.css">
+<link rel="stylesheet" href="/css/pages/signup.css">
 </head>
 <body>
 
@@ -31,40 +32,39 @@
     </a>
 
     <div class="login-card">
-        <h1 class="login-title">만나서 반가워요</h1>
-        <p class="login-sub">계정에 로그인하고 이어서 들어보세요</p>
+        <h1 class="login-title">플로비, 처음이시군요</h1>
+        <p class="login-sub">계정을 만들고 음악을 한 곳에서 즐겨보세요</p>
 
-        <form class="login-form" id="login-form">
+        <form class="login-form" id="signup-form">
+            <label class="login-label" for="nickname">닉네임</label>
+            <input class="login-input" type="text" id="nickname" name="nickname" placeholder="사용하실 닉네임" required>
+
             <label class="login-label" for="email">이메일</label>
             <input class="login-input" type="email" id="email" name="email" placeholder="you@example.com" required>
 
             <label class="login-label" for="password">비밀번호</label>
-            <input class="login-input" type="password" id="password" name="password" placeholder="비밀번호 입력" required>
+            <input class="login-input" type="password" id="password" name="password" placeholder="8자 이상 입력해주세요" minlength="8" required>
 
-            <div class="login-row">
-                <label class="login-check">
-                    <input type="checkbox" name="remember">
-                    로그인 상태 유지
-                </label>
-                <a href="/forgot-password" class="login-link-sm">비밀번호를 잊으셨나요?</a>
-            </div>
+            <label class="login-label" for="password2">비밀번호 확인</label>
+            <input class="login-input" type="password" id="password2" name="password2" placeholder="비밀번호를 다시 입력해주세요" minlength="8" required>
 
-            <p class="login-error" id="login-error" hidden>이메일 또는 비밀번호를 확인해주세요.</p>
+            <label class="login-check signup-terms">
+                <input type="checkbox" name="agree" id="agree" required>
+                <span>(필수) 이용약관 및 개인정보 처리방침에 동의합니다</span>
+            </label>
 
-            <button type="submit" class="btn btn-primary login-submit">로그인</button>
+            <p class="login-error" id="signup-error" hidden></p>
+
+            <button type="submit" class="btn btn-primary login-submit">회원가입</button>
         </form>
 
-        <div class="login-divider"><span>또는</span></div>
-
-        <button type="button" class="btn btn-outline login-social">Google로 계속하기</button>
-
         <p class="login-footer">
-            아직 계정이 없으신가요? <a href="/signup" class="login-link">회원가입</a>
+            이미 계정이 있으신가요? <a href="/login" class="login-link">로그인</a>
         </p>
     </div>
 
 </div>
 
-<script src="/js/pages/login.js"></script>
+<script src="/js/pages/signup.js"></script>
 </body>
 </html>
