@@ -114,7 +114,7 @@ iTunes 로 넘어가면 이 준비물이 전부 사라진다. 인증이 없고, 
 | PUT | `/api/player/pause?deviceId=` | 일시정지 |
 
 iTunes 전환 시 `/api/auth/*` 와 `/api/player/*` 는 전부 사라진다.
-재생은 `<audio src={previewUrl}>` 하나로 끝난다.
+재생은 iTunes 가 `<audio src={audio_url}>`, YouTube 가 IFrame 임베드로 끝난다.
 
 ---
 
@@ -162,7 +162,7 @@ users ──< playlists ──< playlist_tracks >── tracks >── albums
 ### albums — 외부 플랫폼 앨범 캐시
 
 `id` · `source` · `source_id`(128) · `name` · `artist` · `release_date` ·
-`total_tracks` · `thumbnail_url` · `external_url` · `created_at` · `updated_at`
+`total_tracks` · `thumbnail_url` · `created_at` · `updated_at`
 
 UNIQUE `(source, source_id)`
 
@@ -171,8 +171,7 @@ YouTube 에는 앨범 개념이 없어 실질적으로 전부 iTunes(`collection
 ### tracks — 외부 플랫폼 곡 캐시 (iTunes 곡 / YouTube 영상)
 
 `id` · `source` · `source_id`(128) · `title` · `artist` · `album_id` ·
-`duration_ms` · `thumbnail_url` · `external_url` ·
-`audio_url` · `created_at` · `updated_at`
+`duration_ms` · `thumbnail_url` · `audio_url` · `created_at` · `updated_at`
 
 UNIQUE `(source, source_id)` · INDEX `album_id`, `lower(title)`
 `album_id` → `albums` **ON DELETE SET NULL** (YouTube 곡은 NULL)
@@ -188,20 +187,20 @@ YouTube Data API 는 재생 가능한 파일 URL 을 주지 않는다. IFrame �
 video id 를 넘기는 방식뿐이고, 스트림 URL 을 직접 추출하는 것은 약관 위반이다.
 따라서 `audio_url` 이 YouTube 에서 NULL 인 것은 누락이 아니라 구조적 결과다.
 
-`external_url` 과 `audio_url` 은 다르다.
+`source_id` 는 플랫폼의 원본 식별자다 — iTunes 는 `trackId`(숫자 문자열),
+YouTube 는 video id(11자). `(source, source_id)` UNIQUE 가 중복 저장을 막고,
+YouTube 재생은 이 값을 `youtube.com/embed/{source_id}` 로 조립해서 쓴다.
 
-| | 무엇 | 예 |
-|---|---|---|
-| `external_url` | **사람이 브라우저로 여는 웹페이지.** "원본에서 보기" 링크용 | iTunes `trackViewUrl` → `https://music.apple.com/us/album/...` <br> YouTube → `https://www.youtube.com/watch?v=...` |
-| `audio_url` | **프로그램이 재생하는 오디오 파일.** `<audio src=>` 에 그대로 넣는 값 | `https://audio-ssl.itunes.apple.com/....m4a` |
-
-이름을 `preview_url` 이 아니라 `audio_url` 로 둔 이유: `preview` 는 iTunes 용어인데
-이 테이블의 다른 컬럼(`source_id`, `external_url`, `thumbnail_url`)은 전부 플랫폼
-중립적이다. 다만 **iTunes 값은 30초짜리 발췌**라는 점은 기억할 것.
+**웹페이지 링크(`external_url`)는 두지 않는다.** 재생에 필요 없고, 필요해지면
+`source_id` 에서 파생할 수 있다 (`youtube.com/watch?v={source_id}`,
+`music.apple.com/album/{collectionId}?i={source_id}`).
+다만 Apple 은 API 의 미리듣기·아트워크를 "스토어 콘텐츠 홍보 목적"으로만 쓰고
+사운드 샘플은 스토어 배지 근처에 두라고 안내한다. 외부 공개 서비스로 확장한다면
+그때 다시 볼 지점이다.
 
 iTunes 필드 매핑: `trackId`→`source_id`, `trackName`→`title`, `artistName`→`artist`,
 `collectionId`→앨범 조회, `trackTimeMillis`→`duration_ms`, `artworkUrl100`→`thumbnail_url`,
-`trackViewUrl`→`external_url`, `previewUrl`→`audio_url`.
+`previewUrl`→`audio_url`. (`trackViewUrl` 은 저장하지 않는다)
 
 ### playlists — 사용자 플레이리스트
 

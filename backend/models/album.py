@@ -27,7 +27,6 @@ class Album(PKMixin, TimestampMixin, Base):
     release_date: Mapped[date | None] = mapped_column(Date)
     total_tracks: Mapped[int | None] = mapped_column(Integer)
     thumbnail_url: Mapped[str | None] = mapped_column(Text)
-    external_url: Mapped[str | None] = mapped_column(Text)
 
     tracks: Mapped[list["Track"]] = relationship(back_populates="album")
     likes: Mapped[list["Like"]] = relationship(

@@ -58,7 +58,6 @@ def upgrade() -> None:
         sa.Column("release_date", sa.Date(), nullable=True),
         sa.Column("total_tracks", sa.Integer(), nullable=True),
         sa.Column("thumbnail_url", sa.Text(), nullable=True),
-        sa.Column("external_url", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -85,7 +84,6 @@ def upgrade() -> None:
         sa.Column("album_id", sa.BigInteger(), nullable=True),
         sa.Column("duration_ms", sa.Integer(), nullable=True),
         sa.Column("thumbnail_url", sa.Text(), nullable=True),
-        sa.Column("external_url", sa.Text(), nullable=True),
         sa.Column("audio_url", sa.Text(), nullable=True),
         sa.Column(
             "created_at",

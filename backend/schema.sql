@@ -26,7 +26,6 @@ CREATE TABLE albums (
     release_date  date,
     total_tracks  integer,
     thumbnail_url text,
-    external_url  text,
     created_at    timestamptz  NOT NULL DEFAULT now(),
     updated_at    timestamptz  NOT NULL DEFAULT now(),
 
@@ -44,7 +43,6 @@ CREATE TABLE tracks (
     album_id      bigint,
     duration_ms   integer,
     thumbnail_url text,
-    external_url  text,
     audio_url     text,
     created_at    timestamptz  NOT NULL DEFAULT now(),
     updated_at    timestamptz  NOT NULL DEFAULT now(),
