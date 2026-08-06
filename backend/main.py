@@ -10,7 +10,8 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import config, spotify
+from . import spotify
+from .config import SPOTIFY_SCOPES, get_settings
 from .sessions import (
     SESSION_COOKIE,
     STATE_COOKIE,
@@ -21,6 +22,8 @@ from .sessions import (
     set_session,
 )
 from .spotify import SpotifyError, authorize_url, exchange_code, spotify_fetch, valid_access_token
+
+settings = get_settings()
 
 COOKIE_OPTS: dict[str, Any] = {"httponly": True, "samesite": "lax", "path": "/"}
 
@@ -34,12 +37,12 @@ MAX_LIMIT = 10
 async def lifespan(app: FastAPI):
     async with httpx.AsyncClient(timeout=15.0) as client:
         spotify.set_client(client)
-        missing = config.missing_config()
-        print(f"server  http://127.0.0.1:{config.SERVER_PORT}")
-        print(f"client  {config.CLIENT_ORIGIN}")
-        print(f"redirect URI (Dashboard 에 등록 필요)  {config.REDIRECT_URI}")
+        missing = settings.missing_spotify_config()
+        print(f"server  http://127.0.0.1:{settings.server_port}")
+        print(f"client  {settings.client_origin}")
+        print(f"redirect URI (Dashboard 에 등록 필요)  {settings.spotify_redirect_uri}")
         if missing:
-            print(f".env 누락: {', '.join(missing)} — 로그인 불가")
+            print(f".env 누락: {', '.join(missing)} - 로그인 불가")
         yield
         spotify.set_client(None)
 
@@ -99,19 +102,19 @@ AuthDep = Depends(require_auth)
 
 @app.get("/api/health")
 async def health() -> dict[str, Any]:
-    missing = config.missing_config()
+    missing = settings.missing_spotify_config()
     return {"ok": True, "configured": not missing, "missing": missing}
 
 
 @app.get("/api/auth/login")
 async def login() -> RedirectResponse:
-    missing = config.missing_config()
+    missing = settings.missing_spotify_config()
     if missing:
         raise HTTPException(
             500, f".env 설정 누락: {', '.join(missing)}. .env.example 을 복사해서 채우세요."
         )
     state = new_id()
-    res = RedirectResponse(authorize_url(state, config.SCOPES), status_code=302)
+    res = RedirectResponse(authorize_url(state, SPOTIFY_SCOPES), status_code=302)
     res.set_cookie(STATE_COOKIE, state, max_age=600, **COOKIE_OPTS)
     return res
 
@@ -124,7 +127,7 @@ async def callback(
     error: str | None = None,
 ) -> RedirectResponse:
     def fail(reason: str) -> RedirectResponse:
-        return RedirectResponse(f"{config.CLIENT_ORIGIN}/?auth_error={quote(reason)}", 302)
+        return RedirectResponse(f"{settings.client_origin}/?auth_error={quote(reason)}", 302)
 
     if error:
         return fail(error)
@@ -139,7 +142,7 @@ async def callback(
         return fail(exc.message)
 
     sid = create_session(tokens)
-    res = RedirectResponse(config.CLIENT_ORIGIN, 302)
+    res = RedirectResponse(settings.client_origin, 302)
     res.delete_cookie(STATE_COOKIE, path="/")
     res.set_cookie(SESSION_COOKIE, sid, max_age=30 * 24 * 3600, **COOKIE_OPTS)
     return res

@@ -4,12 +4,12 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Date, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, PKMixin, TimestampMixin
-from app.models.enums import SourceType, source_enum
+from backend.db.base import Base, PKMixin, TimestampMixin
+from backend.models.enums import SourceType, source_enum
 
 if TYPE_CHECKING:
-    from app.models.like import Like
-    from app.models.track import Track
+    from backend.models.like import Like
+    from backend.models.track import Track
 
 
 class Album(PKMixin, TimestampMixin, Base):

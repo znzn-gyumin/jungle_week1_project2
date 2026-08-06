@@ -3,11 +3,11 @@ from typing import TYPE_CHECKING
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, PKMixin, TimestampMixin
+from backend.db.base import Base, PKMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.like import Like
-    from app.models.playlist import Playlist
+    from backend.models.like import Like
+    from backend.models.playlist import Playlist
 
 
 class User(PKMixin, TimestampMixin, Base):

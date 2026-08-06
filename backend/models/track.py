@@ -12,12 +12,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, PKMixin, TimestampMixin
-from app.models.enums import SourceType, source_enum
+from backend.db.base import Base, PKMixin, TimestampMixin
+from backend.models.enums import SourceType, source_enum
 
 if TYPE_CHECKING:
-    from app.models.album import Album
-    from app.models.playlist import PlaylistTrack
+    from backend.models.album import Album
+    from backend.models.playlist import PlaylistTrack
 
 
 class Track(PKMixin, TimestampMixin, Base):

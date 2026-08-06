@@ -2,8 +2,10 @@
 
 Spotify / YouTube 통합 음악 플랫폼의 데이터베이스. PostgreSQL 17 기준.
 
-**이 디렉터리에는 DB 구조와 생성 스크립트만 있다.** API 서버는 별도로 구현한다.
-코드에는 주석이 없으므로, 설계 근거와 주의사항은 전부 이 문서에 있다.
+DB 스키마 문서다. 서버 설치·실행은 **루트 README.md** 를 본다.
+DB 코드에는 주석이 없으므로, 설계 근거와 주의사항은 전부 이 문서에 있다.
+
+**모든 명령은 저장소 루트에서 실행한다.** `.env` 와 `requirements.txt` 도 루트에 하나씩만 있다.
 
 ---
 
@@ -12,7 +14,7 @@ Spotify / YouTube 통합 음악 플랫폼의 데이터베이스. PostgreSQL 17 �
 DB 컨테이너를 먼저 띄운다.
 
 ```bash
-docker compose up -d
+docker compose -f backend/docker-compose.yml up -d
 ```
 
 그다음 둘 중 **하나**를 고른다.
@@ -20,35 +22,39 @@ docker compose up -d
 ### A. SQL 파일 직접 실행 — 파이썬 불필요
 
 ```bash
-psql -U jungle -d jungle_music -f schema.sql
+psql -U jungle -d jungle_music -f backend/schema.sql
 ```
 
 ### B. Alembic — 이후 스키마 변경을 버전 관리하려면
 
 ```bash
-python -m venv .venv
-.venv/Scripts/activate          # macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-alembic upgrade head
+alembic -c backend/alembic.ini upgrade head
 ```
 
+`-c` 로 ini 위치를 지정해야 한다. `alembic.ini` 안의 `script_location` 은
+루트 기준(`backend/migrations`)이라 다른 디렉터리에서 실행하면 경로를 못 찾는다.
+
 두 경로는 **완전히 동일한 구조**를 만든다 (pg_dump 로 비교 검증함).
-A 로 만든 DB에 나중에 Alembic 을 붙이려면 `alembic stamp head` 로 현재 리비전을
-기록시킨다.
+A 로 만든 DB에 나중에 Alembic 을 붙이려면
+`alembic -c backend/alembic.ini stamp head` 로 현재 리비전을 기록시킨다.
 
 ---
 
 ## 파일
 
+모두 `backend/` 아래이며, 파이썬 패키지 이름은 `backend` 하나다.
+
 | 경로 | 역할 |
 |---|---|
 | `schema.sql` | 순수 SQL 생성 스크립트. 스택 무관 |
-| `app/models/*.py` | SQLAlchemy 모델. 백엔드가 SQLAlchemy 면 그대로 import |
+| `models/*.py` | SQLAlchemy 모델 (`from backend.models import Track`) |
 | `migrations/versions/0001_initial_schema.py` | Alembic 초기 마이그레이션 |
-| `app/db/base.py` | `Base`, 제약조건 네이밍 규칙, 공통 mixin |
-| `app/core/config.py` | `.env` 를 읽어 접속 문자열 조립 |
+| `db/base.py` | `Base`, 제약조건 네이밍 규칙, 공통 mixin |
+| `config.py` | `.env` 를 읽어 DB 접속 문자열 + Spotify 설정 조립 |
 | `docker-compose.yml` | 로컬 개발용 postgres 17 |
+
+`config.py` 는 DB 와 Spotify 설정을 **한 곳에서** 관리한다. `main.py`, `spotify.py`
+도 같은 `get_settings()` 를 쓴다.
 
 ---
 
@@ -189,9 +195,9 @@ PostgreSQL 은 NULL 을 서로 다른 값으로 취급한다. 앨범 좋아요 �
 **드라이버**: SQLAlchemy async 엔진은 `postgresql+asyncpg` 를 쓸 것.
 psycopg3 의 async 모드는 Windows 기본 이벤트 루프(ProactorEventLoop)에서 동작하지
 않는다. Alembic 은 동기 연결이라 psycopg 를 쓴다.
-접속 문자열은 `app/core/config.py` 의 `async_database_url` 참고.
+접속 문자열은 `backend/config.py` 의 `async_database_url` 참고.
 
-**모델 재사용**: `from app.models import User, Album, Track, Playlist, PlaylistTrack, Like`
+**모델 재사용**: `from backend.models import User, Album, Track, Playlist, PlaylistTrack, Like`
 세션/엔진 생성 코드는 백엔드 쪽에서 만들면 된다.
 
 **추가 후보 테이블**: `follows`, `play_history`
@@ -201,12 +207,12 @@ psycopg3 의 async 모드는 Windows 기본 이벤트 루프(ProactorEventLoop)�
 ## 스키마를 수정할 때
 
 ```bash
-alembic revision --autogenerate -m "message"
-alembic upgrade head
-alembic check                   # 모델과 DB 스키마 drift 확인
+alembic -c backend/alembic.ini revision --autogenerate -m "message"
+alembic -c backend/alembic.ini upgrade head
+alembic -c backend/alembic.ini check     # 모델과 DB 스키마 drift 확인
 ```
 
-**세 곳을 함께 고쳐야 한다** — `app/models/*.py`, `migrations/versions/*.py`,
+**세 곳을 함께 고쳐야 한다** — `backend/models/*.py`, `migrations/versions/*.py`,
 `schema.sql`. 앞의 둘이 어긋나면 `alembic check` 가 잡아주지만, `schema.sql` 은
 아무도 안 잡아주므로 직접 챙긴다.
 
@@ -217,7 +223,7 @@ configparser 가 로케일 인코딩(한국어 Windows 는 cp949)으로 읽어�
 `UnicodeDecodeError` 로 alembic 이 죽는다. 한글 주석을 넣지 말 것.
 
 **`CheckConstraint(name=...)` 에는 접두사 없는 이름**
-`app/db/base.py` 의 `NAMING_CONVENTION` 이 `ck_<table>_` 를 붙인다.
+`backend/db/base.py` 의 `NAMING_CONVENTION` 이 `ck_<table>_` 를 붙인다.
 `name="ck_playlists_foo"` 라고 쓰면 `ck_playlists_ck_playlists_foo` 가 된다.
 `name="foo"` 로 줄 것. (`UniqueConstraint` 는 규칙이 이름을 참조하지 않아 무관.)
 
@@ -242,5 +248,6 @@ Spotify 의 "Bohemian Rhapsody" 와 YouTube 의 같은 곡은 `source` 가 달�
 **`artist` 가 단순 텍스트다.**
 아티스트 테이블이 없어서 플랫폼 간 동일 아티스트를 식별할 수 없다.
 
-**디렉터리 이름이 `backend/` 다.**
-실제로는 DB 만 들어 있어서, 별도로 구현하는 백엔드와 이름이 겹칠 수 있다.
+**DB 세션이 아직 FastAPI 에 연결되지 않았다.**
+모델과 마이그레이션은 있지만 async 엔진 / `get_db` 의존성이 없어서, `main.py` 의
+어떤 라우터도 아직 DB 를 읽거나 쓰지 않는다.

@@ -5,8 +5,10 @@ from urllib.parse import urlencode
 
 import httpx
 
-from . import config
+from .config import get_settings
 from .sessions import set_session
+
+settings = get_settings()
 
 ACCOUNTS = "https://accounts.spotify.com"
 API = "https://api.spotify.com/v1"
@@ -36,7 +38,7 @@ def _http() -> httpx.AsyncClient:
 
 
 def _basic_auth() -> str:
-    raw = f"{config.CLIENT_ID}:{config.CLIENT_SECRET}".encode()
+    raw = f"{settings.spotify_client_id}:{settings.spotify_client_secret}".encode()
     return base64.b64encode(raw).decode()
 
 
@@ -71,7 +73,7 @@ async def exchange_code(code: str) -> dict[str, Any]:
         {
             "grant_type": "authorization_code",
             "code": code,
-            "redirect_uri": config.REDIRECT_URI,
+            "redirect_uri": settings.spotify_redirect_uri,
         }
     )
     return _to_tokens(body)
@@ -128,9 +130,9 @@ async def spotify_fetch(
 def authorize_url(state: str, scope: str) -> str:
     params = urlencode(
         {
-            "client_id": config.CLIENT_ID,
+            "client_id": settings.spotify_client_id,
             "response_type": "code",
-            "redirect_uri": config.REDIRECT_URI,
+            "redirect_uri": settings.spotify_redirect_uri,
             "scope": scope,
             "state": state,
         }

@@ -17,12 +17,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, PKMixin, TimestampMixin
+from backend.db.base import Base, PKMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.like import Like
-    from app.models.track import Track
-    from app.models.user import User
+    from backend.models.like import Like
+    from backend.models.track import Track
+    from backend.models.user import User
 
 
 class Playlist(PKMixin, TimestampMixin, Base):

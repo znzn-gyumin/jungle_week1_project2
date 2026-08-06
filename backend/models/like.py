@@ -13,12 +13,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, PKMixin
+from backend.db.base import Base, PKMixin
 
 if TYPE_CHECKING:
-    from app.models.album import Album
-    from app.models.playlist import Playlist
-    from app.models.user import User
+    from backend.models.album import Album
+    from backend.models.playlist import Playlist
+    from backend.models.user import User
 
 
 class Like(PKMixin, Base):

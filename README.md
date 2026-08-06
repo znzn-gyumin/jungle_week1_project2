@@ -41,6 +41,16 @@ cp .env.example .env
 ```
 
 `.env` 에 Dashboard 의 Client ID / Client Secret 을 채운다.
+`POSTGRES_*` 는 `backend/docker-compose.yml` 기본값이라 그대로 두면 된다.
+
+### 2-1. 데이터베이스
+
+```bash
+docker compose -f backend/docker-compose.yml up -d
+alembic -c backend/alembic.ini upgrade head
+```
+
+스키마 설명은 [backend/README.md](backend/README.md) 참고.
 
 ### 3. 의존성 설치
 
