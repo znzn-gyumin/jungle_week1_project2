@@ -75,7 +75,7 @@ npm run dev     # uvicorn(:8000) + vite(:5173) 동시 실행
 
 **재생 방식을 iTunes Search API 로 바꾸는 중이다.** 아직 코드는 Spotify 기준이다.
 
-- DB 는 `source_type` ENUM 에 `'itunes'` 와 `tracks.audio_url` 을 이미 갖고 있다
+- DB 는 `source_type` ENUM 에 `'itunes'` 와 `tracks.play_url` 을 이미 갖고 있다
 - `backend/main.py`, `backend/spotify.py` 는 아직 Spotify OAuth 기반이다
 
 지금 코드를 그대로 돌리려면 Spotify Developer 앱과 **Premium 계정**이 필요하다
@@ -88,7 +88,7 @@ iTunes 로 넘어가면 이 준비물이 전부 사라진다. 인증이 없고, 
 `previewUrl` 30초 미리듣기를 누구나 동시에 재생할 수 있다. 대신 **전체 재생은
 불가능**하다. IP 당 약 20회/분 제한이 있어 캐싱이 필요하다.
 
-참고: Spotify 는 2024년 11월부터 신규 앱에 `audio_url` 을 `null` 로 내려준다.
+참고: Spotify 는 2024년 11월부터 신규 앱에 `preview_url` 필드를 `null` 로 내려준다.
 현재 코드가 SDK 경로를 쓰는 이유다.
 
 ---
@@ -114,7 +114,7 @@ iTunes 로 넘어가면 이 준비물이 전부 사라진다. 인증이 없고, 
 | PUT | `/api/player/pause?deviceId=` | 일시정지 |
 
 iTunes 전환 시 `/api/auth/*` 와 `/api/player/*` 는 전부 사라진다.
-재생은 iTunes 가 `<audio src={audio_url}>`, YouTube 가 IFrame 임베드로 끝난다.
+재생은 iTunes 가 `<audio src={play_url}>`, YouTube 가 IFrame 임베드로 끝난다.
 
 ---
 
@@ -149,8 +149,7 @@ users ──< playlists ──< playlist_tracks >── tracks >── albums
        search_cache ──< search_cache_items >────┴─────────┘
 ```
 
-`likes` 는 곡·플레이리스트·앨범 중 하나를 가리키고,
-`search_cache_items` 는 곡 또는 앨범을 가리킨다.
+`likes` 는 앨범 또는 플레이리스트를, `search_cache_items` 는 곡 또는 앨범을 가리킨다.
 
 `source_type` = ENUM(`'itunes'`, `'youtube'`)
 
@@ -171,25 +170,35 @@ YouTube 에는 앨범 개념이 없어 실질적으로 전부 iTunes(`collection
 ### tracks — 외부 플랫폼 곡 캐시 (iTunes 곡 / YouTube 영상)
 
 `id` · `source` · `source_id`(128) · `title` · `artist` · `album_id` ·
-`duration_ms` · `thumbnail_url` · `audio_url` · `created_at` · `updated_at`
+`duration_ms` · `thumbnail_url` · `play_url` · `created_at` · `updated_at`
 
 UNIQUE `(source, source_id)` · INDEX `album_id`, `lower(title)`
 `album_id` → `albums` **ON DELETE SET NULL** (YouTube 곡은 NULL)
 
 **재생 방식이 소스마다 다르다.**
 
-| | `source_id` | `audio_url` | 재생 |
+| | `source_id` | `play_url` | 렌더링 |
 |---|---|---|---|
-| iTunes | `trackId` | **30초** 오디오 URL | `<audio src={audio_url}>` |
-| YouTube | video id | **항상 NULL** | IFrame 임베드에 `source_id` 전달 |
+| iTunes | `trackId` (숫자) | `previewUrl` — **30초** 오디오 파일 | `<audio src={play_url}>` |
+| YouTube | video id (11자) | `youtube.com/embed/{source_id}` | `<iframe src={play_url}>` |
 
-YouTube Data API 는 재생 가능한 파일 URL 을 주지 않는다. IFrame 플레이어에
-video id 를 넘기는 방식뿐이고, 스트림 URL 을 직접 추출하는 것은 약관 위반이다.
-따라서 `audio_url` 이 YouTube 에서 NULL 인 것은 누락이 아니라 구조적 결과다.
+**`play_url` 이 채워져 있어도 프론트는 `source` 로 분기해야 한다.** 두 값은 종류가
+다르다 — iTunes 는 오디오 파일, YouTube 는 임베드 페이지다. `<audio>` 는 임베드
+URL 을 재생하지 못하고 `<iframe>` 은 m4a 를 플레이어로 그리지 못한다.
 
-`source_id` 는 플랫폼의 원본 식별자다 — iTunes 는 `trackId`(숫자 문자열),
-YouTube 는 video id(11자). `(source, source_id)` UNIQUE 가 중복 저장을 막고,
-YouTube 재생은 이 값을 `youtube.com/embed/{source_id}` 로 조립해서 쓴다.
+```jsx
+track.source === 'itunes'
+  ? <audio src={track.play_url} controls />
+  : <iframe src={track.play_url} allow="autoplay" />
+```
+
+YouTube Data API 는 재생 가능한 오디오 파일 URL 을 주지 않는다. video 리소스의
+`player` 파트가 주는 것은 `<iframe>` 태그 문자열이고, 리소스 어디에도 미디어
+스트림 URL 이 없다. 그래서 YouTube 의 `play_url` 은 `source_id` 로 조립한
+임베드 URL 이다 — API 응답을 그대로 담은 값이 아니라 **파생값**이다.
+
+googlevideo 스트림 URL 추출은 쓰지 않는다. 약관 위반이고, 그 URL 들은 만료 시각이
+박혀 있어 DB 에 저장하면 몇 시간 뒤 죽는다.
 
 **웹페이지 링크(`external_url`)는 두지 않는다.** 재생에 필요 없고, 필요해지면
 `source_id` 에서 파생할 수 있다 (`youtube.com/watch?v={source_id}`,
@@ -200,7 +209,7 @@ YouTube 재생은 이 값을 `youtube.com/embed/{source_id}` 로 조립해서 �
 
 iTunes 필드 매핑: `trackId`→`source_id`, `trackName`→`title`, `artistName`→`artist`,
 `collectionId`→앨범 조회, `trackTimeMillis`→`duration_ms`, `artworkUrl100`→`thumbnail_url`,
-`previewUrl`→`audio_url`. (`trackViewUrl` 은 저장하지 않는다)
+`previewUrl`→`play_url`. (`trackViewUrl` 은 저장하지 않는다)
 
 ### playlists — 사용자 플레이리스트
 

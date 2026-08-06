@@ -43,7 +43,7 @@ CREATE TABLE tracks (
     album_id      bigint,
     duration_ms   integer,
     thumbnail_url text,
-    audio_url     text,
+    play_url      text,
     created_at    timestamptz  NOT NULL DEFAULT now(),
     updated_at    timestamptz  NOT NULL DEFAULT now(),
 
