@@ -1,22 +1,15 @@
 from functools import lru_cache
+from pathlib import Path
 
-from pydantic import PostgresDsn
+from pydantic import PostgresDsn, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-SPOTIFY_SCOPES = " ".join(
-    (
-        "streaming",
-        "user-read-email",
-        "user-read-private",
-        "user-read-playback-state",
-        "user-modify-playback-state",
-    )
-)
+ROOT = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=ROOT / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -24,24 +17,23 @@ class Settings(BaseSettings):
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_user: str = "jungle"
-    postgres_password: str = "jungle"
-    postgres_db: str = "jungle_music"
+    postgres_password: SecretStr = SecretStr("jungle")
+    postgres_db: str = "flowbee"
 
-    spotify_client_id: str = ""
-    spotify_client_secret: str = ""
-    spotify_redirect_uri: str = "http://127.0.0.1:8000/api/auth/callback"
+    youtube_api_key: SecretStr = SecretStr("")
+    itunes_country: str = "KR"
 
-    client_origin: str = "http://127.0.0.1:5173"
+    client_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
+    server_host: str = "127.0.0.1"
     server_port: int = 8000
-
-    dev_tools: bool = True
+    server_reload: bool = False
 
     def _dsn(self, scheme: str) -> str:
         return str(
             PostgresDsn.build(
                 scheme=scheme,
                 username=self.postgres_user,
-                password=self.postgres_password,
+                password=self.postgres_password.get_secret_value(),
                 host=self.postgres_host,
                 port=self.postgres_port,
                 path=self.postgres_db,
@@ -56,15 +48,13 @@ class Settings(BaseSettings):
     def async_database_url(self) -> str:
         return self._dsn("postgresql+asyncpg")
 
-    def missing_spotify_config(self) -> list[str]:
-        return [
-            name
-            for name, value in (
-                ("SPOTIFY_CLIENT_ID", self.spotify_client_id),
-                ("SPOTIFY_CLIENT_SECRET", self.spotify_client_secret),
-            )
-            if not value
-        ]
+    @property
+    def allowed_origins(self) -> list[str]:
+        return [o.strip() for o in self.client_origins.split(",") if o.strip()]
+
+    @property
+    def youtube_key(self) -> str:
+        return self.youtube_api_key.get_secret_value()
 
 
 @lru_cache

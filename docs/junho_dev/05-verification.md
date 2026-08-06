@@ -71,8 +71,9 @@ importer reads is present and shaped as expected: `trackId`, `trackName`,
 
 The test itself does not hit the network. Earlier revisions stubbed the HTTP
 client with `httpx.MockTransport`; the current version seeds `tracks` and
-`albums` with SQL, which is simpler and keeps the test independent of the
-temporary catalog code.
+`albums` with SQL, which is simpler and keeps the test independent of the search
+code. That paid off in the merge: `/api/catalog/search` was deleted and replaced
+by `/api/search`, and the test needed no change.
 
 ## Where it lives
 

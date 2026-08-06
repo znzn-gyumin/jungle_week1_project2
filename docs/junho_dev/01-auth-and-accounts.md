@@ -22,9 +22,9 @@ B is faster today but the work gets redone the moment real login is needed. The
 `users` schema requires `password_hash NOT NULL` anyway, so B would have meant
 writing dummy values into a column that exists for a reason.
 
-The price of A is **two separate logins**. That is accepted debt — see
-[04-dev-only-code.md](04-dev-only-code.md) and
-[06-open-questions.md](06-open-questions.md).
+The price of A was **two separate logins**, accepted as debt. The merge into
+`backend_dev` deleted Spotify OAuth, so that price was never paid and C would
+have been the expensive choice it was predicted to be.
 
 ## Password hashing — `hashlib.scrypt`
 
@@ -50,17 +50,24 @@ encoded string is 113 characters and fits in `VARCHAR(255)`.
 
 Comparison uses `hmac.compare_digest` so timing differences cannot leak the hash.
 
-## Why there are two cookies
+## Why there were two cookies
 
-| Cookie | Owner | Payload |
-|---|---|---|
-| `sid` | Spotify | access / refresh tokens |
-| `uid` | Local account | `{"userId": n}` |
+**Resolved by the merge (2026-08-06).** Spotify is gone and `uid` is the only
+cookie. The original reasoning, kept because it is why the merge cost nothing:
 
-They were not merged. Merging means touching local-account sessions when Spotify
-is removed. Today both live in the same in-memory store in
-`backend/sessions.py`, but **the cookie names differ and the value shapes
-differ**. If a token expires and `sid` is destroyed, `uid` survives.
+> | Cookie | Owner | Payload |
+> |---|---|---|
+> | `sid` | Spotify | access / refresh tokens |
+> | `uid` | Local account | `{"userId": n}` |
+>
+> They were not merged. Merging means touching local-account sessions when
+> Spotify is removed. Today both live in the same in-memory store in
+> `backend/sessions.py`, but **the cookie names differ and the value shapes
+> differ**. If a token expires and `sid` is destroyed, `uid` survives.
+
+Deleting the `sid` half was a matter of dropping `spotify.py` and the
+`STATE_COOKIE` constant. `accounts.py` needed no change. Had the two been
+merged into one cookie, this would have been a rewrite of the account layer.
 
 `backend/accounts.py` owns the `uid` → `User` conversion. Routers only ever use
 `current_user` (401 when absent) or `optional_user` (`None` when absent).
@@ -73,8 +80,12 @@ warranted at this size, and doing the account work and the session-store swap in
 one step would have multiplied the failure modes.
 
 For production the change is confined to `backend/sessions.py`. Keep the
-interface (`create_session` / `get_session` / `set_session` / `destroy_session`)
-and swap the implementation.
+interface (`create_session` / `get_session` / `destroy_session`) and swap the
+implementation. `set_session` was dropped in the merge — only the Spotify token
+refresh path mutated a live session.
+
+The merge added a second reason to do this: the app now runs behind a single
+uvicorn worker only. Two workers means two dicts and a coin flip per request.
 
 ## Why `/api/users/me` returns 200 instead of 401
 
@@ -84,5 +95,5 @@ other protected route returns 401.
 **The asymmetry is intentional.** The first screen has to ask "am I logged in?".
 If that question is answered with 401, the frontend runs its error handler during
 a completely normal flow. Beginners see the console error and read it as a bug.
-`/api/auth/me` (the Spotify one) already behaved this way, so the two are
-consistent.
+`/api/auth/me` (the Spotify one, since deleted) already behaved this way, so the
+two were consistent at the time.

@@ -3,7 +3,7 @@ import enum
 from sqlalchemy import Enum as SAEnum
 
 
-class SourceType(str, enum.Enum):
+class SourceType(enum.StrEnum):
     ITUNES = "itunes"
     YOUTUBE = "youtube"
 

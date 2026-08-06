@@ -1,50 +1,54 @@
 # 04 · Dev-only code
 
-The API inspection page and the iTunes search it depends on are **not product
-code**. They ship on this branch and must be removable before merge.
+The API inspection page is **not product code**. It must be removable at deploy
+time.
 
 ## What is temporary
 
 | Location | Contents |
 |---|---|
-| `backend/devtools/` | iTunes search + `/api/catalog/*` |
-| `client/src/devlab/` | The whole inspection page, including the view switch and its CSS |
+| `client/` | The whole inspection page — `index.html`, `main.jsx`, `api.js`, `styles.css`, `devlab/` |
+| `backend/devtools/` | `integration_test.py`. Nothing the running app imports |
+| root | `package.json`, `package-lock.json`, `vite.config.js` |
 
 Everything else is product code.
 
 ## The removal contract
 
 The design constraint was stated plainly: this has to be easy to delete at deploy
-time. So the number of lines product code spends on it is the metric that was
-optimized, and it is five.
+time, so the number of lines product code spends on it was the metric optimized.
 
-| File | Lines |
-|---|---|
-| `backend/main.py` | `from .devtools import install_devtools`, `install_devtools(app)` |
-| `client/src/main.jsx` | `import DevLabRoot ...`, `<DevLabRoot app={<App />} />` |
-| `backend/config.py` | `dev_tools: bool = True` |
+**After the merge that number is zero.** Deleting `client/`, `backend/devtools/`
+and the three root files leaves the backend untouched — no import to remove, no
+call site, no config field. Verified: `from backend.main import app` still yields
+20 routes with `client/` and `backend/devtools/` renamed away.
 
-`client/src/App.jsx`, `client/src/api.js` and `client/src/styles.css` are
-**untouched**. Earlier iterations did modify all three; they were reverted once
-the constraint was known.
+The pre-merge version cost five lines and had a softer `DEV_TOOLS=false` switch
+that dropped `/api/catalog/*` without touching code. Both are gone, and the
+reason is worth recording:
 
-Removal was rehearsed on a copy of the repo: delete the two directories, remove
-those five lines, restore `main.jsx` to render `<App />`. Result — backend
-imports with 25 product routes and 0 catalog routes, `npm run build` passes, and
-grepping for `devlab|devtools|ApiLab` returns nothing.
+> `backend/devtools/` used to hold an iTunes client and `/api/catalog/*` — search,
+> track listing, album listing — because product code had no way to put rows in
+> `tracks` / `albums`. `backend_dev` shipped exactly that as `/api/search`,
+> `/api/tracks`, `/api/albums`, so the dev-only copies were deleted and
+> `devlab/catalogApi.js` was repointed at the real routes. With no dev-only
+> routes left there is nothing for a toggle to toggle, so `install_devtools`,
+> `DEV_TOOLS` and `Settings.dev_tools` went with them.
 
-There is a second, softer switch: `DEV_TOOLS=false` in `.env` drops
-`/api/catalog/*` without touching code. Useful for a staging deploy that should
-not expose the temporary endpoints while the branch is still in flight.
+The page is now strictly a client of the public API. That is a better property
+than the toggle was: it cannot drift from what the frontend team actually calls,
+because it calls the same thing.
+
+`backend/devtools/itunes.py` also depended on the `search_cache` /
+`search_cache_items` tables, which `backend_dev` had already dropped
+(`3d805a6`). Its 24-hour TTL cache is **not** carried over — `services/search.py`
+hits iTunes on every search. See "검색 캐시는 DB 에 두지 않는다" in
+`backend/README.md` for why that was a deliberate call and not an oversight.
 
 ## Dependency direction
 
-`devtools` and `devlab` import product code. Product code never imports them
-(other than the five lines above). That is what makes deletion safe: nothing
-breaks because nothing depends on them.
-
-`backend/devtools/catalog.py` reuses `backend.serializers` and
-`backend.accounts`. That is fine — it is the allowed direction.
+`devlab` imports product code. Product code never imports it. That is what makes
+deletion safe: nothing breaks because nothing depends on it.
 
 ## Why the request log patches `window.fetch`
 
@@ -61,7 +65,8 @@ thing the constraint forbids.
 - captures both bodies via `res.clone()`, so the real caller still gets an
   unconsumed response
 - ignores anything outside `/api/`
-- works for the Spotify screens too, since they go through the same `fetch`
+- catches calls made outside `api.js` too, since they go through the same
+  `fetch` — `catalogApi.js` has its own `request()` and is logged anyway
 - disappears completely when the folder is deleted
 
 Monkey-patching a global is normally a bad idea. It is acceptable here precisely
@@ -127,14 +132,16 @@ code.
 
 ## `client/index.html`
 
-One line belongs to this feature:
+Nothing special is left in it. The merge deleted both the Spotify SDK `<script>`
+tag and the stub that went with it:
 
-```html
-<script>window.onSpotifyWebPlaybackSDKReady = () => {}</script>
-```
+> ```html
+> <script>window.onSpotifyWebPlaybackSDKReady = () => {}</script>
+> ```
+>
+> The Spotify SDK script calls that global when it loads. On the API tab
+> `usePlayer` never mounts, so the callback would be undefined and the SDK throws
+> an uncaught exception into the console. The empty stub silences it.
 
-The Spotify SDK script calls that global when it loads. On the API tab
-`usePlayer` never mounts, so the callback would be undefined and the SDK throws
-an uncaught exception into the console. The empty stub silences it. `usePlayer`
-overwrites the global later and its `window.Spotify` check makes the overwrite
-safe either way.
+The view switch between "Spotify 플레이어" and "API 확인" went too — with one
+view left, `Root.jsx` was deleted and `main.jsx` renders `<ApiLab />` directly.

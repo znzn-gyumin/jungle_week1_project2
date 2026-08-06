@@ -1,6 +1,6 @@
 export const SECTIONS = [
   { key: 'user', label: '유저 정보 API', prefix: '/api/users' },
-  { key: 'catalog', label: '곡 · 앨범 (임시)', prefix: '/api/catalog' },
+  { key: 'catalog', label: '곡 · 앨범', prefix: '/api/search · /api/tracks · /api/albums' },
   { key: 'playlists', label: '플레이리스트 API', prefix: '/api/playlists' },
   { key: 'likes', label: '좋아요 API', prefix: '/api/likes' },
   { key: 'errors', label: '실패 응답 모아보기', prefix: '' },
@@ -16,10 +16,12 @@ export const ENDPOINTS = {
     ['DELETE', '/api/users/me', '', '플레이리스트·좋아요 CASCADE'],
   ],
   catalog: [
-    ['GET', '/api/catalog/search?q=&limit=&country=', '', 'iTunes 검색 → tracks/albums upsert'],
-    ['GET', '/api/catalog/tracks?limit=', '', 'DB 에 쌓인 곡'],
-    ['GET', '/api/catalog/albums?limit=', '', 'DB 에 쌓인 앨범'],
-    ['GET', '/api/catalog/albums/:id', '', '앨범 + 수록곡'],
+    ['GET', '/api/search?q=&type=track&source=all&limit=', '', 'iTunes + YouTube 검색 → tracks upsert'],
+    ['GET', '/api/search?q=&type=album&source=itunes&limit=', '', '앨범 검색은 iTunes 만 지원'],
+    ['GET', '/api/tracks?q=&source=&limit=', '', 'DB 에 쌓인 곡'],
+    ['GET', '/api/tracks/:id', '', ''],
+    ['GET', '/api/albums?q=&limit=', '', 'DB 에 쌓인 앨범'],
+    ['GET', '/api/albums/:id', '', ''],
   ],
   playlists: [
     ['POST', '/api/playlists', '{name, description?, isPublic?}', ''],
@@ -85,7 +87,7 @@ export const RESPONSE_KEYS = {
       ['source', "'itunes' | 'youtube'", '재생 방식이 갈린다'],
       ['sourceId', 'string', '외부 플랫폼 id'],
       ['title / artist', 'string', ''],
-      ['albumId', 'number | null', 'YouTube 곡은 null'],
+      ['album', 'album | null', 'YouTube 곡은 null'],
       ['durationMs', 'number | null', ''],
       ['thumbnailUrl', 'string | null', ''],
       ['playUrl', 'string | null', 'itunes 는 30초 오디오, youtube 는 임베드 URL'],

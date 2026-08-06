@@ -1,10 +1,9 @@
+"""프로세스 메모리에 사는 세션 저장소. 재시작하면 전부 날아간다."""
+
 import secrets
 from typing import Any
 
 _sessions: dict[str, dict[str, Any]] = {}
-
-SESSION_COOKIE = "sid"
-STATE_COOKIE = "oauth_state"
 
 
 def new_id() -> str:
@@ -19,10 +18,6 @@ def create_session(data: dict[str, Any]) -> str:
 
 def get_session(sid: str | None) -> dict[str, Any] | None:
     return _sessions.get(sid) if sid else None
-
-
-def set_session(sid: str, data: dict[str, Any]) -> None:
-    _sessions[sid] = data
 
 
 def destroy_session(sid: str | None) -> None:

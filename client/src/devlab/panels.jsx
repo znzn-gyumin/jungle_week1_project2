@@ -218,7 +218,7 @@ export function AccountPanel({ me, run, onChanged }) {
 
       <Panel
         title="유저 정보 API"
-        hint="이 서비스의 자체 계정이다. Spotify 로그인과 별개이고 쿠키 이름이 uid 다."
+        hint="이 서비스의 자체 계정이다. 세션은 서버 메모리에 살고 쿠키 이름은 uid 다."
       >
         {!me?.loggedIn && (
           <>
@@ -316,8 +316,8 @@ export function AccountPanel({ me, run, onChanged }) {
 export function CatalogPanel({ playlists, likes, run, onTrackAdded, onLiked }) {
   const [query, setQuery] = useState('')
   const [limit, setLimit] = useState(10)
-  const [country, setCountry] = useState('KR')
-  const [found, setFound] = useState({ tracks: [], albums: [], cached: null })
+  const [source, setSource] = useState('all')
+  const [found, setFound] = useState({ tracks: [], albums: [], errors: [] })
   const [target, setTarget] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -327,16 +327,29 @@ export function CatalogPanel({ playlists, likes, run, onTrackAdded, onLiked }) {
   return (
     <>
       <Panel
-        title="곡 · 앨범 (임시)"
-        hint="배포 전 삭제 대상. tracks/albums 에 행을 만들어 두는 용도다 — 플레이리스트·좋아요를 눌러보려면 이게 먼저다."
+        title="곡 · 앨범"
+        hint="제품 API 인 /api/search · /api/albums · /api/tracks 를 그대로 부른다. 검색하면 tracks/albums 에 행이 생기므로, 플레이리스트·좋아요를 눌러보려면 이게 먼저다."
       >
         <form
           className="row-form"
           onSubmit={async (e) => {
             e.preventDefault()
-            if (!query.trim()) return
+            const q = query.trim()
+            if (!q) return
             setBusy(true)
-            await run(async () => setFound(await catalogApi.search(query.trim(), limit, country)))
+            await run(async () => {
+              // 앨범 검색은 iTunes 만 지원한다. youtube 로 좁히면 502 가 나므로 트랙만 부른다.
+              const wantAlbums = source !== 'youtube'
+              const [tracks, albums] = await Promise.all([
+                catalogApi.searchTracks(q, limit, source),
+                wantAlbums ? catalogApi.searchAlbums(q, limit, source) : null,
+              ])
+              setFound({
+                tracks: tracks.tracks,
+                albums: albums?.albums ?? [],
+                errors: [...(tracks.errors ?? []), ...(albums?.errors ?? [])],
+              })
+            })
             setBusy(false)
           }}
         >
@@ -353,34 +366,36 @@ export function CatalogPanel({ playlists, likes, run, onTrackAdded, onLiked }) {
             onChange={(e) => setLimit(Number(e.target.value))}
             style={{ maxWidth: 80 }}
           />
-          <input
-            value={country}
-            onChange={(e) => setCountry(e.target.value.toUpperCase())}
-            maxLength={2}
-            style={{ maxWidth: 70 }}
-          />
+          <select value={source} onChange={(e) => setSource(e.target.value)} style={{ maxWidth: 110 }}>
+            <option value="all">all</option>
+            <option value="itunes">itunes</option>
+            <option value="youtube">youtube</option>
+          </select>
           <button className="btn-primary" type="submit" disabled={busy}>
             {busy ? '검색 중…' : 'GET /search'}
           </button>
         </form>
 
-        {found.cached !== null && (
-          <p className="muted small">
-            <b className="mono">cached: {String(found.cached)}</b> — true 면 24시간 캐시에서 꺼낸
-            것이라 iTunes 를 호출하지 않았다 (IP 당 약 20회/분 제한 회피).
-          </p>
+        {found.errors.length > 0 && (
+          <ul className="lab-log">
+            {found.errors.map((e) => (
+              <li key={e.source} className="muted small">
+                <b className="mono">{e.source}</b> — {e.error}
+              </li>
+            ))}
+          </ul>
         )}
 
         <div className="row-form">
           <button
             className="btn-ghost"
-            onClick={() => run(async () => setFound({ ...(await catalogApi.tracks()), albums: found.albums, cached: null }))}
+            onClick={() => run(async () => setFound({ ...found, ...(await catalogApi.tracks()), errors: [] }))}
           >
             GET /tracks
           </button>
           <button
             className="btn-ghost"
-            onClick={() => run(async () => setFound({ tracks: found.tracks, ...(await catalogApi.albums()), cached: null }))}
+            onClick={() => run(async () => setFound({ ...found, ...(await catalogApi.albums()), errors: [] }))}
           >
             GET /albums
           </button>
@@ -409,7 +424,7 @@ export function CatalogPanel({ playlists, likes, run, onTrackAdded, onLiked }) {
                 )}
                 <div className="meta">
                   <div className="title">{t.title}</div>
-                  <div className="sub mono">id {t.id} · {t.source} · album {t.albumId ?? 'null'}</div>
+                  <div className="sub mono">id {t.id} · {t.source} · album {t.album?.id ?? 'null'}</div>
                 </div>
                 {t.playUrl && <audio src={t.playUrl} controls preload="none" />}
                 <button

@@ -12,8 +12,12 @@ const qs = (params) =>
   ).toString()
 
 export const catalogApi = {
-  search: (q, limit, country) => request(`/api/catalog/search?${qs({ q, limit, country })}`),
-  tracks: (limit = 20) => request(`/api/catalog/tracks?${qs({ limit })}`),
-  albums: (limit = 20) => request(`/api/catalog/albums?${qs({ limit })}`),
-  album: (id) => request(`/api/catalog/albums/${id}`),
+  searchTracks: (q, limit, source) =>
+    request(`/api/search?${qs({ q, limit, source, type: 'track' })}`),
+  searchAlbums: (q, limit, source) =>
+    request(`/api/search?${qs({ q, limit, source, type: 'album' })}`),
+  tracks: (limit = 20) => request(`/api/tracks?${qs({ limit })}`),
+  albums: (limit = 20) => request(`/api/albums?${qs({ limit })}`),
+  album: (id) => request(`/api/albums/${id}`),
+  track: (id) => request(`/api/tracks/${id}`),
 }

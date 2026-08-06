@@ -9,6 +9,24 @@ considered and rejected.
 
 Written 2026-08-06 · branch `junho_dev`
 
+## Merged into `backend_dev` — 2026-08-06
+
+These documents were written before the merge, when Spotify OAuth and a stub
+`/api/search` still existed. The merge resolved several things they describe as
+open:
+
+| Then | Now |
+|---|---|
+| Spotify OAuth (`sid` cookie) alongside local accounts | Spotify removed entirely. `uid` is the only session |
+| Nothing in product code wrote to `tracks` / `albums` | `/api/search` upserts both, via `services/search.py` |
+| `/api/catalog/*` in `backend/devtools/` | deleted; the product routes replaced it |
+| `DEV_TOOLS` toggle, `install_devtools` | deleted — no dev-only routes remain to toggle |
+| `client/src/App.jsx` (Spotify player) | deleted; `client/` is the API Lab only |
+
+Paragraphs affected below were rewritten in place, with the superseded reasoning
+kept. Everything in [03-playlist-invariants.md](03-playlist-invariants.md) and
+[05-verification.md](05-verification.md) still stands unchanged.
+
 ## Documents
 
 | File | Contents |

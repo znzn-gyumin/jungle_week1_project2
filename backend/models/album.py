@@ -28,7 +28,9 @@ class Album(PKMixin, TimestampMixin, Base):
     total_tracks: Mapped[int | None] = mapped_column(Integer)
     thumbnail_url: Mapped[str | None] = mapped_column(Text)
 
-    tracks: Mapped[list["Track"]] = relationship(back_populates="album")
+    tracks: Mapped[list["Track"]] = relationship(
+        back_populates="album", passive_deletes="all"
+    )
     likes: Mapped[list["Like"]] = relationship(
         back_populates="album",
         cascade="all, delete-orphan",

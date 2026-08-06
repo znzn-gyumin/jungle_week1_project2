@@ -5,14 +5,19 @@
 `backend/main.py` was already 361 lines. Putting users, playlists and likes in it
 would have pushed it past 700. They live in `backend/routers/` instead.
 
-The existing layout is flat (`spotify.py`, `sessions.py`, `config.py`), so this
-may look inconsistent — but the split follows a different axis. **Everything left
-in `main.py` is Spotify-specific.** When the iTunes migration lands, `main.py`
-shrinks hard and `routers/` survives untouched. The file boundary *is* the
-deletion boundary.
+The existing layout was flat (`spotify.py`, `sessions.py`, `config.py`), so this
+looked inconsistent — but the split followed a different axis. **Everything left
+in `main.py` was Spotify-specific.** The file boundary *was* the deletion
+boundary.
 
-The old constraint still holds: the `StaticFiles` mount must stay at the very
-bottom of `main.py`. All `include_router` calls sit above it.
+**That prediction held.** The merge into `backend_dev` deleted every route left
+in `main.py` and `routers/` came through untouched. `main.py` is now 70 lines of
+app wiring and nothing else.
+
+Two notes are obsolete: the `StaticFiles` mount is gone (Vite serves the client
+in dev, and there is no production bundle to serve), and `backend_dev` brought
+its own `api/` package for the search side. See "계층 규칙" in
+`backend/README.md` for why `api/` and `routers/` are still two things.
 
 ## The camelCase serialization layer
 
@@ -32,6 +37,19 @@ These are hand-written functions rather than Pydantic response models.
 
 The cost is that model changes require edits here too. If schema churn picks up,
 move to Pydantic models.
+
+**The merge forced that question.** `backend_dev` arrived with `schemas.py` —
+Pydantic models using `alias_generator=to_camel` — for the search side. So both
+mechanisms now exist in one app, and a field added to `Track` has to be added
+twice. They were left separate rather than unified in the merge commit, because
+folding `serializers.py` into `schemas.py` means changing every response body in
+`routers/` at the same time as resolving the merge.
+
+One shape difference was reconciled: `track_out` used to emit `albumId`, while
+`TrackOut` nests the whole `album`. `track_out` now nests too, so clients see one
+`track` shape everywhere. That required
+`selectinload(PlaylistTrack.track).selectinload(Track.album)` on the playlist
+detail query — without it the lazy load raises `MissingGreenlet` under asyncpg.
 
 ## Error shape
 

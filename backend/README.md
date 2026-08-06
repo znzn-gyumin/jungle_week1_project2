@@ -1,300 +1,322 @@
-# Jungle Music
+# Flowbee
 
-여러 플랫폼의 음악을 한 곳에서 검색하고 재생하는 서비스.
-**무엇이 어떻게 동작하는지**는 이 문서에 있다 (루트 README 없음).
-**왜 그렇게 설계했는지**는 `docs/junho_dev/` 에 따로 있다.
+여러 플랫폼의 음악을 한 곳에서 검색하고 재생하는 서비스의 **백엔드**.
 
-- 프론트: React 19 + Vite (`client/`)
-- 백엔드: FastAPI (`backend/`)
-- DB: PostgreSQL 17
+- FastAPI + PostgreSQL 17
+- 외부 소스: iTunes Search API, YouTube Data API
 - **코드에 주석을 두지 않는다.** 설계 근거와 주의사항은 전부 이 문서에 있다.
 
-**모든 명령은 저장소 루트에서 실행한다.** `.env` 와 `requirements.txt` 도 루트에
-하나씩만 있다.
+## 이 저장소의 범위
+
+두 갈래가 합쳐져 있다.
+
+- **검색·카탈로그** — iTunes / YouTube 를 병렬로 부르고 결과를 `tracks` ·
+  `albums` 에 upsert 한다. `api/` → `services/` → `sources/` · `db/` 계층.
+- **회원·플레이리스트·좋아요** — 자체 계정, 세션 쿠키, 플레이리스트 CRUD.
+  `routers/` + `accounts.py` · `security.py` · `serializers.py` · `sessions.py`.
+
+두 갈래는 계층 구조가 다르다. 새 코드를 어디에 둘지는
+[계층 규칙](#계층-규칙) 을 볼 것.
+
+프론트엔드는 `client/` 에 있고, 제품 화면이 아니라 **API 를 눌러보는 개발 도구**
+하나뿐이다 ([API Lab](#api-lab)).
+
+**모든 명령은 저장소 루트에서 실행한다.** `.env` 와 `requirements.txt`,
+`docker-compose.yml` 은 루트에 하나씩만 있다.
 
 ---
 
-## 설치와 실행
-
-### 1. 환경변수
+## 빠른 시작
 
 ```bash
-cp .env.example .env
-```
+cp .env.example .env                              # 1. 환경변수
+docker compose up -d                              # 2. DB 컨테이너
+alembic -c backend/alembic.ini upgrade head       #    스키마 적용
 
-`POSTGRES_*` 는 `backend/docker-compose.yml` 기본값이라 그대로 두면 된다.
-Spotify 키는 아래 "현재 상태" 참고.
-
-### 2. 데이터베이스
-
-```bash
-docker compose -f backend/docker-compose.yml up -d
-alembic -c backend/alembic.ini upgrade head
-```
-
-파이썬 없이 만들려면 대신 `psql -U jungle -d jungle_music -f backend/schema.sql`.
-두 경로는 **완전히 동일한 구조**를 만든다 (pg_dump 로 비교 검증함).
-SQL 로 만든 DB에 나중에 Alembic 을 붙이려면
-`alembic -c backend/alembic.ini stamp head` 로 현재 리비전을 기록시킨다.
-
-`-c` 로 ini 위치를 지정해야 한다. `alembic.ini` 의 `script_location` 이
-루트 기준(`backend/migrations`)이라 다른 디렉터리에서 실행하면 경로를 못 찾는다.
-
-### 3. 의존성
-
-```bash
-# .venv 위치를 바꾸지 말 것 — package.json 의 dev:api 가 직접 참조한다
-python -m venv .venv
-.venv/Scripts/activate          # macOS/Linux: source .venv/bin/activate
+python -m venv .venv                              # 3. 의존성
+.venv/Scripts/activate                            #    macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 
-npm install
+python -m backend                                 # 4. 실행
 ```
 
-### 4. 실행
+API 문서는 <http://127.0.0.1:8000/docs>.
+
+### 환경변수
+
+| 키 | 기본값 | 설명 |
+|---|---|---|
+| `YOUTUBE_API_KEY` | (없음) | 비우면 YouTube 검색을 건너뛰고 iTunes 만 쓴다 |
+| `ITUNES_COUNTRY` | `KR` | iTunes 는 국가별로 카탈로그가 다르다 |
+| `CLIENT_ORIGINS` | `127.0.0.1:5173,localhost:5173` | CORS 허용 오리진. 쉼표로 여러 개 |
+| `SERVER_HOST` / `SERVER_PORT` / `SERVER_RELOAD` | `127.0.0.1` / `8000` / `false` | `python -m backend` 가 읽는다 |
+| `POSTGRES_*` | `jungle` / `flowbee` | `docker-compose.yml` 기본값과 맞춰져 있다 |
+
+`YOUTUBE_API_KEY` 는 **`.env` 에만** 둔다. `config.py` 의 기본값 자리에 넣으면
+git 에 커밋된다.
+
+### DB 를 만드는 두 가지 방법
+
+Alembic 대신 순수 SQL 로도 만들 수 있다.
 
 ```bash
-npm run dev     # uvicorn(:8000) + vite(:5173) 동시 실행
+psql -U jungle -d flowbee -f backend/schema.sql
 ```
 
-브라우저에서 **<http://127.0.0.1:5173>**. `localhost` 로 열면 쿠키 도메인이 달라져
-로그인이 유지되지 않는다. API 문서는 <http://127.0.0.1:8000/docs>.
+두 경로는 **완전히 동일한 구조**를 만든다 (pg_dump 로 비교 검증함).
+SQL 로 만든 DB 에 나중에 Alembic 을 붙이려면
+`alembic -c backend/alembic.ini stamp head` 로 현재 리비전을 기록시킨다.
 
-백엔드만 따로:
+### uvicorn 을 직접 부를 때
 
 ```bash
-.venv/Scripts/uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-> **Windows 주의** — `npm run dev` 의 `dev:api` 는 `.venv/bin/uvicorn` 을 참조한다.
-> Windows 는 `.venv/Scripts/` 라 그대로는 실패한다. 위 명령으로 따로 띄우거나
-> `package.json` 을 고쳐야 한다.
+이때는 `.env` 의 `SERVER_*` 대신 명령행 인자를 따른다.
 
 ---
 
-## 현재 상태
+## API Lab
 
-**재생 방식을 iTunes Search API 로 바꾸는 중이다.** 재생 경로만 아직 Spotify 다.
+`client/` 는 제품 화면이 아니라 **API 를 손으로 눌러보는 개발 도구**다. 패널마다
+엔드포인트 목록·요청 본문 형태·응답 키 설명이 붙어 있고, 오른쪽에 요청 로그가
+쌓인다.
 
-- DB 는 `source_type` ENUM 에 `'itunes'` 와 `tracks.play_url` 을 이미 갖고 있다
-- 유저 / 플레이리스트 / 좋아요 API 는 **DB 에 붙어 동작한다**
-- 재생은 아직 전부 Spotify (`backend/spotify.py`, `/api/search`, `/api/player/*`)
-- `tracks` / `albums` 를 채우는 iTunes 검색은 **개발용 임시 코드**로만 있다
-  (아래 "개발용 임시 코드" 참고). 정식 검색으로 승격시킬 때 옮기면 된다
+```bash
+npm install
+npm run dev          # API(8000) + Vite(5173) 동시 실행
+```
 
-DB 없이 서버를 띄우면 `/api/health` 와 Spotify 라우트는 뜨지만 위 API 는
-연결 오류로 실패한다. **먼저 postgres 를 올릴 것.**
+<http://127.0.0.1:5173> 로 연다. Vite 가 `/api` 를 8000 으로 프록시하므로 쿠키가
+same-origin 으로 붙는다. **8000 을 직접 열면 로그인 쿠키가 다르게 동작하니
+5173 으로 볼 것.**
 
-지금 코드를 그대로 돌리려면 Spotify Developer 앱과 **Premium 계정**이 필요하다
-(Web Playback SDK 는 Premium 전용). <https://developer.spotify.com/dashboard> 에서
-앱을 만들고 Redirect URI 에 `http://127.0.0.1:8000/api/auth/callback` 을 정확히
-등록한다 — Spotify 는 `http://localhost` 를 거부한다. `.env` 의
-`SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` 를 채우면 된다.
+배포 대상이 아니다. 지울 때는 `client/`, `package.json`, `package-lock.json`,
+`vite.config.js` 를 지우면 백엔드는 그대로 돈다.
 
-iTunes 로 넘어가면 이 준비물이 전부 사라진다. 인증이 없고, 로그인도 필요 없고,
-`previewUrl` 30초 미리듣기를 누구나 동시에 재생할 수 있다. 대신 **전체 재생은
-불가능**하다. IP 당 약 20회/분 제한이 있어 캐싱이 필요하다.
+---
 
-참고: Spotify 는 2024년 11월부터 신규 앱에 `preview_url` 필드를 `null` 로 내려준다.
-현재 코드가 SDK 경로를 쓰는 이유다.
+## 아키텍처
+
+```
+.env  .env.example  requirements.txt  docker-compose.yml
+package.json  vite.config.js
+│
+├── backend/                 파이썬 패키지는 backend 하나
+│   ├── __main__.py          python -m backend 진입점
+│   ├── main.py              앱 생성 · lifespan · 예외 핸들러 · 라우터 등록
+│   ├── config.py            .env -> 접속 문자열 + API 키
+│   ├── schemas.py           Pydantic 응답 모델 (TrackOut · AlbumOut · ...)
+│   │
+│   ├── api/                 검색·카탈로그 HTTP 계층. 라우터만
+│   │   ├── health.py  search.py  tracks.py  albums.py
+│   │   └── __init__.py      DEFAULT_LIMIT · MAX_LIMIT
+│   │
+│   ├── services/            여러 계층을 엮는 곳
+│   │   └── search.py        소스 병렬 호출 · 부분 실패 수집 · upsert 호출
+│   │
+│   ├── sources/             외부 플랫폼 클라이언트. DB 를 모른다
+│   │   ├── itunes.py        Search API 호출 + 응답 -> 컬럼 매핑
+│   │   └── youtube.py       Data API 호출 + ISO8601 길이 파싱
+│   │
+│   ├── routers/             회원·플레이리스트·좋아요 HTTP 계층
+│   │   └── users.py  playlists.py  likes.py
+│   ├── accounts.py          로그인 의존성 (CurrentUser · OptionalUser · DbSession)
+│   ├── security.py          비밀번호 해시 · 검증
+│   ├── sessions.py          인메모리 세션 저장소
+│   ├── serializers.py       위 라우터들의 dict 응답 (camelCase 수기 변환)
+│   │
+│   ├── db/                  DB 접근 계층. HTTP 를 모른다
+│   │   ├── base.py          Base · 제약조건 네이밍 규칙 · 공통 mixin
+│   │   ├── session.py       asyncpg 엔진 + get_db 의존성
+│   │   └── repository.py    ON CONFLICT upsert · 조회
+│   │
+│   ├── models/              SQLAlchemy 모델 (from backend.models import Track)
+│   ├── migrations/          Alembic
+│   ├── schema.sql           순수 SQL 생성 스크립트. 스택 무관
+│   ├── devtools/            배포 전 삭제 대상. 지금은 integration_test.py 하나
+│   └── README.md            이 문서
+│
+└── client/                  API Lab. Vite + React
+    ├── index.html
+    └── src/
+        ├── main.jsx  api.js  styles.css
+        └── devlab/          패널 · 요청 로그 · 엔드포인트 레퍼런스
+```
+
+### 계층 규칙
+
+검색·카탈로그 쪽:
+
+```
+api  ->  services  ->  sources (외부 API)
+                  ->  db (Postgres)
+```
+
+- **`api/`** 는 요청을 검증하고 `services` 나 `repository` 를 부른 뒤 응답으로
+  바꾼다. 외부 API 나 SQL 을 직접 부르지 않는다.
+- **`sources/`** 는 외부 API 만 안다. `AsyncSession` 을 받지 않고 반환값은
+  DB 컬럼 이름에 맞춘 dict 다. 그래서 DB 없이 단위 테스트가 된다.
+- **`db/repository.py`** 는 SQL 만 안다. 어느 플랫폼에서 온 데이터인지 모른다.
+- **`services/search.py`** 가 둘을 잇는다.
+
+외부 API 를 부르는 라우트는 `/api/search` 하나뿐이다. `/api/tracks` 와
+`/api/albums` 는 DB 만 읽는다.
+
+회원·플레이리스트·좋아요 쪽:
+
+```
+routers  ->  db (Postgres)
+```
+
+`services` / `repository` 를 거치지 않고 `routers/*.py` 가 SQLAlchemy 를 직접
+쓴다. 외부 API 호출이 없어서 끼울 것이 없기 때문이다. **두 갈래가 아직 하나로
+정리되지 않았다는 뜻이므로**, 응답 형태도 아래처럼 갈라져 있다.
+
+| | 응답 생성 | camelCase 변환 |
+|---|---|---|
+| `api/` | `schemas.py` 의 Pydantic 모델 | `alias_generator=to_camel` |
+| `routers/` | `serializers.py` 의 dict 반환 | 수기 |
+
+바깥에서 보는 JSON 은 같은 모양이지만 (`track` 객체는 양쪽 다 `album` 을 중첩
+한다), **한쪽을 고치면 다른 쪽도 같이 고쳐야 한다.** 합칠 때는 `serializers.py`
+를 `schemas.py` 로 흡수시키는 방향이다.
+
+### 새 소스를 붙이려면
+
+1. `sources/` 에 파일 하나 (`fetch` 용 함수 + `to_track` 매퍼)
+2. `models/enums.py` 의 `SourceType` 에 값 추가
+3. `services/search.py` 의 `_FETCHERS` 에 `Fetcher(fetch, persist)` 등록
+4. 마이그레이션으로 PG enum 에 값 추가
+
+`api/` 는 건드리지 않는다. 2번만 하고 3번을 빠뜨리면 **import 시점에
+`RuntimeError` 로 즉시 알려준다.**
 
 ---
 
 ## API
 
-전부 세션 쿠키(`sid`) 기반. 로그인 안 하면 `401`.
-실패 응답은 FastAPI 기본 `detail` 대신 `{"error": "..."}` 로 통일되어 있고,
-프론트 `client/src/api.js` 가 이 키를 읽는다.
+**모든 실패 응답이 `{"error": "..."}` 형태다.** 404·405 처럼 라우트에 닿지 못한
+경우까지 포함하므로 클라이언트는 `error` 키만 읽으면 된다.
+
+### 검색 · 카탈로그 — 인증 없음
 
 | Method | Path | 설명 |
 |---|---|---|
-| GET | `/api/health` | 서버 상태 + `.env` 설정 여부 |
-| GET | `/api/auth/login` | Spotify 인증 페이지로 리다이렉트 |
-| GET | `/api/auth/callback` | 코드 → 토큰 교환 후 세션 발급 |
-| GET | `/api/auth/me` | 로그인 유저 (`product` 로 Premium 판별) |
-| GET | `/api/auth/token` | SDK 용 access token (자동 갱신) |
-| POST | `/api/auth/logout` | 세션 파기 |
-| GET | `/api/search?q=&type=track\|artist` | 곡 / 아티스트 검색 |
-| GET | `/api/artists/:id/top-tracks` | 아티스트 인기 트랙 |
-| PUT | `/api/player/transfer` | 브라우저 플레이어를 활성 기기로 전환 |
-| PUT | `/api/player/play` | `{ deviceId, uris }` — uris 생략 시 이어재생 |
-| PUT | `/api/player/pause?deviceId=` | 일시정지 |
+| GET | `/api/health` | 서버 상태 + YouTube 키 설정 여부 |
+| GET | `/api/health/db` | DB 연결 + public 스키마 테이블 수 |
+| GET | `/api/search?q=&source=all\|itunes\|youtube&type=track\|album&limit=` | 외부 검색 후 DB 에 upsert 하고 반환 |
+| GET | `/api/tracks?q=&source=&limit=` | DB 에 쌓인 곡. 외부 API 를 부르지 않는다 |
+| GET | `/api/tracks/{id}` | 곡 하나 |
+| GET | `/api/albums?q=&limit=` | DB 에 쌓인 앨범 |
+| GET | `/api/albums/{id}` | 앨범 하나 |
 
-iTunes 전환 시 `/api/auth/*` 와 `/api/player/*` 는 전부 사라진다.
-재생은 iTunes 가 `<audio src={play_url}>`, YouTube 가 IFrame 임베드로 끝난다.
+`limit` 은 기본 25, 최대 50 (`api/__init__.py`).
+`type=album` 은 iTunes 만 지원해서 `source=youtube&type=album` 은 502 다.
 
-### DB 기반 API
+응답 스키마는 `/openapi.json` 에 전부 정의되어 있다. 필드는 camelCase 다.
 
-아래는 **Spotify 세션과 무관한** 자체 계정(`users` 테이블) 기반이다.
-세션 쿠키가 `sid`(Spotify) 가 아니라 `uid` 다. 두 로그인은 서로 독립이며 동시에
-유지될 수 있다. 로그인 안 하면 `401`.
+### 계정
+
+| Method | Path | 본문 | 설명 |
+|---|---|---|---|
+| POST | `/api/users/signup` | `{nickname, email, password}` | 가입 즉시 로그인. 201 |
+| POST | `/api/users/login` | `{email, password}` | 틀리면 401 |
+| POST | `/api/users/logout` | | 세션 파기 |
+| GET | `/api/users/me` | | 비로그인이면 **401 이 아니라** `{"loggedIn": false}` |
+| PATCH | `/api/users/me` | `{nickname?, email?, password?}` | 보낸 필드만 바뀐다 |
+| DELETE | `/api/users/me` | | 플레이리스트·좋아요 CASCADE |
+
+닉네임·이메일 중복은 409. 유일성은 `lower(nickname)` · `lower(email)` 함수 인덱스
+라서 **대소문자를 무시한다** — `Alice` 와 `alice` 는 같은 닉네임이다. 이메일은
+추가로 소문자 정규화해서 저장하지만, 닉네임은 입력한 표기 그대로 남는다.
+
+### 플레이리스트 — 로그인 필요
+
+| Method | Path | 본문 | 설명 |
+|---|---|---|---|
+| POST | `/api/playlists` | `{name, description?, isPublic?}` | 기본 비공개 |
+| GET | `/api/playlists` | | 내 것만 |
+| GET | `/api/playlists/public` | | `view_count` 내림차순 |
+| GET | `/api/playlists/{id}` | | 수록곡 포함. 타인이 열면 `view_count` +1 |
+| PATCH | `/api/playlists/{id}` | `{name?, description?, isPublic?}` | |
+| DELETE | `/api/playlists/{id}` | | |
+| POST | `/api/playlists/{id}/tracks` | `{trackId}` | 맨 뒤에 추가 + `totalTracks` +1 |
+| DELETE | `/api/playlists/{id}/tracks/{itemId}` | | `position` 재정렬 + `totalTracks` −1 |
+| PUT | `/api/playlists/{id}/tracks/order` | `{itemIds: [...]}` | 모든 항목을 한 번씩 담아야 200, 아니면 400 |
+
+남의 것은 비공개면 403, 수정·삭제는 공개 여부와 무관하게 403.
+`{itemId}` 는 `tracks.id` 가 아니라 `playlist_tracks.id` 다 — 같은 곡을 두 번
+담을 수 있으므로 곡 id 로는 어느 항목인지 특정할 수 없다.
+
+### 좋아요 — 로그인 필요
 
 | Method | Path | 설명 |
 |---|---|---|
-| POST | `/api/users/signup` | `{nickname, email, password}` — 가입 즉시 로그인 |
-| POST | `/api/users/login` | `{email, password}` |
-| POST | `/api/users/logout` | 세션 파기 |
-| GET | `/api/users/me` | 프로필 + `counts.playlists` / `counts.likes` |
-| PATCH | `/api/users/me` | 닉네임 · 이메일 · 비밀번호 부분 수정 |
-| DELETE | `/api/users/me` | 탈퇴 (플레이리스트·좋아요 CASCADE) |
-| POST | `/api/playlists` | `{name, description?, isPublic?}` |
-| GET | `/api/playlists` | 내 플레이리스트 |
-| GET | `/api/playlists/public` | 공개 목록 (`view_count DESC`) |
-| GET | `/api/playlists/:id` | 상세 + 수록곡. 타인 조회 시 `view_count` +1 |
-| PATCH | `/api/playlists/:id` | 이름 · 설명 · 공개 여부 |
-| DELETE | `/api/playlists/:id` | 삭제 |
-| POST | `/api/playlists/:id/tracks` | `{trackId}` — 맨 뒤에 추가 |
-| DELETE | `/api/playlists/:id/tracks/:itemId` | 빼고 `position` 재정렬 |
-| PUT | `/api/playlists/:id/tracks/order` | `{itemIds: [...]}` — 전체 순서 교체 |
-| GET | `/api/likes` | 마이페이지. `likes` / `albums` / `playlists` 로 나눠서 응답 |
-| PUT/DELETE | `/api/likes/albums/:id` | 앨범 좋아요 · 취소 |
-| PUT/DELETE | `/api/likes/playlists/:id` | 플레이리스트 좋아요 · 취소 |
+| GET | `/api/likes` | `likes` / `albums` / `playlists` 세 벌로 내려준다 |
+| PUT | `/api/likes/albums/{id}` | 멱등. 이미 있으면 `created: false` |
+| DELETE | `/api/likes/albums/{id}` | 없어도 200, `removed: false` |
+| PUT | `/api/likes/playlists/{id}` | 비공개 남의 것이면 403 |
+| DELETE | `/api/likes/playlists/{id}` | |
 
-**응답 키는 camelCase 다.** DB 컬럼(`total_tracks`, `play_url`)을 그대로 노출하지
-않고 `backend/serializers.py` 에서 한 번 변환한다.
+### 인증
 
-주의할 동작:
+로그인하면 `uid` 쿠키(HttpOnly · SameSite=Lax · 30일)가 나가고, 세션 본문은
+**서버 프로세스 메모리**(`sessions.py`)에 있다. 서버를 재시작하면 전원 로그아웃
+된다. 워커를 여러 개 띄우면 요청마다 다른 프로세스에 붙어 로그인이 오락가락하므로,
+지금 구조에서는 **단일 워커로만 돌려야 한다.** Redis 나 DB 로 옮기는 것이 다음
+단계다.
 
-- `POST /api/playlists/:id/tracks` 와 `DELETE .../tracks/:itemId` 가
-  `playlists.total_tracks` 를 함께 갱신한다. 이 경로를 우회해 `playlist_tracks` 를
-  직접 건드리면 카운트가 어긋난다.
-- 순서 변경은 `itemIds` 에 **모든 항목을 한 번씩** 담아야 한다. 빠지거나 중복이면
-  `400`. `position` UNIQUE 가 DEFERRABLE 이라 한 트랜잭션에서 통째로 갈아끼운다.
-- 좋아요는 `PUT` 이 멱등이다. 중복 체크를 애플리케이션이 아니라 UNIQUE 제약에
-  맡기고(`ON CONFLICT DO NOTHING`) `{"liked": true, "created": false}` 로 알린다.
-- 비공개 플레이리스트에는 **새로** 좋아요를 누를 수 없지만(`403`), 이미 눌러둔
-  좋아요 행은 주인이 비공개로 바꿔도 남는다. 목록의 `playlist.isPublic` 으로
-  프론트가 판단한다.
+`/api/users/me` 만 비로그인을 정상 응답으로 취급한다. 나머지 보호 라우트는
+`{"error": "로그인이 필요합니다", "loggedIn": false}` 와 함께 401 이다.
 
-### 비밀번호
+### `/api/search` 응답
 
-`backend/security.py` 가 `hashlib.scrypt`(표준 라이브러리)로 해싱한다.
-`scrypt$N$r$p$salt$hash` 형식이라 파라미터가 해시에 같이 들어간다 —
-나중에 비용을 올려도 기존 해시를 그대로 검증할 수 있다.
-**bcrypt/argon2 의존성을 일부러 추가하지 않았다.** `requirements.txt` 는 그대로다.
+한쪽 소스가 실패해도 나머지를 반환하고 실패는 `errors` 에 담는다.
+**둘 다 실패해야 502** 다.
+
+```json
+{
+  "tracks": [
+    { "id": 51, "source": "itunes", "sourceId": "1128141246",
+      "title": "Viva La Vida", "artist": "Coldplay",
+      "album": { "id": 22, "name": "Viva La Vida (Prospekt's March Edition)",
+                 "releaseDate": "2008-06-12", "totalTracks": 10 },
+      "durationMs": 242373,
+      "thumbnailUrl": "https://is1-ssl.mzstatic.com/....jpg",
+      "playUrl": "https://audio-ssl.itunes.apple.com/....m4a" }
+  ],
+  "albums": [],
+  "errors": [{ "source": "youtube", "error": "YouTube 일일 할당량 소진" }]
+}
+```
+
+곡 응답에는 앨범이 중첩된다. YouTube 곡은 `album: null` 이다.
 
 ---
 
-## 파일
-
-파이썬 패키지는 `backend` 하나다.
-
-| 경로 | 역할 |
-|---|---|
-| `backend/main.py` | Spotify 라우트 + 응답 정규화 + 예외 핸들러 + 라우터 등록 |
-| `backend/routers/users.py` | 자체 계정 가입 · 로그인 · 프로필 |
-| `backend/routers/playlists.py` | 플레이리스트 CRUD + 수록곡 + 순서 |
-| `backend/routers/likes.py` | 앨범 / 플레이리스트 좋아요 |
-| `backend/serializers.py` | 모델 → camelCase 응답 변환 (한 곳에 모음) |
-| `backend/accounts.py` | `uid` 쿠키 → `User` 의존성 (`current_user` / `optional_user`) |
-| `backend/security.py` | scrypt 비밀번호 해싱 |
-| `backend/spotify.py` | 토큰 교환/갱신, Spotify API 래퍼 |
-| `backend/sessions.py` | 인메모리 세션 (서버 재시작하면 로그아웃) |
-| `backend/config.py` | `.env` → DB 접속 문자열 + Spotify 설정 (단일 `get_settings()`) |
-| `backend/db/session.py` | async 엔진 + `get_db` 의존성 |
-| `backend/models/*.py` | SQLAlchemy 모델 (`from backend.models import Track`) |
-| `backend/db/base.py` | `Base`, 제약조건 네이밍 규칙, 공통 mixin |
-| `backend/migrations/` | Alembic |
-| `backend/schema.sql` | 순수 SQL 생성 스크립트. 스택 무관 |
-| `backend/docker-compose.yml` | 로컬 개발용 postgres 17 |
-| `client/src/App.jsx` | Spotify 화면 전체 |
-| `client/src/usePlayer.js` | Web Playback SDK 연결 훅 |
-| `client/src/api.js` | 백엔드 호출 |
-| `backend/devtools/` · `client/src/devlab/` | 개발용 임시 코드. 아래 참고 |
-
-### 개발용 임시 코드 — 배포 전 삭제 대상
-
-API 확인 페이지와 그것이 쓰는 iTunes 검색은 **제품 코드가 아니다.** 지우기 쉽도록
-디렉터리 둘로 몰아뒀고, 제품 코드와 닿는 지점은 아래 다섯 줄이 전부다.
-
-| 위치 | 내용 |
-|---|---|
-| `backend/devtools/` | iTunes 검색 + `/api/catalog/*` |
-| `client/src/devlab/` | API 확인 페이지 전체 (뷰 전환 · CSS 포함) |
-| `backend/devtools/integration_test.py` | 통합 테스트. `schema.sql` 을 검증하는 유일한 수단 |
-| `backend/main.py` | `from .devtools import install_devtools` · `install_devtools(app)` |
-| `client/src/main.jsx` | `import DevLabRoot ...` · `<DevLabRoot app={<App />} />` |
-| `backend/config.py` | `dev_tools: bool = True` |
-
-**끄기만 하려면** `.env` 에 `DEV_TOOLS=false`. `/api/catalog/*` 가 통째로 사라진다.
-
-지우기 전에 `integration_test.py` 를 옮길 곳을 먼저 정할 것 — 이 디렉터리와 함께
-사라지면 `schema.sql` 을 확인하는 수단이 없어진다. 실행법은 파일 상단 주석에 있다.
-
-**완전히 걷어내려면** 위 두 디렉터리를 지우고 세 파일에서 해당 줄을 지운다.
-`client/src/main.jsx` 는 `<App />` 을 직접 렌더하도록 되돌리면 된다.
-`client/src/App.jsx` · `api.js` · `styles.css` 는 **애초에 건드리지 않았다.**
-
-의존 방향은 한쪽뿐이다 — `devtools`/`devlab` 이 제품 코드를 참조하고 그 반대는 없다.
-요청 로그도 `api.js` 를 고치는 대신 devlab 이 마운트될 때 `window.fetch` 를 감싸는
-방식이라 폴더를 지우면 흔적이 남지 않는다.
-
-`/api/catalog/*` 는 이 문서 위쪽 API 표에 넣지 않았다. 임시라서다.
-
-| Method | Path | 설명 |
-|---|---|---|
-| GET | `/api/catalog/search?q=&limit=&country=` | iTunes 검색 → `tracks`/`albums` upsert. `cached` 로 캐시 히트 여부 반환 |
-| GET | `/api/catalog/tracks`, `/api/catalog/albums` | DB 에 쌓인 것 조회 |
-| GET | `/api/catalog/albums/:id` | 앨범 + 수록곡 |
-
-### API 확인 페이지
-
-`http://127.0.0.1:5173` 상단의 **`API 확인`** 탭. Spotify 로그인 없이 열린다.
-상단 셀렉트로 유저 / 곡·앨범 / 플레이리스트 / 좋아요 / 실패 응답 중 하나만 본다.
-
-프론트가 참조할 수 있게 아래를 화면에 노출한다.
-
-- **요청 로그** — 모든 `/api/*` 호출의 status · method · path · 소요시간.
-  행을 누르면 **요청 body · 응답 body · 그 호출의 fetch 코드**가 펼쳐진다 (복사 버튼 포함)
-- **엔드포인트 표** — 패널마다 method · path · body · 주의사항
-- **응답 키 사전** — 키 이름 · 타입 · 의미 (`totalTracks` 가 비정규화 사본이라는 것 등)
-- **에러 형식** — `{"error": "..."}` 와 status 별 발생 조건
-- **실패 응답 모아보기** — 409 · 422 · 404 · 400 을 버튼 하나로 재현
-
-**포트가 다르면 더미 계정 목록이 따로 논다.** 목록은 `localStorage` 라 origin
-(포트 포함) 단위인데 쿠키는 포트를 무시한다. 그래서 5173 에서 만든 계정이
-8000 에서는 안 보이면서 로그인만 유지되는 상태가 된다. 로그인한 더미 계정은
-자동으로 다시 등록되고, 나머지는 같은 비밀번호로 로그인 폼에서 되찾는다.
-같은 이유로 번호가 겹칠 수 있어 409 가 나면 다음 번호로 재시도한다.
-
-유저 패널에서 **더미 계정을 버튼으로 만든다.** 닉네임 `테스터N`, 이메일
-`testerN@devlab.test`, 비밀번호는 전부 `devlab-pw-0000` 으로 고정이라 curl 이나
-Swagger 에서도 같은 값으로 로그인된다. 목록에서 전환·삭제하고, 한 번에 전부
-지울 수도 있다. 만든 계정은 `localStorage` 에 남아 새로고침해도 유지된다.
-
-쿠키는 브라우저당 하나라 두 계정을 동시에 붙일 수 없다. **전환**은 로그아웃 후
-다시 로그인하는 방식이고, 이걸로 403 · `viewCount` 증가 · 남의 공개 플레이리스트
-좋아요를 확인한다. 플레이리스트 패널의 **id 로 열기** 와 조합하면 남의 비공개
-리스트에 대한 403 을 바로 재현할 수 있다. 정말 동시에 보려면 시크릿 창을 띄운다.
-
-`client/index.html` 의 빈 `onSpotifyWebPlaybackSDKReady` 도 이 페이지 때문이다.
-API 탭에서는 `usePlayer` 가 마운트되지 않아 SDK 가 콜백을 못 찾고 예외를 던진다.
-
-선택한 뷰는 `localStorage` 의 `devlab:view` 에 저장된다.
-
-FastAPI 가 <http://127.0.0.1:8000/docs> 에 Swagger 도 띄운다. 거기서도 모든
-엔드포인트를 눌러볼 수 있고 쿠키가 함께 나간다. 스키마만 필요하면 그쪽이 빠르다.
-
----
-
-## 테이블
+## 데이터 모델
 
 ```
 users ──< playlists ──< playlist_tracks >── tracks >── albums
-  │           │                              │  │         │
-  └──< likes ─┴──────────────────────────────┘  │         │
-                                                │         │
-       search_cache ──< search_cache_items >────┴─────────┘
+  │           │                                          │
+  └──< likes ─┴──────────────────────────────────────────┘
 ```
 
-`likes` 는 앨범 또는 플레이리스트를, `search_cache_items` 는 곡 또는 앨범을 가리킨다.
-
+`likes` 는 앨범 또는 플레이리스트 중 하나를 가리킨다.
 `source_type` = ENUM(`'itunes'`, `'youtube'`)
 
 ### users — 계정
 
-`id` · `nickname`(30, uniq) · `email`(255, uniq) · `password_hash`(255) ·
+`id` · `nickname`(30) · `email`(255) · `password_hash`(255) ·
 `created_at` · `updated_at`
+
+UNIQUE INDEX `lower(nickname)` · `lower(email)`
+
+유일성을 **대소문자 무시**로 건다. 평범한 UNIQUE 는 대소문자를 구분해서
+`Gyumin` 과 `gyumin`, `A@x.com` 과 `a@x.com` 이 서로 다른 계정이 된다.
+조회할 때도 `lower(email) = lower(?)` 로 해야 인덱스를 탄다.
 
 ### albums — 외부 플랫폼 앨범 캐시
 
@@ -305,155 +327,89 @@ UNIQUE `(source, source_id)`
 
 YouTube 에는 앨범 개념이 없어 실질적으로 전부 iTunes(`collection`) 레코드다.
 
-### tracks — 외부 플랫폼 곡 캐시 (iTunes 곡 / YouTube 영상)
+### tracks — 곡 캐시 (iTunes 곡 / YouTube 영상)
 
 `id` · `source` · `source_id`(128) · `title` · `artist` · `album_id` ·
 `duration_ms` · `thumbnail_url` · `play_url` · `created_at` · `updated_at`
 
-UNIQUE `(source, source_id)` · INDEX `album_id`, `lower(title)`
+UNIQUE `(source, source_id)` · INDEX `album_id`
 `album_id` → `albums` **ON DELETE SET NULL** (YouTube 곡은 NULL)
 
 **재생 방식이 소스마다 다르다.**
 
 | | `source_id` | `play_url` | 렌더링 |
 |---|---|---|---|
-| iTunes | `trackId` (숫자) | `previewUrl` — **30초** 오디오 파일 | `<audio src={play_url}>` |
-| YouTube | video id (11자) | `youtube.com/embed/{source_id}` | `<iframe src={play_url}>` |
+| iTunes | `trackId` (숫자) | `previewUrl` — **30초** 오디오 파일 | `<audio src={playUrl}>` |
+| YouTube | video id (11자) | `youtube.com/embed/{source_id}` | `<iframe src={playUrl}>` |
 
 **`play_url` 이 채워져 있어도 프론트는 `source` 로 분기해야 한다.** 두 값은 종류가
 다르다 — iTunes 는 오디오 파일, YouTube 는 임베드 페이지다. `<audio>` 는 임베드
 URL 을 재생하지 못하고 `<iframe>` 은 m4a 를 플레이어로 그리지 못한다.
 
-```jsx
-track.source === 'itunes'
-  ? <audio src={track.play_url} controls />
-  : <iframe src={track.play_url} allow="autoplay" />
-```
+YouTube 의 `play_url` 은 API 응답이 아니라 `source_id` 로 조립한 **파생값**이다.
+Data API 는 재생 가능한 파일 URL 을 주지 않는다. googlevideo 스트림 URL 추출은
+약관 위반이고, 그 URL 들은 만료 시각이 박혀 있어 DB 에 저장하면 몇 시간 뒤 죽는다.
 
-YouTube Data API 는 재생 가능한 오디오 파일 URL 을 주지 않는다. video 리소스의
-`player` 파트가 주는 것은 `<iframe>` 태그 문자열이고, 리소스 어디에도 미디어
-스트림 URL 이 없다. 그래서 YouTube 의 `play_url` 은 `source_id` 로 조립한
-임베드 URL 이다 — API 응답을 그대로 담은 값이 아니라 **파생값**이다.
-
-googlevideo 스트림 URL 추출은 쓰지 않는다. 약관 위반이고, 그 URL 들은 만료 시각이
-박혀 있어 DB 에 저장하면 몇 시간 뒤 죽는다.
-
-**웹페이지 링크(`external_url`)는 두지 않는다.** 재생에 필요 없고, 필요해지면
-`source_id` 에서 파생할 수 있다 (`youtube.com/watch?v={source_id}`,
-`music.apple.com/album/{collectionId}?i={source_id}`).
+**웹페이지 링크는 저장하지 않는다.** 재생에 필요 없고 `source_id` 에서 파생할 수
+있다 (`youtube.com/watch?v=...`, `music.apple.com/album/{collectionId}?i=...`).
 다만 Apple 은 API 의 미리듣기·아트워크를 "스토어 콘텐츠 홍보 목적"으로만 쓰고
-사운드 샘플은 스토어 배지 근처에 두라고 안내한다. 외부 공개 서비스로 확장한다면
+사운드 샘플을 스토어 배지 근처에 두라고 안내한다. 외부 공개 서비스로 확장하면
 그때 다시 볼 지점이다.
-
-iTunes 필드 매핑: `trackId`→`source_id`, `trackName`→`title`, `artistName`→`artist`,
-`collectionId`→앨범 조회, `trackTimeMillis`→`duration_ms`, `artworkUrl100`→`thumbnail_url`,
-`previewUrl`→`play_url`. (`trackViewUrl` 은 저장하지 않는다)
 
 ### playlists — 사용자 플레이리스트
 
 `id` · `user_id` · `name`(100) · `description` · `total_tracks`(기본 0, CHECK ≥ 0) ·
 `is_public`(기본 false) · `view_count`(기본 0, CHECK ≥ 0) · `created_at` · `updated_at`
 
-`total_tracks` 는 `playlist_tracks` 개수의 **비정규화 사본**이다. 곡을 담거나 뺄 때
-애플리케이션이 함께 갱신해야 하며, 안 하면 실제 개수와 어긋난다. 목록 화면에서
-플레이리스트마다 `COUNT(*)` 를 돌리지 않으려는 것이 목적이다.
-
 `user_id` → `users` **CASCADE** · INDEX `user_id`, `(view_count DESC) WHERE is_public`
+
+`total_tracks` 는 `playlist_tracks` 개수의 **비정규화 사본**이다. 곡을 담거나 뺄 때
+애플리케이션이 함께 갱신해야 하며, 안 하면 실제 개수와 어긋난다.
 
 ### playlist_tracks — 플레이리스트 ↔ 트랙 + 재생 순서
 
 `id` · `playlist_id` · `track_id` · `position`(CHECK ≥ 0) · `added_at`
 
-UNIQUE `(playlist_id, position)` **DEFERRABLE INITIALLY DEFERRED**
-두 FK 모두 **CASCADE**
+UNIQUE `(playlist_id, position)` **DEFERRABLE INITIALLY DEFERRED** · 두 FK 모두 CASCADE
 
-### likes — 앨범/플레이리스트 좋아요 (마이페이지 목록의 원본)
+DEFERRABLE 이라 한 트랜잭션 안에서 여러 행의 `position` 을 한꺼번에 갱신하는
+재정렬이 중간 충돌 없이 된다. 같은 곡을 두 번 담는 건 허용한다.
+
+### likes — 앨범/플레이리스트 좋아요
 
 `id` · `user_id` · `album_id` · `playlist_id` · `created_at`
 
 CHECK `num_nonnulls(album_id, playlist_id) = 1`
 UNIQUE `(user_id, album_id)` · `(user_id, playlist_id)`
-세 FK 모두 **CASCADE** · INDEX `(user_id, created_at DESC)`, `album_id`, `playlist_id`
+세 FK 모두 CASCADE · INDEX `(user_id, created_at DESC)`, `album_id`, `playlist_id`
 
-**곡 단위 좋아요는 없다.** 앨범과 플레이리스트만 담는다.
-
-### search_cache / search_cache_items — 검색어 캐시
-
-```
-search_cache        id · source · search_type · query · fetched_at
-                    UNIQUE (source, search_type, query) · INDEX fetched_at
-
-search_cache_items  cache_id · position · track_id · album_id
-                    PK (cache_id, position)
-                    CHECK num_nonnulls(track_id, album_id) = 1
-                    세 FK 모두 CASCADE
-```
-
-`query` 는 정규화(소문자·trim)해서 넣는다. `search_type` 은 `'track'` / `'album'`.
-`fetched_at` 으로 TTL 을 판정하고, 만료된 행은 지우면 `items` 가 CASCADE 로 따라간다.
-
-**왜 필요한가** — iTunes 는 IP 당 약 20회/분(초과 시 429), YouTube 는 하루 100회다.
-둘 다 **개발자 크레덴셜 하나를 전체 사용자가 공유**하므로 사용자가 늘수록 빨리
-소진된다. 검색어 단위 캐시 없이는 시연 중에 막힐 수 있다.
-
-결과를 배열(`bigint[]`)이 아니라 별도 테이블에 둔 이유는 FK 로 무결성을 걸기
-위해서다. 배열에는 FK 를 못 걸어 삭제된 곡의 id 가 남는다.
+**곡 단위 좋아요는 없다.**
 
 ### 삭제 전파
 
 유저를 지우면 그 사람의 `playlists` / `playlist_tracks` / `likes` 가 함께 사라지고,
-공용 캐시인 `tracks` / `albums` / `search_cache` 는 남는다.
+공용 캐시인 `tracks` / `albums` 는 남는다.
 앨범을 지우면 그 앨범의 트랙은 `album_id` 만 NULL 이 되고 트랙 자체는 유지된다.
-곡을 지우면 그 곡을 가리키던 `playlist_tracks` · `search_cache_items` 가
-CASCADE 로 사라진다.
+곡을 지우면 그 곡을 가리키던 `playlist_tracks` 가 CASCADE 로 사라진다.
 
----
-
-## 자주 쓸 쿼리
-
-**검색 결과 캐싱** — 매번 upsert 하면 플레이리스트가 외부 API 응답에 의존하지 않고
-FK 로 곡을 참조할 수 있다.
+### 자주 쓸 쿼리
 
 ```sql
+-- 검색 결과 캐싱 (repository.upsert_tracks 가 하는 일)
 INSERT INTO tracks (source, source_id, title, artist, ...)
 VALUES (...)
-ON CONFLICT (source, source_id) DO UPDATE SET title = EXCLUDED.title
+ON CONFLICT (source, source_id) DO UPDATE
+  SET title = EXCLUDED.title, updated_at = now()
 RETURNING id;
-```
 
-**좋아요 토글** — 중복 체크는 애플리케이션이 아니라 DB 에 맡긴다.
-
-```sql
+-- 좋아요 토글. 중복 체크는 DB 에 맡긴다
 INSERT INTO likes (user_id, album_id) VALUES (?, ?)
 ON CONFLICT (user_id, album_id) DO NOTHING;
 
-DELETE FROM likes WHERE user_id = ? AND album_id = ?;
-```
-
-**검색 캐시 조회** — TTL 안이면 DB, 아니면 API 호출 후 갱신.
-
-```sql
-SELECT t.*
-FROM search_cache sc
-JOIN search_cache_items i ON i.cache_id = sc.id
-JOIN tracks t             ON t.id = i.track_id
-WHERE sc.source = ? AND sc.search_type = 'track' AND sc.query = ?
-  AND sc.fetched_at > now() - interval '24 hours'
-ORDER BY i.position;
-```
-
-두 소스를 동시에 검색하려면 `sc.source` 조건을 빼고 `ORDER BY sc.source, i.position`.
-
-**마이페이지** — `ix_likes_user_id_created_at` 를 탄다.
-
-```sql
+-- 마이페이지 (ix_likes_user_id_created_at 사용)
 SELECT * FROM likes WHERE user_id = ? ORDER BY created_at DESC;
-```
 
-**플레이리스트 순서 변경** — 한 트랜잭션 안에서 한꺼번에 갱신하면 된다.
-`position` UNIQUE 가 DEFERRABLE 이라 중간 충돌이 나지 않는다.
-
-```sql
+-- 플레이리스트 순서 변경. DEFERRABLE 이라 한 트랜잭션에서 한꺼번에
 BEGIN;
 UPDATE playlist_tracks SET position = ... WHERE playlist_id = ?;
 COMMIT;
@@ -461,49 +417,38 @@ COMMIT;
 
 ---
 
-## 설계 메모
+## 외부 소스
 
-**`tracks` / `albums` 분리**
-초안의 `music&album` 단일 테이블(+`type` 컬럼)로는 "플레이리스트 항목은 곡만",
-"`likes.album_id` 는 앨범만" 을 FK 로 강제할 수 없다. 대신 `(source, source_id)`
-라는 외부 식별자 패턴은 두 테이블이 동일하게 쓴다.
+**Spotify 는 제거했다.** 사용자 로그인 없이 개발자 크레덴셜만으로는 Web Playback
+SDK 가 동작하지 않아(Client Credentials 미지원 + Premium 필요) 이 구조와 맞지 않았다.
 
-**ISRC 컬럼은 없앴다**
-국제 표준 녹음 코드로 플랫폼 간 동일 곡을 묶으려 했으나, 이걸 내려주는 소스가
-Spotify 뿐이었다. Spotify 를 빼면 iTunes 도 YouTube 도 ISRC 를 주지 않아 영원히
-NULL 인 컬럼이 된다. 지금 플랫폼 간 매칭 수단은 `lower(title)` + `artist` 휴리스틱
-뿐이다 (인덱스는 걸어뒀다).
+| | 인증 | 검색 | 재생 | 요청 한도 |
+|---|---|---|---|---|
+| **iTunes** | 없음 | `/search?entity=song\|album` | `previewUrl` 30초 오디오 | IP 당 약 20회/분 (429) |
+| **YouTube** | API 키 | `search.list` (100 유닛) | IFrame 임베드 | 하루 10,000 유닛 = **검색 100회** |
 
-**`likes` 의 UNIQUE 두 개가 서로 방해하지 않는 이유**
-PostgreSQL 은 NULL 을 서로 다른 값으로 취급한다. 앨범 좋아요 행은 `playlist_id` 가
-전부 NULL 이지만 `uq_likes_user_id_playlist_id` 에 걸리지 않는다.
-한눈에 틀려 보이지만 의도된 구조다 — **지우지 말 것.**
+YouTube 는 `search.list` 로 영상을 찾은 뒤 `videos.list` 로 길이를 한 번 더 받는다.
+`videos.list` 는 1 유닛이라 비용은 사실상 검색값과 같다.
 
-**`playlist_tracks` 의 중복 허용**
-같은 곡을 한 플레이리스트에 두 번 담는 것은 막지 않았다. 막으려면
-`(playlist_id, track_id)` UNIQUE 를 추가한다.
+### YouTube 카테고리 필터
 
-**`playlists.view_count`**
-트래픽이 늘면 매 조회마다 `UPDATE ... SET view_count = view_count + 1` 이 행 잠금
-경합을 만든다. 나중에 Redis 카운터 + 주기적 flush 로 옮기는 걸 권장.
+검색에 `videoCategoryId=10`(Music) 을 건다. 카테고리는 **업로더가 직접 고르는
+값**(`assignable=true`)이라 음악 영상이 다른 카테고리에 있을 수 있다. 실측상
+커버·라이브는 필터가 있어도 대부분 나왔고, 오히려 리액션·강의가 섞이는 쪽이 더
+거슬렸다. 다만 `limit` 대비 결과가 몇 건 적게 오기도 한다.
 
-**비공개로 바뀐 플레이리스트**
-좋아요를 누른 뒤 주인이 `is_public` 을 false 로 바꿔도 좋아요 행은 남는다.
-마이페이지에서 `is_public` 확인은 애플리케이션 쪽에서 해야 한다.
+끄려면 `sources/youtube.py` 의 `search_videos` 에서 `videoCategoryId` 한 줄을
+지운다. 카테고리 목록은 `videoCategories.list` 로 확인한다 (1 유닛).
 
----
+임베드 불가 영상 필터(`status.embeddable`)는 넣지 않았다. 실측 74건 중 0건이라
+지금은 문제가 되지 않는다. 재생 실패가 잦아지면 `videos.list` 의 `part` 에
+`status` 를 더해 걸러낼 수 있다 (추가 비용 없음).
 
-## 백엔드 붙일 때
+### 검색 캐시는 DB 에 두지 않는다
 
-**드라이버**: SQLAlchemy async 엔진은 `postgresql+asyncpg` 를 쓸 것.
-psycopg3 의 async 모드는 Windows 기본 이벤트 루프(ProactorEventLoop)에서 동작하지
-않는다. Alembic 은 동기 연결이라 psycopg 를 쓴다.
-접속 문자열은 `backend/config.py` 의 `async_database_url` 참고.
-
-**모델 재사용**: `from backend.models import User, Album, Track, Playlist, PlaylistTrack, Like`
-세션/엔진 생성 코드는 백엔드 쪽에서 만들면 된다.
-
-**추가 후보 테이블**: `follows`, `play_history`
+서버를 재시작하면 버려도 되는 값이라 테이블로 만들 이유가 없다. 필요해지면
+인메모리 dict + TTL 로 충분하다. `tracks` / `albums` 는 검색 **결과**를 upsert 해두는
+곳이지 검색어 캐시가 아니다.
 
 ---
 
@@ -515,124 +460,219 @@ alembic -c backend/alembic.ini upgrade head
 alembic -c backend/alembic.ini check     # 모델과 DB 스키마 drift 확인
 ```
 
-**세 곳을 함께 고쳐야 한다** — `backend/models/*.py`, `migrations/versions/*.py`,
-`schema.sql`. 앞의 둘이 어긋나면 `alembic check` 가 잡아주지만, `schema.sql` 은
-아무도 안 잡아주므로 직접 챙긴다.
+**세 곳을 함께 고쳐야 한다** — `backend/models/*.py`,
+`backend/migrations/versions/*.py`, `backend/schema.sql`.
+앞의 둘이 어긋나면 `alembic check` 가 잡아주지만 `schema.sql` 은 아무도 안 잡아준다.
 
-### 밟기 쉬운 함정
+`-c` 로 ini 위치만 지정하면 **어느 디렉터리에서 실행해도 된다.**
+`script_location` 은 `%(here)s/migrations`(ini 파일 기준)이고 `sys.path` 는
+`env.py` 가 `Path(__file__)` 로 저장소 루트를 잡는다.
 
-**`alembic.ini` 에 비 ASCII 문자 금지**
-configparser 가 로케일 인코딩(한국어 Windows 는 cp949)으로 읽어서
-`UnicodeDecodeError` 로 alembic 이 죽는다. 한글 주석을 넣지 말 것.
+---
+
+## 밟기 쉬운 함정
+
+### 설정과 실행
+
+**`.env` 경로는 `config.py` 기준으로 고정한다**
+`env_file` 을 `".env"` 같은 상대 경로로 두면 **실행 위치(CWD)** 기준이 되어,
+저장소 루트가 아닌 곳에서 실행하면 `.env` 를 못 찾고 **에러 없이 전부 기본값**으로
+떨어진다. 다른 DB 에 붙고 YouTube 가 조용히 비활성화된다.
+
+**비밀값은 `SecretStr` 이라 그대로 쓰면 안 된다**
+`postgres_password` 와 `youtube_api_key` 는 `SecretStr` 이라 `repr` 에
+`'**********'` 로 찍힌다. 대신 **문자열이 필요한 자리에 그대로 넣으면 마스킹된
+값이 나간다** — `urlencode({'key': secret})` 은 `key=%2A%2A...` 를 만들어 API
+호출이 조용히 실패한다. `settings.youtube_key` 처럼 `.get_secret_value()` 를
+거친 값을 쓸 것.
+
+**`docker-compose.yml` 은 루트에 있어야 한다**
+Compose 는 compose 파일이 있는 디렉터리의 `.env` 를 읽는다. `backend/` 에 두면
+루트 `.env` 의 `POSTGRES_PORT` 등이 무시된다. 또 Compose 프로젝트 이름이
+디렉터리명에서 오므로 위치를 옮기면 **볼륨 이름도 바뀌어 기존 데이터가 딸린
+다른 볼륨에 남는다.**
+
+**기동 로그는 `uvicorn.error` 로거로 찍는다**
+`logging.getLogger("backend")` 처럼 새 로거를 만들면 uvicorn 이 핸들러를 붙이지
+않아 **메시지가 조용히 버려진다.** `print` 는 잘 나오지만 한국어 Windows
+콘솔(cp949)에서 인코딩 불가 문자를 만나면 `UnicodeEncodeError` 로 startup 이
+죽는다 (실제로 em-dash 때문에 한 번 겪었다).
+
+**CORS 는 `127.0.0.1` 과 `localhost` 를 둘 다 넣는다**
+브라우저는 이 둘을 **다른 오리진**으로 취급한다. `allow_credentials=True` 라서
+`allow_origins` 에 `"*"` 는 쓸 수 없다.
+
+### 비동기 SQLAlchemy
+
+**`AsyncSession` 은 동시에 쓸 수 없다**
+`asyncio.gather` 로 여러 코루틴을 돌리면서 **같은 세션**에 쓰면
+`InvalidRequestError: concurrent operations are not permitted` 가 난다.
+그래서 `services/search.py` 는 소스마다 `fetch`(HTTP)와 `persist`(DB)를 분리해
+**HTTP 만 병렬로 돌리고 DB 쓰기는 순차로** 처리한다. 병렬로 얻을 이득은
+네트워크 지연이지 DB 가 아니다.
+
+**중첩 관계는 `selectinload` 로 미리 읽는다**
+async SQLAlchemy 는 암묵적 lazy load 를 허용하지 않아, 직렬화 시점에
+`track.album` 을 건드리면 `MissingGreenlet` 으로 터진다. 곡을 반환하는 모든
+조회(`upsert_tracks`, `list_tracks`, `get_track`)에 `options(selectinload(Track.album))`
+이 붙어 있다. 새 조회를 추가할 때도 필요하다.
+
+**트랜잭션 경계는 서비스가 쥔다**
+`repository` 는 `flush` 만 하고 `commit` 하지 않는다. 검색 한 번이 트랜잭션
+하나이며 도중에 실패하면 아무것도 남지 않는다.
+
+**`ondelete` 를 걸었으면 관계에도 `passive_deletes` 를 준다**
+`Album.tracks` 는 FK 가 `ON DELETE SET NULL` 인데 설정이 없으면 ORM 이 곡을 전부
+로드해 **한 곡씩 UPDATE** 한다 (수록곡 30개면 UPDATE 30번). `passive_deletes="all"`
+을 주면 DB 가 한 번에 처리한다. `CASCADE` 쪽 관계들은 `passive_deletes=True` 다.
+
+**`updated_at` 은 upsert 에서 자동 갱신되지 않는다**
+`TimestampMixin` 의 `onupdate=func.now()` 는 ORM UPDATE 에서만 동작한다.
+`insert().on_conflict_do_update()` 는 Core 구문이라 발동하지 않아 `set_` 에
+`"updated_at": func.now()` 를 직접 넣어야 한다. `list_tracks` 가 `updated_at DESC`
+로 정렬하므로 빠뜨리면 "최근" 순서가 최초 저장 순서에 고정된다.
+
+**벌크 upsert 전에 중복을 제거한다**
+한 배치에 같은 `(source, source_id)` 가 두 번 들어가면 PostgreSQL 이
+`ON CONFLICT DO UPDATE command cannot affect row a second time` 로 실패한다.
+여러 곡이 같은 앨범을 공유하는 건 흔하다 (실측: 25곡 → 앨범 6개).
+`repository._dedupe()` 가 처리한다.
+
+### 스키마와 마이그레이션
 
 **`CheckConstraint(name=...)` 에는 접두사 없는 이름**
-`backend/db/base.py` 의 `NAMING_CONVENTION` 이 `ck_<table>_` 를 붙인다.
+`db/base.py` 의 `NAMING_CONVENTION` 이 `ck_<table>_` 를 붙인다.
 `name="ck_playlists_foo"` 라고 쓰면 `ck_playlists_ck_playlists_foo` 가 된다.
 `name="foo"` 로 줄 것. (`UniqueConstraint` 는 규칙이 이름을 참조하지 않아 무관.)
+
+**`alembic.ini` 에 DB URL 을 넣지 않는다**
+`config.set_main_option("sqlalchemy.url", ...)` 은 ConfigParser 를 거치는데 `%` 를
+보간 문법으로 해석한다. 비밀번호에 `%` 가 있으면
+`ValueError: invalid interpolation syntax` 로 마이그레이션이 죽는다.
+`env.py` 는 `settings.sync_database_url` 을 `create_engine` 에 직접 넘긴다.
+
+**`alembic.ini` 에 비 ASCII 문자 금지**
+configparser 가 로케일 인코딩(한국어 Windows 는 cp949)으로 읽어
+`UnicodeDecodeError` 로 alembic 이 죽는다.
+
+**`env.py` 는 import 순서가 의도적이다**
+`sys.path` 에 저장소 루트를 넣은 **뒤에야** `backend.*` 를 import 할 수 있다.
+린터를 붙이면 E402 가 뜨는데 `sys.path` 조작을 위로 올릴 수 없으므로 그 규칙을
+끄거나 이 파일만 예외 처리한다.
 
 **`source_enum()` 의 `values_callable` 을 지우지 말 것**
 지우면 SQLAlchemy 가 멤버 값(`'itunes'`)이 아니라 이름(`'ITUNES'`)을 보낸다.
 PG enum 라벨이 소문자라 insert 시 `invalid input value for enum source_type` 로
 실패한다.
 
----
+**`SourceType` 은 `enum.StrEnum` 이다**
+`class X(str, Enum)` 은 Python 3.11 부터 `str(...)` 과 f-string 이
+`"SourceType.ITUNES"` 를 돌려준다. `__repr__` 이나 로그에 그대로 새는 값이다.
+`== "itunes"` 비교와 `.value` 는 양쪽 다 동작한다.
 
-## 아직 안 정한 것
+### 검색과 인덱스
 
-**같은 곡이 플랫폼별로 별개 행이다.**
-iTunes 의 "Bohemian Rhapsody" 와 YouTube 의 같은 곡은 `source` 가 달라 완전히
-별개의 `tracks` 행이다. 검색 결과에 같은 곡이 두 번 뜨고, 플레이리스트에도 따로
-담긴다. ISRC 같은 공용 식별자가 없어 제목·아티스트 휴리스틱 말고는 방법이 없다.
+**부분검색은 인덱스를 못 탄다**
+`title ILIKE '%queen%'` 처럼 앞에 `%` 가 붙으면 btree 인덱스가 무용지물이다.
+정렬된 목차로는 "중간에 들어간 값"을 찾을 수 없다. 실측(30만 건):
 
-"iTunes 로 찾은 곡을 YouTube 로 전체 재생" 같은 걸 하려면 곡의 정체성을 나타내는
-상위 테이블(예: `songs`)을 두고 `tracks` 가 그 아래 플랫폼별 재생 소스로 붙는
-구조가 필요하다. iTunes 는 30초, YouTube 는 전체 재생이라 **이 둘을 잇는 게
-곧 제품의 핵심 가치**가 된다. 언젠가는 결정해야 한다.
-
-**`artist` 가 단순 텍스트다.**
-아티스트 테이블이 없어서 플랫폼 간 동일 아티스트를 식별할 수 없다.
-
-**계정이 두 개다.**
-Spotify OAuth 세션(`sid`)과 자체 계정(`uid`)이 서로 모른다. Spotify 로 로그인해도
-플레이리스트를 만들 수 없고, 자체 계정으로 로그인해도 재생은 안 된다.
-iTunes 로 완전히 넘어가면 `sid` 쪽이 통째로 사라지면서 자연히 해소된다.
-
-**곡을 DB 에 넣는 정식 경로가 없다.**
-`/api/search`(Spotify)는 응답을 그대로 내려줄 뿐 `tracks`/`albums` 를 채우지 않는다.
-지금 그 일을 하는 것은 `backend/devtools/` 의 `/api/catalog/search` 뿐이고, 이건
-배포 전 삭제 대상이다. 정식 검색을 만들 때 `devtools/itunes.py` 의 upsert·캐시
-로직을 제품 코드로 옮기면 된다 — 로직 자체는 검증되어 있다.
-
----
-
-## 현재 Spotify 코드의 알려진 제약
-
-iTunes 로 넘어가면 대부분 사라진다. 그전까지 유효한 내용이다.
-
-### Development Mode 앱 제약
-
-Extended Quota 승인 전 앱은 Spotify 가 조용히 기능을 깎는다. 실측으로 확인한 내용:
-
-| 항목 | 실제 동작 | 대응 |
+| | 실행 계획 | 시간 |
 |---|---|---|
-| `search` 의 `limit` | **11 이상이면 400 `Invalid limit`**. 값과 무관 | `MAX_LIMIT = 10` 고정 (`backend/main.py`) |
-| `search` 결과 개수 | `limit=10` 을 보내도 보통 **5개**만 옴 | 그대로 표시 |
-| `/artists/{id}/top-tracks` | **403 Forbidden**. `market` 무관하게 항상 실패 | `artist:"이름"` 필터 검색으로 자동 대체 |
-| `/artists/{id}`, `/albums` | 정상 | — |
+| 인덱스 없음 | Seq Scan | 65 ms |
+| btree on `lower(title)` | Seq Scan (인덱스 무시) | 51 ms |
+| pg_trgm GIN | Bitmap Index Scan | **0.45 ms** |
 
-### 재생은 실제 스트리밍이다
+그래서 쓰이지 않던 `ix_tracks_title_lower` 를 지웠다 (`idx_scan` 0회). 데이터가
+수만 건을 넘어 검색이 느려지면 `CREATE EXTENSION pg_trgm` 후
+`CREATE INDEX ... USING gin (title gin_trgm_ops)` 로 되살린다.
 
-**이 앱의 재생은 로그인한 계정의 실제 스트리밍이다.** 최근 재생 기록에 남고
-Daily Mix / Discover Weekly / Wrapped / 상위 아티스트에 반영된다. Spotify 에는
-재생 기록 삭제 기능이 없고, 앱의 Private session 은 SDK 기기에 적용되지 않는다.
+이 DB 로케일(`en_US.utf8`)에서는 `LIKE 'prefix%'` 조차 btree 를 못 쓴다.
+`text_pattern_ops` 로 만들어야 한다.
 
-우측 상단 `개발 모드` 토글을 켜면 재생 10초 뒤 자동 일시정지한다
-(`client/src/App.jsx` 의 `DEV_STOP_MS`, 설정은 `localStorage` 에 저장). 다만
-30초 집계는 피해도 **짧은 재생이 스킵 신호로 잡힐 수 있어** 완전한 보호는 아니다.
-오염을 아예 피하려면 평소 듣는 곡으로 테스트하거나 `/api/player/devices` 로
-재생 없이 연결만 확인한다.
+**검색어의 `%` `_` 는 이스케이프한다**
+LIKE 에서 `%` 는 "아무 글자 0개 이상", `_` 는 "아무 글자 1개"다. 사용자가 `100%`
+를 검색하면 의도와 다른 매칭이 된다 (`%` 하나만 넣으면 전곡이 나왔다).
+`repository._like()` 가 이스케이프하고 `ilike(..., escape=LIKE_ESCAPE)` 로 넘긴다.
+SQL 인젝션은 아니고(파라미터 바인딩은 됨) 검색 의미가 틀어지는 문제다.
 
-### 기능 범위
+### 응답과 오류
 
-- 세션이 **인메모리**라 서버 재시작 시 재로그인 (실서비스는 Redis/DB)
-- 단일 사용자 기준. 동시 사용자 테스트 안 함
-- 다음곡/이전곡/셔플/볼륨/시크 미구현 (재생·일시정지만)
-- 브라우저는 EME(DRM) 필요. 일부 브라우저·시크릿 모드에서 SDK 연결 실패
+**예외 핸들러는 `starlette.exceptions.HTTPException` 에 등록한다**
+`fastapi.HTTPException` 은 그 하위 클래스라 함께 잡히지만, **반대로 등록하면
+경로를 못 찾았을 때(Starlette 가 던지는 기본 예외) 안 잡혀서** FastAPI 기본
+형식인 `{"detail": ...}` 이 그대로 나간다.
 
-### 코드에 주석으로 있던 주의사항
+**소스 오류만 `errors` 로 삼킨다**
+`SOURCE_ERRORS`(ITunesError · YouTubeError · httpx.HTTPError) 만 `errors` 배열에
+담고 그 외 예외는 올려보내 500 으로 드러낸다. `except Exception` 으로 전부 잡으면
+우리 코드의 버그가 "iTunes 오류"로 둔갑해 조용히 묻힌다.
 
-프로젝트 방침상 코드에 주석을 두지 않는다. 지우면서 사라질 내용을 여기 모았다.
-대부분 Spotify/SDK 고유 문제라 iTunes 전환 시 함께 없어진다.
+**응답은 Pydantic 모델로 돌려준다**
+`-> dict[str, Any]` 로 두면 `/docs` 와 `/openapi.json` 에 응답 스키마가 비어
+프론트가 계약을 볼 수 없다. `schemas.py` 의 모델을 `response_model` 로 지정한다.
+필드는 snake_case 로 쓰고 `alias_generator=to_camel` 이 JSON 에서 camelCase 로 바꾼다.
 
-**`backend/main.py`**
+### 외부 API 응답
 
-- `SpotifyError` 핸들러는 **401 일 때만** 세션을 파기한다. 400 은 잘못된 쿼리
-  파라미터에서도 나므로 로그아웃 사유가 아니다.
-- `StaticFiles` 마운트는 파일 **맨 끝**에 있어야 한다. `/` 에 마운트하므로 API
-  라우트가 먼저 등록되어 있지 않으면 전부 정적 파일 핸들러가 가로챈다.
+**YouTube 는 제목을 HTML 이스케이프해서 준다**
+`snippet.title` 과 `channelTitle` 에 `&#39;` `&quot;` `&amp;` 가 그대로 들어온다.
+`html.unescape()` 를 거치지 않으면 화면에 `Don&#39;t` 이 보인다.
 
-**`backend/spotify.py`**
+**iTunes 아트워크는 URL 로 크기를 바꾼다**
+API 는 `artworkUrl100`(100x100) 만 준다. URL 의 `100x100bb` 를 `600x600bb` 로
+바꾸면 큰 이미지가 나온다. **추가 API 호출이 없다.** 크기는
+`sources/itunes.py` 의 `ARTWORK_SIZE` 로 조절한다.
 
-- refresh 응답에는 `refresh_token` 이 **없을 수 있다.** 그때는 기존 값을 유지한다
-  (`_to_tokens` 의 `fallback_refresh`).
-- 만료 **60초 전**을 만료로 취급한다. 경계에서 죽은 토큰을 쓰는 걸 피하려는 것.
+---
 
-**`client/src/usePlayer.js`**
+## 설계 메모
 
-- `Player` 인스턴스는 앱 전체에 **하나여야** 한다. React StrictMode 가 effect 를
-  두 번 실행하므로 모듈 스코프 싱글톤으로 막는다.
-- 리스너는 등록 전에 먼저 해제한다. 안 하면 같은 이벤트에 중복 등록된다.
-- SDK 는 재생 위치를 **이벤트로만** 준다. 재생 중 진행바는 로컬에서 보간하고,
-  새 state 이벤트가 오면 그 값을 새 기준점으로 리셋한다.
+**`tracks` / `albums` 분리**
+초안의 `music&album` 단일 테이블(+`type` 컬럼)로는 "플레이리스트 항목은 곡만",
+"`likes.album_id` 는 앨범만" 을 FK 로 강제할 수 없다. 대신 `(source, source_id)`
+라는 외부 식별자 패턴은 두 테이블이 동일하게 쓴다.
 
-**`client/src/App.jsx`**
+**ISRC 컬럼은 없앴다**
+국제 표준 녹음 코드로 플랫폼 간 동일 곡을 묶으려 했으나 이걸 내려주는 소스가
+Spotify 뿐이었다. iTunes 도 YouTube 도 주지 않아 영원히 NULL 인 컬럼이 된다.
 
-- `/api/auth/me` 실패 시 에러를 **먼저 렌더**해야 한다. 안 그러면 `me` 가 계속
-  `null` 이라 스플래시 화면에 갇히고 사유가 안 보인다.
-- 브라우저 플레이어가 준비되면 `/api/player/transfer` 로 활성 기기를 넘겨야 한다.
-  안 하면 `play` 가 404 로 실패한다.
-- 오디오 언락은 **클릭 제스처가 살아있는 동안** 해야 한다. 첫 `await` 보다 앞에
-  와야 브라우저 자동재생 정책에 걸리지 않는다.
-- Spotify 는 일부 오류를 JSON 이 아닌 평문으로 준다. 그때 백엔드가 만드는 message
-  는 `"Spotify 403"` 뿐이라 쓸모없으니 `detail.raw` 를 우선 표시한다.
-- 개발 모드를 끄거나 화면을 떠날 때 예약된 자동 정지 타이머를 정리한다.
+**`likes` 의 UNIQUE 두 개가 서로 방해하지 않는 이유**
+PostgreSQL 은 NULL 을 서로 다른 값으로 취급한다. 앨범 좋아요 행은 `playlist_id` 가
+전부 NULL 이지만 `uq_likes_user_id_playlist_id` 에 걸리지 않는다.
+한눈에 틀려 보이지만 의도된 구조다 — **지우지 말 것.**
+
+**`playlists.view_count`**
+트래픽이 늘면 매 조회마다 `UPDATE ... SET view_count = view_count + 1` 이 행 잠금
+경합을 만든다. 나중에 Redis 카운터 + 주기적 flush 로 옮기는 걸 권장.
+
+**비공개로 바뀐 플레이리스트**
+좋아요를 누른 뒤 주인이 `is_public` 을 false 로 바꿔도 좋아요 행은 남는다.
+마이페이지에서 `is_public` 확인은 애플리케이션 쪽에서 해야 한다.
+
+**드라이버가 두 개인 이유**
+앱은 `postgresql+asyncpg`, Alembic 은 `postgresql+psycopg`(동기)를 쓴다.
+psycopg3 의 async 모드는 Windows 기본 이벤트 루프(ProactorEventLoop)에서 동작하지
+않는다.
+
+---
+
+## 아직 없는 것
+
+**세션 영속화** — `sessions.py` 는 인메모리 dict 다. 재시작하면 전원 로그아웃,
+멀티 워커 불가. Redis 나 DB 로 옮겨야 한다.
+
+**응답 계층 통일** — `api/` 는 Pydantic, `routers/` 는 수기 dict 다
+([계층 규칙](#계층-규칙)).
+
+**플랫폼 간 같은 곡 병합** — iTunes 의 "Bohemian Rhapsody" 와 YouTube 의 같은 곡은
+`source` 가 달라 별개의 `tracks` 행이다. 검색 결과에 두 번 뜬다. ISRC 같은 공용
+식별자가 없어 제목·아티스트 휴리스틱 말고는 방법이 없고, 라이브/리마스터/커버가
+섞이는 위험이 있어 도입하지 않았다.
+
+**`artist` 가 단순 텍스트** — 아티스트 테이블이 없어 플랫폼 간 동일 아티스트를
+식별할 수 없다. YouTube 는 `channelTitle` 이 들어가므로 iTunes 의 아티스트명과
+표기가 다를 수 있다.
+
+**페이지네이션** — `limit` 만 있고 `offset` 이 없다.
+
+**추가 후보 테이블** — `follows`, `play_history`

@@ -116,7 +116,11 @@ async def detail(
     playlist = await db.scalar(
         select(Playlist)
         .where(Playlist.id == playlist_id)
-        .options(selectinload(Playlist.items).selectinload(PlaylistTrack.track))
+        .options(
+            selectinload(Playlist.items)
+            .selectinload(PlaylistTrack.track)
+            .selectinload(Track.album)
+        )
     )
     return {**playlist_out(playlist, items=True), "isOwner": is_owner}
 

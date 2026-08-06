@@ -18,20 +18,6 @@ const qs = (params) =>
   ).toString()
 
 export const api = {
-  me: () => request('/api/auth/me'),
-  token: () => request('/api/auth/token'),
-  logout: () => request('/api/auth/logout', { method: 'POST' }),
-
-  search: (q, type) => request(`/api/search?${qs({ q, type })}`),
-
-  artistTopTracks: (id) => request(`/api/artists/${id}/top-tracks`),
-
-  transfer: (deviceId) => request('/api/player/transfer', json('PUT', { deviceId })),
-
-  play: (deviceId, uris) => request('/api/player/play', json('PUT', { deviceId, uris })),
-
-  pause: (deviceId) => request(`/api/player/pause?${qs({ deviceId })}`, { method: 'PUT' }),
-
   users: {
     signup: (body) => request('/api/users/signup', json('POST', body)),
     login: (body) => request('/api/users/login', json('POST', body)),

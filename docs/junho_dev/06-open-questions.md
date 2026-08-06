@@ -2,30 +2,31 @@
 
 Ordered roughly by how soon someone will hit them.
 
-## Two logins coexist
+## ~~Two logins coexist~~ — closed 2026-08-06
 
-Spotify OAuth (`sid`) and the local account (`uid`) do not know about each other.
-Logging in with Spotify does not let you create a playlist; logging in with a
-local account does not let you play anything.
+The merge deleted Spotify OAuth. `uid` is the only session. The advice at the
+time was "do not build a bridge between them, any mapping table written now gets
+thrown away" — that turned out right.
 
-This resolves itself when playback moves to iTunes and the `sid` side is deleted
-in full. Until then, do not build a bridge between them — any mapping table
-written now gets thrown away. Reasoning in
-[01-auth-and-accounts.md](01-auth-and-accounts.md).
+## ~~Nothing writes to `tracks` / `albums` in product code~~ — closed 2026-08-06
 
-## Nothing writes to `tracks` / `albums` in product code
+`backend_dev`'s `/api/search` upserts both tables through
+`services/search.py` + `db/repository.py`, and `backend/devtools/itunes.py` was
+deleted rather than promoted.
 
-`/api/search` (Spotify) returns responses verbatim and never touches the
-database. The only thing that populates those tables today is
-`/api/catalog/search` in `backend/devtools/`, which is scheduled for deletion.
+One thing did not survive the move: the **24-hour `search_cache` TTL**.
+`backend_dev` had already dropped those tables (`3d805a6`) and calls iTunes on
+every search. iTunes rate-limits at roughly 20 requests/minute per IP, so a
+busy page can hit 429. Reintroducing a cache is an open question again — but as
+an in-process or Redis cache, not a table. Reasoning under "검색 캐시는 DB 에
+두지 않는다" in `backend/README.md`.
 
-When real search is built, move the upsert and cache logic out of
-`backend/devtools/itunes.py` into product code. The logic itself is exercised and
-working — the `ON CONFLICT (source, source_id) DO UPDATE` pattern, the album
-dedupe, and the 24-hour `search_cache` TTL. Do not rewrite it from scratch.
+## Two response layers
 
-**Do not delete `backend/devtools/` before that move happens**, or the knowledge
-goes with it.
+`api/` returns Pydantic models, `routers/` returns hand-built dicts. Adding a
+field to `Track` means editing `schemas.py` **and** `serializers.py`. Decide
+which one wins before the next model change. See
+[02-api-design.md](02-api-design.md).
 
 ## Sessions vanish on restart
 
