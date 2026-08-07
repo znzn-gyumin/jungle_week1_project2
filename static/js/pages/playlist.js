@@ -4,5 +4,4 @@ playbackButtons.forEach((button)=>button.addEventListener('click',()=>setPlaying
 document.querySelector('.add-button').addEventListener('click',(event)=>event.currentTarget.classList.toggle('added'));
 document.querySelector('.playlist-like').addEventListener('click',(event)=>event.currentTarget.classList.toggle('liked'));
 document.getElementById('more-button').addEventListener('click',()=>document.getElementById('more-menu').classList.toggle('open'));
-document.querySelectorAll('.track-heart').forEach((button)=>button.addEventListener('click',()=>{button.classList.toggle('liked');button.textContent=button.classList.contains('liked')?'♥':'♡';}));
 document.querySelectorAll('.playlist-tracks li').forEach((track)=>track.addEventListener('dblclick',()=>{document.getElementById('now-title').textContent=track.querySelector('b').textContent;setPlaying(true);}));

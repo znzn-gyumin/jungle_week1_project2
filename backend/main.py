@@ -1,6 +1,8 @@
 import logging
+import ssl
 from contextlib import asynccontextmanager
 
+import certifi
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -18,16 +20,27 @@ settings = get_settings()
 log = logging.getLogger("uvicorn.error")
 
 
+def _ssl_context() -> ssl.SSLContext | str:
+    if not settings.ssl_trust_system:
+        return certifi.where()
+    ctx = ssl.create_default_context(cafile=certifi.where())
+    ctx.load_default_certs(ssl.Purpose.SERVER_AUTH)
+    ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return ctx
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=15.0, verify=_ssl_context()) as client:
             itunes.set_client(client)
             youtube.set_client(client)
             log.info("server  http://%s:%s", settings.server_host, settings.server_port)
             log.info("client  %s", ", ".join(settings.allowed_origins))
             if not youtube.configured():
                 log.warning("YOUTUBE_API_KEY 없음 - YouTube 검색 비활성")
+            if settings.ssl_trust_system:
+                log.warning("SSL_TRUST_SYSTEM=true - OS cert store, X509_STRICT off")
             yield
     finally:
         itunes.set_client(None)
