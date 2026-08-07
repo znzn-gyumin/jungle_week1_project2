@@ -1,4 +1,5 @@
 const albumGrids = [...document.querySelectorAll('[data-album-grid]')];
+const playlistGrid = document.querySelector('[data-playlist-grid]');
 
 const albumSearchUrl = (query, limit = 10) => {
     const params = new URLSearchParams({
@@ -35,6 +36,23 @@ const createAlbumCard = (album) => {
     return card;
 };
 
+const createPlaylistCard = (playlist) => {
+    const card = document.createElement('a');
+    card.className = 'track-card playlist-card';
+    card.href = `/playlist/${playlist.slug}`;
+    const cover = document.createElement('div');
+    cover.className = 'track-thumb album-thumb';
+    if (playlist.coverUrl) cover.style.backgroundImage = `url("${playlist.coverUrl.replaceAll('"', '%22')}")`;
+    const title = document.createElement('div');
+    title.className = 'track-name';
+    title.textContent = playlist.title;
+    const subtitle = document.createElement('div');
+    subtitle.className = 'track-sub';
+    subtitle.textContent = `Flowbee 추천 · ${playlist.tracks.length}곡`;
+    card.append(cover, title, subtitle);
+    return card;
+};
+
 const showGridMessage = (grid, message, isError = false) => {
     const box = document.createElement('div');
     box.className = `album-grid-message${isError ? ' is-error' : ''}`;
@@ -64,7 +82,7 @@ const updateMoreButton = (section) => {
 };
 
 const updateSliderControls = (section) => {
-    const grid = section.querySelector('[data-album-grid]');
+    const grid = section.querySelector('[data-album-grid], [data-playlist-grid]');
     const head = section.querySelector('.section-head');
     const cardCount = grid.querySelectorAll(':scope > .track-card').length;
     let controls = section.querySelector('.album-slider-controls');
@@ -75,12 +93,42 @@ const updateSliderControls = (section) => {
     if (controls) return;
     controls = document.createElement('div');
     controls.className = 'album-slider-controls';
-    controls.innerHTML = '<button type="button" aria-label="이전 앨범">‹</button><button type="button" aria-label="다음 앨범">›</button>';
+    controls.innerHTML = '<button type="button" aria-label="이전 항목">‹</button><button type="button" aria-label="다음 항목">›</button>';
     const [previous, next] = controls.querySelectorAll('button');
     const move = (direction) => grid.scrollBy({ left: grid.clientWidth * .88 * direction, behavior: 'smooth' });
     previous.addEventListener('click', () => move(-1));
     next.addEventListener('click', () => move(1));
     head.append(controls);
+};
+
+const loadRecommendedPlaylists = async () => {
+    if (!playlistGrid || !window.FlowbeePlaylists) return;
+    showGridMessage(playlistGrid, 'Flowbee 추천 플레이리스트를 만드는 중입니다.');
+    const results = await Promise.allSettled(
+        window.FlowbeePlaylists.definitions.map(window.FlowbeePlaylists.load),
+    );
+    const playlists = results.filter((result) => result.status === 'fulfilled' && result.value.tracks.length).map((result) => result.value);
+    if (!playlists.length) {
+        showGridMessage(playlistGrid, '추천 플레이리스트를 만들지 못했습니다.', true);
+        return;
+    }
+    playlistGrid.replaceChildren(...playlists.map(createPlaylistCard));
+    const section = playlistGrid.closest('.section');
+    updateMoreButton(section);
+    updateSliderControls(section);
+};
+
+const initializePlaylistReroll = () => {
+    const button = document.getElementById('playlist-reroll');
+    if (!button || !window.FlowbeePlaylists) return;
+    button.addEventListener('click', async () => {
+        button.disabled = true;
+        button.classList.add('is-spinning');
+        window.FlowbeePlaylists.reroll();
+        await loadRecommendedPlaylists();
+        button.disabled = false;
+        button.classList.remove('is-spinning');
+    });
 };
 
 const updateWeekPick = (album) => {
@@ -143,10 +191,12 @@ const initializeMainPage = () => {
     }
 
     [...document.querySelectorAll('.section')]
-        .filter((section) => !section.querySelector('[data-album-grid]'))
+        .filter((section) => !section.querySelector('[data-album-grid], [data-playlist-grid]'))
         .forEach(updateMoreButton);
     initializeSearch();
     initializeAlbumGrids();
+    loadRecommendedPlaylists();
+    initializePlaylistReroll();
 };
 
 if (document.readyState === 'loading') {

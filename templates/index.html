@@ -293,8 +293,9 @@
             <section class="section">
                 <div class="section-head">
                 <h2 class="section-title">추천 플레이리스트</h2>
+                <button class="playlist-reroll" id="playlist-reroll" type="button" aria-label="추천 플레이리스트 새로 만들기">↻ 새 추천</button>
                 </div>
-                <div class="card-grid">
+                <div class="card-grid" data-playlist-grid>
                     <a class="track-card" href="/playlist">
                         <div class="track-thumb" style="background:linear-gradient(135deg,#D9822B,#F4B942);"></div>
                         <div class="track-name">좋아하는 음악</div>
@@ -343,6 +344,7 @@
     </div>
 </footer>
 
+<script src="/js/recommended-playlists.js"></script>
 <script src="/js/pages/main.js"></script>
 </body>
 </html>

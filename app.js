@@ -92,7 +92,7 @@ app.get(['/album', '/album.html', '/album/:albumId'], (req, res) => {
 });
 
 // 플레이리스트 페이지 (templates/playlist.html 파일 전달)
-app.get(['/playlist', '/playlist.html'], (req, res) => {
+app.get(['/playlist', '/playlist.html', '/playlist/:playlistSlug'], (req, res) => {
   res.sendFile(path.join(__dirname, 'templates', 'playlist.html'));
 });
 
