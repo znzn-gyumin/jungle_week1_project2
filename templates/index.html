@@ -50,6 +50,7 @@
 
         <div class="sidebar-playlists">
             <div class="sidebar-section-title">내 플레이리스트</div>
+            <div id="sidebar-my-playlists">
             <a href="/playlist" class="sidebar-playlist-item">
                 <span class="pl-thumb" style="background:linear-gradient(135deg,#E8A33D,#8A5A2B);"></span>
                 좋아하는 음악
@@ -62,8 +63,10 @@
                 <span class="pl-thumb" style="background:linear-gradient(150deg,#8A6A3F,#4A3218);"></span>
                 Lo-Fi Study
             </a>
+            </div>
 
             <div class="sidebar-section-title">좋아요 누른 앨범</div>
+            <div id="sidebar-liked-albums">
             <a href="/album" class="sidebar-playlist-item">
                 <span class="pl-thumb" style="background:linear-gradient(135deg,#E8A33D,#8A5A2B);"></span>
                 Daybreak
@@ -72,8 +75,10 @@
                 <span class="pl-thumb" style="background:linear-gradient(135deg,#F4B942,#D9822B);"></span>
                 Tideline
             </a>
+            </div>
 
             <div class="sidebar-section-title">좋아요 누른 플레이리스트</div>
+            <div id="sidebar-liked-playlists">
             <a href="/playlist" class="sidebar-playlist-item">
                 <span class="pl-thumb" style="background:linear-gradient(140deg,#F4B942,#C88A2E);"></span>
                 카페 무드
@@ -82,6 +87,7 @@
                 <span class="pl-thumb" style="background:linear-gradient(150deg,#8A6A3F,#4A3218);"></span>
                 Lo-Fi Study
             </a>
+            </div>
         </div>
     </aside>
 
@@ -153,6 +159,26 @@
         </nav>
 
         <main class="main-content">
+
+            <section class="section" id="search-results" hidden>
+                <div class="section-head">
+                <h2 class="section-title">'<span id="search-query-text"></span>' 검색 결과</h2>
+                <button type="button" class="search-clear-btn" id="search-clear-btn">✕ 검색 지우기</button>
+                </div>
+                <h3 class="search-subheading">앨범</h3>
+                <div class="card-grid" id="search-albums-grid"></div>
+                <h3 class="search-subheading">곡</h3>
+                <div class="chart-head">
+                    <span>순위</span>
+                    <span></span>
+                    <span>곡정보</span>
+                    <span>앨범</span>
+                    <span></span>
+                    <span>듣기</span>
+                    <span>담기</span>
+                </div>
+                <div class="chart-list" id="search-tracks-list"></div>
+            </section>
 
             <section class="section">
                 <div class="section-head">

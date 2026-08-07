@@ -5,20 +5,20 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const GENRES = ['발라드', '댄스', 'R&B', '힙합', '인디', '재즈', '어쿠스틱', '시티팝'];
 
-    const fetchGenre = (genre) => withCache(`flowbee_cache_genre_v3_${genre}`, () => fetchSearch({ q: genre, type: 'track', source: 'all', limit: 15 }).then((data) => data.tracks));
+    const fetchGenre = (genre) => withCache(`flowbee_cache_genre_v4_${genre}`, () => fetchSearch({ q: genre, type: 'track', source: 'all', limit: 50 }).then((data) => data.tracks));
 
     const renderTracks = (tracks, genreLabel) => {
         if (!tracks.length) {
             renderApiStatus(list, '불러올 곡이 없어요. 잠시 후 다시 시도해주세요.');
             return;
         }
-        list.innerHTML = tracks.slice(0, 30).map((track, i) => renderChartRow(i + 1, track, genreLabel)).join('');
+        list.innerHTML = tracks.slice(0, 50).map((track, i) => renderChartRow(i + 1, track, genreLabel)).join('');
     };
 
-    const loadAll = () => withCache('flowbee_cache_genre_all_v3', async () => {
+    const loadAll = () => withCache('flowbee_cache_genre_all_v4', async () => {
         const settled = await Promise.allSettled(GENRES.map(async (genre) => {
             const tracks = await fetchGenre(genre);
-            return tracks.slice(0, 4).map((track) => ({ track, genre }));
+            return tracks.slice(0, 7).map((track) => ({ track, genre }));
         }));
         const combined = [];
         settled.forEach((result) => {
@@ -30,7 +30,7 @@ window.addEventListener('DOMContentLoaded', () => {
             renderApiStatus(list, '불러올 곡이 없어요. 잠시 후 다시 시도해주세요.');
             return;
         }
-        list.innerHTML = combined.slice(0, 30)
+        list.innerHTML = combined.slice(0, 50)
             .map(({ track, genre }, i) => renderChartRow(i + 1, track, genre))
             .join('');
     });

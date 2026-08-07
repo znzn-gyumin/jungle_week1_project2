@@ -201,7 +201,24 @@ const showError = (message) => {
 };
 
 albumButtons.forEach((button) => button.addEventListener('click', togglePlayback));
-document.querySelector('.album-like').addEventListener('click', (event) => event.currentTarget.classList.toggle('liked'));
+document.querySelector('.album-like').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  const me = window.getCurrentUser ? await window.getCurrentUser() : { loggedIn: false };
+  if (!me.loggedIn) {
+    if (confirm('로그인이 필요해요. 로그인 페이지로 이동할까요?')) {
+      window.location.href = `/login?next=${encodeURIComponent(location.pathname)}`;
+    }
+    return;
+  }
+  const liked = button.classList.contains('liked');
+  try {
+    const res = await fetch(`/api/likes/albums/${albumId}`, { method: liked ? 'DELETE' : 'PUT' });
+    if (!res.ok) throw new Error();
+    button.classList.toggle('liked');
+  } catch {
+    alert('좋아요 처리에 실패했어요.');
+  }
+});
 audio.addEventListener('play', () => setPlaying(true));
 audio.addEventListener('pause', () => setPlaying(false));
 audio.addEventListener('timeupdate', updatePlayerTime);

@@ -320,6 +320,11 @@ async function addTrackToPlaylist(playlistId, track, button) {
         button.classList.add('added');
         button.textContent = '✓';
         button.setAttribute('aria-label', '플레이리스트에 담김');
+        setTimeout(() => {
+            button.classList.remove('added');
+            button.textContent = '+';
+            button.setAttribute('aria-label', '플레이리스트에 담기');
+        }, 2000);
     } catch (err) {
         alert(err.message || '담기에 실패했어요.');
     } finally {
