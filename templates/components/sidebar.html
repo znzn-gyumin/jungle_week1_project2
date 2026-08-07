@@ -17,31 +17,20 @@
             플로비
         </div>
 
-        <nav class="sidebar-nav">
-            <a href="/" class="sidebar-link">
-                <span class="icon">⌂</span> 홈
-            </a>
-            <a href="#" class="sidebar-link">
-                <span class="icon">⌕</span> 검색
-            </a>
-        </nav>
-
-        <div class="sidebar-divider"></div>
-
-        <div class="sidebar-playlists">
-            <div class="sidebar-section-title">내 플레이리스트</div>
-            <div id="sidebar-my-playlists">
-                <div class="sidebar-empty-note">로그인하면 볼 수 있어요.</div>
+        <div class="sidebar-tags" id="sidebar-tags">
+            <button type="button" class="sidebar-tag-clear" id="sidebar-tag-clear" aria-label="필터 해제" hidden>✕</button>
+            <div class="sidebar-tag-track">
+                <button type="button" class="sidebar-tag-arrow" data-dir="-1" aria-label="태그 왼쪽으로" hidden>‹</button>
+                <div class="sidebar-tag-scroll">
+                    <button type="button" class="sidebar-tag" data-kind="mine" draggable="false">플레이리스트</button>
+                    <button type="button" class="sidebar-tag" data-kind="album" draggable="false">좋아요 앨범</button>
+                    <button type="button" class="sidebar-tag" data-kind="playlist" draggable="false">좋아요 플레이리스트</button>
+                </div>
+                <button type="button" class="sidebar-tag-arrow" data-dir="1" aria-label="태그 오른쪽으로" hidden>›</button>
             </div>
+        </div>
 
-            <div class="sidebar-section-title">좋아요 누른 앨범</div>
-            <div id="sidebar-liked-albums">
-                <div class="sidebar-empty-note">로그인하면 볼 수 있어요.</div>
-            </div>
-
-            <div class="sidebar-section-title">좋아요 누른 플레이리스트</div>
-            <div id="sidebar-liked-playlists">
-                <div class="sidebar-empty-note">로그인하면 볼 수 있어요.</div>
-            </div>
+        <div class="sidebar-playlists" id="sidebar-library">
+            <div class="sidebar-empty-note">로그인하면 볼 수 있어요.</div>
         </div>
     </aside>

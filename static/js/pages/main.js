@@ -149,7 +149,6 @@ const initializeShellChrome = () => {
     const shell = document.querySelector('.app-shell');
     const path = location.pathname.replace(/\/$/, '') || '/';
     document.querySelector(`.content-tab[href="${path}"]`)?.classList.add('active');
-    document.querySelector(`.sidebar-link[href="${path}"]`)?.classList.add('active');
     const input = document.querySelector('.search-box input');
     if (input && shell?.dataset.search) input.placeholder = shell.dataset.search;
 };
@@ -402,6 +401,7 @@ const createSidebarPlaylistItem = (playlist) => {
     const link = document.createElement('a');
     link.href = `/my-playlist/${playlist.id}`;
     link.className = 'sidebar-playlist-item';
+    link.dataset.kind = 'mine';
     link.append(
         sidebarThumb(playlist.coverUrl, 'linear-gradient(150deg,#8A6A3F,#4A3218)'),
         sidebarLabel(`${playlist.name} · ${playlist.totalTracks}곡`),
@@ -414,6 +414,7 @@ const createSidebarAlbumItem = (like) => {
     const link = document.createElement('a');
     link.href = `/album/${album.id}`;
     link.className = 'sidebar-playlist-item';
+    link.dataset.kind = 'album';
     link.append(sidebarThumb(album.thumbnailUrl, 'linear-gradient(135deg,#E8A33D,#8A5A2B)'), sidebarLabel(album.name));
     return link;
 };
@@ -427,6 +428,7 @@ const createSidebarRecommendedPlaylistItem = (slug, info) => {
     const link = document.createElement('a');
     link.href = `/playlist/${slug}`;
     link.className = 'sidebar-playlist-item';
+    link.dataset.kind = 'playlist';
     link.append(sidebarThumb(info.coverUrl, 'linear-gradient(140deg,#F4B942,#C88A2E)'), sidebarLabel(info.title));
     return link;
 };
@@ -436,15 +438,94 @@ const createSidebarLikedPlaylistItem = (like) => {
     const link = document.createElement('a');
     link.href = `/my-playlist/${playlist.id}`;
     link.className = 'sidebar-playlist-item';
+    link.dataset.kind = 'playlist';
     link.append(sidebarThumb(null, 'linear-gradient(140deg,#F4B942,#C88A2E)'), sidebarLabel(playlist.name));
     return link;
 };
 
+// 태그 하나가 선택된 상태를 유지한다. 목록은 한 벌만 그리고 태그로 걸러 보여준다.
+const applySidebarFilter = (kind) => {
+    const library = document.getElementById('sidebar-library');
+    if (!library) return;
+    library.querySelectorAll('.sidebar-playlist-item').forEach((item) => {
+        item.hidden = kind !== 'all' && item.dataset.kind !== kind;
+    });
+};
+
+// 선택 없음이 기본값(전체). 태그를 다시 누르거나 X 를 누르면 다시 전체로 돌아간다.
+const selectSidebarTag = (tags, tag) => {
+    tags.querySelectorAll('.sidebar-tag').forEach((el) => el.classList.toggle('active', el === tag));
+    document.getElementById('sidebar-tag-clear').hidden = !tag;
+    applySidebarFilter(tag ? tag.dataset.kind : 'all');
+};
+
+const initializeSidebarTags = () => {
+    const tags = document.getElementById('sidebar-tags');
+    // 세로 휠은 가로 오버플로를 안 움직인다 - 직접 넘겨준다.
+    const scroller = tags?.querySelector('.sidebar-tag-scroll');
+    if (!tags || !scroller) return;
+    scroller.addEventListener('wheel', (event) => {
+        if (event.deltaY === 0 || scroller.scrollWidth <= scroller.clientWidth) return;
+        event.preventDefault();
+        scroller.scrollLeft += event.deltaY;
+    }, { passive: false });
+
+    // 좌클릭 드래그로도 가로 스크롤한다. pointer capture 를 쓰면 click 대상이 바뀌어
+    // 태그 선택이 깨지므로 window 에 붙인다.
+    let dragged = false;
+    scroller.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        const startX = event.clientX;
+        const startScroll = scroller.scrollLeft;
+        dragged = false;
+        const onMove = (moveEvent) => {
+            const dx = moveEvent.clientX - startX;
+            if (Math.abs(dx) > 4) dragged = true;
+            scroller.scrollLeft = startScroll - dx;
+        };
+        const onUp = () => {
+            scroller.classList.remove('is-dragging');
+            window.removeEventListener('pointermove', onMove);
+        };
+        scroller.classList.add('is-dragging');
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp, { once: true });
+        window.addEventListener('pointercancel', onUp, { once: true });
+    });
+
+    // 화살표는 그쪽으로 더 갈 수 있을 때만 보인다.
+    const arrows = [...tags.querySelectorAll('.sidebar-tag-arrow')];
+    const syncArrows = () => {
+        const max = scroller.scrollWidth - scroller.clientWidth;
+        arrows.forEach((arrow) => {
+            arrow.hidden = Number(arrow.dataset.dir) < 0
+                ? scroller.scrollLeft <= 1
+                : scroller.scrollLeft >= max - 1;
+        });
+    };
+    scroller.addEventListener('scroll', syncArrows);
+    scroller.addEventListener('scrollend', syncArrows); // 부드러운 스크롤은 마지막 위치를 scroll 로 안 알려줄 때가 있다
+    window.addEventListener('resize', syncArrows);
+    syncArrows();
+
+    tags.addEventListener('click', (event) => {
+        if (dragged) { dragged = false; return; }
+        const arrow = event.target.closest('.sidebar-tag-arrow');
+        if (arrow) {
+            scroller.scrollBy({ left: Number(arrow.dataset.dir) * scroller.clientWidth * 0.7, behavior: 'smooth' });
+            return;
+        }
+        if (event.target.closest('.sidebar-tag-clear')) return selectSidebarTag(tags, null);
+        const tag = event.target.closest('.sidebar-tag');
+        if (tag) selectSidebarTag(tags, tag.classList.contains('active') ? null : tag);
+    });
+};
+
+const activeSidebarFilter = () => document.querySelector('.sidebar-tag.active')?.dataset.kind || 'all';
+
 const loadSidebarData = async () => {
-    const myGrid = document.getElementById('sidebar-my-playlists');
-    const likedAlbumsGrid = document.getElementById('sidebar-liked-albums');
-    const likedPlaylistsGrid = document.getElementById('sidebar-liked-playlists');
-    if (!myGrid || !window.getCurrentUser) return;
+    const library = document.getElementById('sidebar-library');
+    if (!library || !window.getCurrentUser) return;
     const me = await window.getCurrentUser();
     if (!me.loggedIn) return;
 
@@ -453,20 +534,15 @@ const loadSidebarData = async () => {
             getMyPlaylists(),
             fetch('/api/likes').then((r) => r.json()),
         ]);
-        myGrid.replaceChildren(...(playlists.length
-            ? playlists.map(createSidebarPlaylistItem)
-            : [sidebarEmptyNote('아직 만든 플레이리스트가 없어요.')]));
-
-        const likedAlbums = likesData.albums || [];
-        likedAlbumsGrid.replaceChildren(...(likedAlbums.length ? likedAlbums.map(createSidebarAlbumItem) : [sidebarEmptyNote('좋아요 누른 앨범이 없어요.')]));
-
-        const likedPlaylists = likesData.playlists || [];
         const recommendedLikes = getLikedRecommendedPlaylists();
-        const likedPlaylistItems = [
-            ...likedPlaylists.map(createSidebarLikedPlaylistItem),
+        const items = [
+            ...playlists.map(createSidebarPlaylistItem),
+            ...(likesData.albums || []).map(createSidebarAlbumItem),
+            ...(likesData.playlists || []).map(createSidebarLikedPlaylistItem),
             ...Object.entries(recommendedLikes).map(([slug, info]) => createSidebarRecommendedPlaylistItem(slug, info)),
         ];
-        likedPlaylistsGrid.replaceChildren(...(likedPlaylistItems.length ? likedPlaylistItems : [sidebarEmptyNote('좋아요 누른 플레이리스트가 없어요.')]));
+        library.replaceChildren(...(items.length ? items : [sidebarEmptyNote('아직 담아둔 항목이 없어요.')]));
+        applySidebarFilter(activeSidebarFilter());
     } catch {
         // 실패하면 기본 목업을 그대로 둔다
     }
@@ -501,6 +577,7 @@ const initializeAuthUI = async () => {
 const initializeMainPage = () => {
     if (window.initSitePlayer) window.initSitePlayer();
     initializeShellChrome();
+    initializeSidebarTags();
     initializeAuthUI();
 
     [...document.querySelectorAll('.section')]
