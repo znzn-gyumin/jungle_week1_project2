@@ -1,8 +1,9 @@
 window.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('login-form');
     const error = document.getElementById('login-error');
+    const submitBtn = form.querySelector('.login-submit');
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
         error.hidden = true;
 
@@ -15,7 +16,22 @@ window.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // TODO: 실제 로그인 API 연동 전까지는 임시로 메인 화면으로 이동
-        window.location.href = '/';
+        submitBtn.disabled = true;
+        try {
+            const res = await fetch('/api/users/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ email, password }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || '로그인에 실패했어요.');
+            const next = new URLSearchParams(location.search).get('next');
+            window.location.href = next || '/';
+        } catch (err) {
+            error.textContent = err.message;
+            error.hidden = false;
+            submitBtn.disabled = false;
+        }
     });
 });

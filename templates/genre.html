@@ -96,7 +96,7 @@
                 <span class="subscribe-text">광고 없이, 끊김없이 — <strong>무료로 구독 시작하기</strong></span>
             </a>
             <div class="topbar-right">
-                <a href="/login" class="btn btn-outline btn-sm">로그인</a>
+                <a href="/login" class="btn btn-outline btn-sm" id="auth-link">로그인</a>
                 <div class="avatar">
                     <svg viewBox="0 0 40 40">
                         <path d="M14,9 C13,5 11,3 9,2" stroke="#F4B942" stroke-width="1.6" stroke-linecap="round" fill="none"/>
@@ -161,6 +161,8 @@
                     <span>곡정보</span>
                     <span>장르</span>
                     <span></span>
+                    <span>듣기</span>
+                    <span>담기</span>
                 </div>
                 <div class="chart-list" id="chart-list">
                 </div>
@@ -193,7 +195,7 @@
     </div>
     <div class="player-volume">
         <span class="icon">🔊</span>
-        <div class="progress-track sm"><div class="progress-fill" style="width:70%;"></div></div>
+        <input type="range" class="volume-slider" id="site-volume" min="0" max="1" step="0.05" value="0.7" aria-label="음량">
     </div>
 </footer>
 

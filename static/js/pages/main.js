@@ -83,15 +83,48 @@ const updateSliderControls = (section) => {
     head.append(controls);
 };
 
-const updateWeekPick = (album) => {
-    const pick = document.querySelector('.week-pick');
-    if (!pick || !album) return;
-    pick.href = `/album/${album.id}`;
-    const name = pick.querySelector('strong');
-    if (name) name.textContent = album.name;
+const trackSearchUrl = (query, limit = 1) => {
+    const params = new URLSearchParams({
+        q: query,
+        type: 'track',
+        source: 'itunes',
+        limit: String(limit),
+    });
+    return `/api/search?${params}`;
 };
 
-const loadAlbums = async (grid, query, updatePick = false) => {
+let weekPickTrack = null;
+
+const updateWeekPick = (track) => {
+    const pick = document.querySelector('.week-pick');
+    if (!pick || !track) return;
+    weekPickTrack = track;
+    const name = pick.querySelector('strong');
+    if (name) name.textContent = track.title;
+};
+
+const loadWeekPickTrack = async () => {
+    if (!document.querySelector('.week-pick')) return;
+    try {
+        const response = await fetch(trackSearchUrl('Red Velvet'));
+        const data = await response.json().catch(() => ({}));
+        const track = (data.tracks || [])[0];
+        if (track) updateWeekPick(track);
+    } catch {
+        // 이번 주 추천은 실패해도 기본 문구를 그대로 둔다
+    }
+};
+
+const initializeWeekPickPlay = () => {
+    const pick = document.querySelector('.week-pick');
+    if (!pick) return;
+    pick.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (weekPickTrack && window.playSiteTrack) window.playSiteTrack(weekPickTrack);
+    });
+};
+
+const loadAlbums = async (grid, query) => {
     showGridMessage(grid, '실제 앨범을 불러오는 중입니다.');
     try {
         const response = await fetch(albumSearchUrl(query));
@@ -106,7 +139,6 @@ const loadAlbums = async (grid, query, updatePick = false) => {
         const section = grid.closest('.section');
         updateMoreButton(section);
         updateSliderControls(section);
-        if (updatePick) updateWeekPick(albums[0]);
         return albums;
     } catch (error) {
         showGridMessage(grid, error.message, true);
@@ -115,7 +147,7 @@ const loadAlbums = async (grid, query, updatePick = false) => {
 };
 
 const initializeAlbumGrids = () => Promise.all(
-    albumGrids.map((grid, index) => loadAlbums(grid, grid.dataset.query, index === 0)),
+    albumGrids.map((grid) => loadAlbums(grid, grid.dataset.query)),
 );
 
 const initializeSearch = () => {
@@ -128,25 +160,87 @@ const initializeSearch = () => {
         const target = albumGrids[0];
         const title = target.closest('.section').querySelector('.section-title');
         title.childNodes[0].textContent = `'${query}' 앨범 검색 결과 `;
-        await loadAlbums(target, query, true);
+        await loadAlbums(target, query);
+    });
+};
+
+const createPlaylistCard = (playlist) => {
+    const card = document.createElement('a');
+    card.className = 'track-card';
+    card.href = '/playlist';
+
+    const thumb = document.createElement('div');
+    thumb.className = 'track-thumb';
+    thumb.style.background = 'linear-gradient(150deg,#8A6A3F,#4A3218)';
+
+    const name = document.createElement('div');
+    name.className = 'track-name';
+    name.textContent = playlist.name;
+
+    const sub = document.createElement('div');
+    sub.className = 'track-sub';
+    sub.textContent = `플레이리스트 · ${playlist.totalTracks}곡`;
+
+    card.append(thumb, name, sub);
+    return card;
+};
+
+const loadMyPlaylists = async () => {
+    const grid = document.getElementById('my-playlists-grid');
+    if (!grid || !window.getCurrentUser) return;
+    const me = await window.getCurrentUser();
+    if (!me.loggedIn) {
+        showGridMessage(grid, '로그인하면 나만의 플레이리스트를 만들고 곡을 담을 수 있어요.');
+        return;
+    }
+    try {
+        const response = await fetch('/api/playlists');
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || '플레이리스트를 불러오지 못했습니다.');
+        const playlists = data.playlists || [];
+        if (!playlists.length) {
+            showGridMessage(grid, '아직 만든 플레이리스트가 없어요. 곡의 + 버튼으로 담아보세요.');
+            return;
+        }
+        grid.replaceChildren(...playlists.map(createPlaylistCard));
+        updateMoreButton(grid.closest('.section'));
+    } catch (error) {
+        showGridMessage(grid, error.message, true);
+    }
+};
+
+const initializeAuthUI = async () => {
+    const authLink = document.getElementById('auth-link');
+    if (!authLink || !window.getCurrentUser) return;
+    const me = await window.getCurrentUser();
+    if (!me.loggedIn) return;
+    const nicknameEl = document.createElement('span');
+    nicknameEl.className = 'auth-nickname';
+    nicknameEl.textContent = `${me.nickname}님`;
+    authLink.insertAdjacentElement('beforebegin', nicknameEl);
+    authLink.textContent = '로그아웃';
+    authLink.href = '#';
+    authLink.classList.add('auth-link-loggedin');
+    authLink.addEventListener('click', async (event) => {
+        event.preventDefault();
+        if (!confirm('로그아웃할까요?')) return;
+        await fetch('/api/users/logout', { method: 'POST' });
+        window.location.reload();
     });
 };
 
 const initializeMainPage = () => {
-    const playBtn = document.getElementById('play-btn');
-    if (playBtn) {
-        const playIcon = playBtn.querySelector('span');
-        playBtn.addEventListener('click', () => {
-            const playing = playIcon.textContent === '⏸';
-            playIcon.textContent = playing ? '▶' : '⏸';
-        });
-    }
+    if (window.initSitePlayer) window.initSitePlayer();
+    initializeAuthUI();
 
     [...document.querySelectorAll('.section')]
         .filter((section) => !section.querySelector('[data-album-grid]'))
         .forEach(updateMoreButton);
     initializeSearch();
     initializeAlbumGrids();
+    initializeWeekPickPlay();
+    loadWeekPickTrack();
+    loadMyPlaylists();
 };
 
 if (document.readyState === 'loading') {

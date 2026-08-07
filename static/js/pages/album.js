@@ -152,15 +152,14 @@ const togglePlayback = () => {
 
 const createTrackRow = (track, index) => {
   const row = document.createElement('li');
-  row.innerHTML = `<span>${index + 1}</span><div><b></b><small></small></div><button class="track-heart" type="button" aria-label="좋아요">♡</button><time>${formatDuration(track.durationMs)}</time>`;
+  row.innerHTML = `<span>${index + 1}</span><div><b></b><small></small></div><button class="track-play" type="button" aria-label="재생">▷</button><button class="track-add" type="button" aria-label="플레이리스트에 담기">+</button><time>${formatDuration(track.durationMs)}</time>`;
   row.querySelector('b').textContent = track.title;
   row.querySelector('small').textContent = track.artist;
   row.addEventListener('click', () => selectTrack(index));
-  row.querySelector('.track-heart').addEventListener('click', (event) => {
+  row.querySelector('.track-add').addEventListener('click', (event) => {
     event.stopPropagation();
     const button = event.currentTarget;
-    button.classList.toggle('liked');
-    button.textContent = button.classList.contains('liked') ? '♥' : '♡';
+    if (window.handleAddToPlaylistClick) window.handleAddToPlaylistClick(button, track);
   });
   return row;
 };
@@ -231,7 +230,7 @@ volume.addEventListener('input', () => {
   volume.style.setProperty('--progress', `${audio.volume * 100}%`);
 });
 audio.volume = Number(volume.value);
-document.querySelector('.back-link').addEventListener('click', openLibraryWithoutStoppingPlayback);
+document.querySelectorAll('.back-link, .album-brand').forEach((link) => link.addEventListener('click', openLibraryWithoutStoppingPlayback));
 window.addEventListener('popstate', () => location.reload(), { once: true });
 
 const albumId = albumIdFromLocation();

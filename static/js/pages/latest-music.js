@@ -5,7 +5,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const TERMS = ['아이유', 'NewJeans', '르세라핌', '방탄소년단', '에스파'];
     renderApiStatus(list, '불러오는 중...');
 
-    withCache('flowbee_cache_latest-music', () => fetchMixedTracks(TERMS, 4))
+    withCache('flowbee_cache_latest-music_v3', () => fetchMixedTracks(TERMS, 4, 'all'))
         .then((tracks) => {
             if (!tracks.length) {
                 renderApiStatus(list, '불러올 곡이 없어요. 잠시 후 다시 시도해주세요.');

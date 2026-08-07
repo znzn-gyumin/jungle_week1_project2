@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/css/pages/album-dynamic.css">
 </head>
 <body>
-  <header class="album-nav"><a class="album-brand" href="/"><span>FB</span>Flowbee</a><a class="back-link" href="/">라이브러리로 돌아가기</a></header>
+  <header class="album-nav"><a class="album-brand" href="/"><span class="dot-icon"><svg viewBox="0 0 40 40"><path d="M14,9 C13,5 11,3 9,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/><circle cx="9" cy="2" r="1.8" fill="#2A1B06"/><path d="M26,9 C27,5 29,3 31,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/><circle cx="31" cy="2" r="1.8" fill="#2A1B06"/><circle cx="20" cy="23" r="13" fill="#F4B942"/><ellipse cx="20" cy="25" rx="11" ry="3" fill="#2A1B06"/><ellipse cx="8" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(-20 8 14)"/><ellipse cx="32" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(20 32 14)"/><ellipse cx="8" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(-10 8 26)"/><ellipse cx="32" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(10 32 26)"/></svg></span>Flowbee</a><a class="back-link" href="/">라이브러리로 돌아가기</a></header>
   <main id="album-page" aria-busy="true">
     <section class="album-status" id="album-status">앨범 정보를 불러오는 중입니다.</section>
     <section class="album-hero" id="album-content" hidden>
@@ -22,7 +22,7 @@
     </section>
     <section class="album-body" id="album-body" hidden>
       <div class="album-actions"><button class="play-control" id="album-play" aria-label="재생"></button><button class="action-icon">+</button><button class="action-icon album-like" aria-label="좋아요"></button><button class="action-icon more-button">...</button><span id="track-count"></span></div>
-      <div class="track-head"><span>#</span><span>제목</span><span>좋아요</span><span>길이</span></div>
+      <div class="track-head"><span>#</span><span>제목</span><span>듣기</span><span>담기</span><span>길이</span></div>
       <ol class="album-tracks" id="album-tracks"></ol>
     </section>
   </main>
@@ -35,6 +35,7 @@
     <div class="player-volume"><span aria-hidden="true">🔊</span><input id="player-volume" type="range" min="0" max="1" step="0.05" value="0.7" aria-label="음량"></div>
   </footer>
   <audio id="audio-player" preload="metadata"></audio>
+  <script src="/js/api.js"></script>
   <script src="/js/pages/album.js"></script>
 </body>
 </html>

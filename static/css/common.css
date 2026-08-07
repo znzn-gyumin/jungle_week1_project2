@@ -43,7 +43,28 @@ a{color:inherit; text-decoration:none;}
 .btn-outline{background:transparent; color:var(--text); border:1.5px solid rgba(255,255,255,0.28);}
 .btn-outline:hover{border-color:var(--text); transform:translateY(-2px);}
 .btn-sm{padding:10px 20px; font-size:13px;}
+.auth-link-loggedin{background:var(--green); color:var(--ink); border-color:var(--green);}
+.auth-nickname{font-size:13px; font-weight:700; color:var(--text);}
 
 @media (prefers-reduced-motion: reduce){
   *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
 }
+
+.playlist-picker{
+    position:absolute; z-index:100; width:220px;
+    padding:7px; border-radius:var(--radius-md);
+    background:var(--bg-card-hi); border:1px solid var(--line);
+    box-shadow:0 12px 30px rgba(0,0,0,.4);
+    display:flex; flex-direction:column; gap:2px;
+    max-height:280px; overflow-y:auto;
+}
+.playlist-picker-status{
+    padding:12px 10px; color:var(--text-faint); font-size:13px; text-align:center;
+}
+.playlist-picker-item{
+    display:block; width:100%; padding:10px; border:0; border-radius:8px;
+    background:transparent; color:var(--text); font-size:13px; font-family:'Inter';
+    text-align:left; cursor:pointer; transition:background .15s ease;
+}
+.playlist-picker-item:hover{ background:var(--bg-elev); }
+.playlist-picker-create{ color:var(--green); font-weight:700; border-top:1px solid var(--line); margin-top:4px; padding-top:12px; }
