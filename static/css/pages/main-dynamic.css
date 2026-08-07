@@ -118,6 +118,7 @@
 @keyframes reroll-pulse { to { transform: rotate(-3deg) scale(.97); } }
 
 .drawer-empty-cover { width:100%; aspect-ratio:1; display:grid; place-items:center; border:1px dashed var(--line); border-radius:10px; background:linear-gradient(145deg,#2a1b0f,#17100b); color:var(--text-faint); font-size:72px; }
+.drawer-empty-cover[hidden], .drawer-cover[hidden] { display:none !important; }
 .drawer-empty-message { margin:0; padding:12px; border-radius:7px; background:var(--bg-card); color:var(--text-faint); font-size:11px; line-height:1.5; }
 .now-playing-drawer { transition-duration:.42s; will-change:transform; }
 

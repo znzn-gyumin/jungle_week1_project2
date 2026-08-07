@@ -1,3 +1,4 @@
+(function () {
 const albumGrids = [...document.querySelectorAll('[data-album-grid]')];
 const playlistGrid = document.querySelector('[data-playlist-grid]');
 
@@ -276,3 +277,4 @@ if (document.readyState === 'loading') {
 } else {
     initializeMainPage();
 }
+}());

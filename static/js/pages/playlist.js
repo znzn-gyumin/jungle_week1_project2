@@ -126,9 +126,14 @@ const openLibraryWithoutStoppingPlayback = async (event, pushHistory = true) => 
     const playlistDefinitions = document.createElement('script');
     playlistDefinitions.src = '/js/recommended-playlists.js';
     playlistDefinitions.addEventListener('load', () => {
-      const mainScript = document.createElement('script');
-      mainScript.src = `/js/pages/main.js?v=${Date.now()}`;
-      document.body.append(mainScript);
+      const fixedCatalog = document.createElement('script');
+      fixedCatalog.src = '/js/fixed-catalog.js';
+      fixedCatalog.addEventListener('load', () => {
+        const mainScript = document.createElement('script');
+        mainScript.src = `/js/pages/main.js?v=${Date.now()}`;
+        document.body.append(mainScript);
+      });
+      document.body.append(fixedCatalog);
     });
     document.body.append(playlistDefinitions);
   } catch (error) {
