@@ -143,16 +143,15 @@ const initializePlaylistReroll = () => {
     });
 };
 
-const initializeNowPlayingDrawer = () => {
-    const drawer = document.getElementById('now-playing-drawer');
-    const toggle = document.getElementById('drawer-toggle');
-    if (!drawer || !toggle || toggle.dataset.initialized === 'true') return;
-    toggle.dataset.initialized = 'true';
-    toggle.addEventListener('click', () => {
-        const collapsed = drawer.classList.toggle('is-collapsed');
-        toggle.textContent = collapsed ? '‹' : '›';
-        toggle.setAttribute('aria-label', collapsed ? '현재 재생 패널 열기' : '현재 재생 패널 닫기');
-    });
+// 사이드바/토프바/탭은 templates/components/ 에서 통째로 공유한다. 페이지마다 달라지는
+// 부분은 여기서 켠다 - 마크업을 7벌로 복사하지 않기 위한 대가다.
+const initializeShellChrome = () => {
+    const shell = document.querySelector('.app-shell');
+    const path = location.pathname.replace(/\/$/, '') || '/';
+    document.querySelector(`.content-tab[href="${path}"]`)?.classList.add('active');
+    document.querySelector(`.sidebar-link[href="${path}"]`)?.classList.add('active');
+    const input = document.querySelector('.search-box input');
+    if (input && shell?.dataset.search) input.placeholder = shell.dataset.search;
 };
 
 const trackSearchUrl = (query, limit = 1) => {
@@ -311,23 +310,29 @@ const initializeSearch = () => {
     if (clearBtn) clearBtn.addEventListener('click', clearSearch);
 };
 
-const getPlaylistCover = (playlistId) => fetch(`/api/playlists/${playlistId}`)
-    .then((r) => r.json())
-    .then((data) => {
-        const first = (data.items || [])[0];
-        return first ? first.track.thumbnailUrl : null;
-    })
-    .catch(() => null);
+// 내 플레이리스트 목록은 카드 그리드와 사이드바가 같이 쓴다. 한 번만 부른다.
+// 표지(coverUrl)는 목록 응답에 이미 들어 있다 - 플레이리스트마다 상세를 또 부르지 않는다.
+let myPlaylistsPromise = null;
+const getMyPlaylists = () => {
+    if (!myPlaylistsPromise) {
+        myPlaylistsPromise = fetch('/api/playlists').then(async (response) => {
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || '플레이리스트를 불러오지 못했습니다.');
+            return data.playlists || [];
+        });
+    }
+    return myPlaylistsPromise;
+};
 
-const createMyPlaylistCard = (playlist, coverUrl) => {
+const createMyPlaylistCard = (playlist) => {
     const card = document.createElement('a');
     card.className = 'track-card';
     card.href = `/my-playlist/${playlist.id}`;
 
     const thumb = document.createElement('div');
     thumb.className = 'track-thumb';
-    if (coverUrl) {
-        thumb.style.backgroundImage = `url("${coverUrl.replaceAll('"', '%22')}")`;
+    if (playlist.coverUrl) {
+        thumb.style.backgroundImage = `url("${playlist.coverUrl.replaceAll('"', '%22')}")`;
         thumb.style.backgroundSize = 'cover';
         thumb.style.backgroundPosition = 'center';
     } else {
@@ -355,16 +360,12 @@ const loadMyPlaylists = async () => {
         return;
     }
     try {
-        const response = await fetch('/api/playlists');
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || '플레이리스트를 불러오지 못했습니다.');
-        const playlists = data.playlists || [];
+        const playlists = await getMyPlaylists();
         if (!playlists.length) {
             showGridMessage(grid, '아직 만든 플레이리스트가 없어요. 곡의 + 버튼으로 담아보세요.');
             return;
         }
-        const covers = await Promise.all(playlists.map((p) => getPlaylistCover(p.id)));
-        grid.replaceChildren(...playlists.map((p, i) => createMyPlaylistCard(p, covers[i])));
+        grid.replaceChildren(...playlists.map(createMyPlaylistCard));
         updateMoreButton(grid.closest('.section'));
     } catch (error) {
         showGridMessage(grid, error.message, true);
@@ -397,12 +398,12 @@ const sidebarLabel = (text) => {
     return span;
 };
 
-const createSidebarPlaylistItem = (playlist, coverUrl) => {
+const createSidebarPlaylistItem = (playlist) => {
     const link = document.createElement('a');
     link.href = `/my-playlist/${playlist.id}`;
     link.className = 'sidebar-playlist-item';
     link.append(
-        sidebarThumb(coverUrl, 'linear-gradient(150deg,#8A6A3F,#4A3218)'),
+        sidebarThumb(playlist.coverUrl, 'linear-gradient(150deg,#8A6A3F,#4A3218)'),
         sidebarLabel(`${playlist.name} · ${playlist.totalTracks}곡`),
     );
     return link;
@@ -448,14 +449,12 @@ const loadSidebarData = async () => {
     if (!me.loggedIn) return;
 
     try {
-        const [playlistsData, likesData] = await Promise.all([
-            fetch('/api/playlists').then((r) => r.json()),
+        const [playlists, likesData] = await Promise.all([
+            getMyPlaylists(),
             fetch('/api/likes').then((r) => r.json()),
         ]);
-        const playlists = playlistsData.playlists || [];
-        const covers = await Promise.all(playlists.map((p) => getPlaylistCover(p.id)));
         myGrid.replaceChildren(...(playlists.length
-            ? playlists.map((playlist, i) => createSidebarPlaylistItem(playlist, covers[i]))
+            ? playlists.map(createSidebarPlaylistItem)
             : [sidebarEmptyNote('아직 만든 플레이리스트가 없어요.')]));
 
         const likedAlbums = likesData.albums || [];
@@ -501,7 +500,7 @@ const initializeAuthUI = async () => {
 
 const initializeMainPage = () => {
     if (window.initSitePlayer) window.initSitePlayer();
-    initializeNowPlayingDrawer();
+    initializeShellChrome();
     initializeAuthUI();
 
     [...document.querySelectorAll('.section')]

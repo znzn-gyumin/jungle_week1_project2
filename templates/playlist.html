@@ -1,14 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<!--#include head-->
   <title>추천 플레이리스트 | 플로비</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/css/pages/playlist.css">
   <link rel="stylesheet" href="/css/pages/album-dynamic.css">
   <link rel="stylesheet" href="/css/pages/playlist-dynamic.css">
@@ -36,8 +30,10 @@
     <div class="player-volume"><span>🔊</span><input id="player-volume" type="range" min="0" max="1" step="0.05" value="0.7"></div>
   </footer>
   <audio id="audio-player" preload="metadata"></audio>
-  <script src="/js/api.js"></script>
-  <script src="/js/recommended-playlists.js"></script>
-  <script src="/js/pages/playlist.js"></script>
+  <script defer src="/js/api.js"></script>
+  <script defer src="/js/recommended-playlists.js"></script>
+  <script defer src="/js/fixed-catalog.js"></script>
+  <script defer src="/js/pages/detail-player.js"></script>
+  <script defer src="/js/pages/playlist.js"></script>
 </body>
 </html>

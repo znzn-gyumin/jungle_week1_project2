@@ -1,131 +1,22 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<!--#include head-->
 <title>플로비 | 이벤트</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/common.css">
 <link rel="stylesheet" href="/css/pages/main.css">
 </head>
 <body>
 
-<div class="app-shell">
+<div class="app-shell" data-search="이벤트 검색">
 
-    <aside class="sidebar">
-        <div class="sidebar-logo">
-            <span class="dot-icon">
-                <svg viewBox="0 0 40 40">
-                    <path d="M14,9 C13,5 11,3 9,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
-                    <circle cx="9" cy="2" r="1.8" fill="#2A1B06"/>
-                    <path d="M26,9 C27,5 29,3 31,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
-                    <circle cx="31" cy="2" r="1.8" fill="#2A1B06"/>
-                    <circle cx="20" cy="23" r="13" fill="#F4B942"/>
-                    <ellipse cx="20" cy="25" rx="11" ry="3" fill="#2A1B06"/>
-                    <ellipse cx="8" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(-20 8 14)"/>
-                    <ellipse cx="32" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(20 32 14)"/>
-                    <ellipse cx="8" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(-10 8 26)"/>
-                    <ellipse cx="32" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(10 32 26)"/>
-                </svg>
-            </span>
-            플로비
-        </div>
-
-        <nav class="sidebar-nav">
-            <a href="/" class="sidebar-link">
-                <span class="icon">⌂</span> 홈
-            </a>
-            <a href="#" class="sidebar-link">
-                <span class="icon">⌕</span> 검색
-            </a>
-        </nav>
-
-        <div class="sidebar-divider"></div>
-
-        <div class="sidebar-playlists">
-            <div class="sidebar-section-title">내 플레이리스트</div>
-            <div id="sidebar-my-playlists">
-            <a href="/playlist" class="sidebar-playlist-item">
-                <span class="pl-thumb" style="background:linear-gradient(135deg,#E8A33D,#8A5A2B);"></span>
-                좋아하는 음악
-            </a>
-            <a href="/playlist" class="sidebar-playlist-item">
-                <span class="pl-thumb" style="background:linear-gradient(160deg,#3b2a1c,#1f150d);"></span>
-                출근길 플레이리스트
-            </a>
-            <a href="/playlist" class="sidebar-playlist-item">
-                <span class="pl-thumb" style="background:linear-gradient(150deg,#8A6A3F,#4A3218);"></span>
-                Lo-Fi Study
-            </a>
-            </div>
-
-            <div class="sidebar-section-title">좋아요 누른 앨범</div>
-            <div id="sidebar-liked-albums">
-            <a href="/album" class="sidebar-playlist-item">
-                <span class="pl-thumb" style="background:linear-gradient(135deg,#E8A33D,#8A5A2B);"></span>
-                Daybreak
-            </a>
-            <a href="/album" class="sidebar-playlist-item">
-                <span class="pl-thumb" style="background:linear-gradient(135deg,#F4B942,#D9822B);"></span>
-                Tideline
-            </a>
-            </div>
-
-            <div class="sidebar-section-title">좋아요 누른 플레이리스트</div>
-            <div id="sidebar-liked-playlists">
-            <a href="/playlist" class="sidebar-playlist-item">
-                <span class="pl-thumb" style="background:linear-gradient(140deg,#F4B942,#C88A2E);"></span>
-                카페 무드
-            </a>
-            <a href="/playlist" class="sidebar-playlist-item">
-                <span class="pl-thumb" style="background:linear-gradient(150deg,#8A6A3F,#4A3218);"></span>
-                Lo-Fi Study
-            </a>
-            </div>
-        </div>
-    </aside>
+<!--#include sidebar-->
 
     <div class="main-col">
 
-        <header class="topbar">
-            <div class="search-box">
-                <span class="icon">⌕</span>
-                <input type="text" placeholder="이벤트 검색">
-            </div>
-            <a href="/home" class="subscribe-banner">
-                <span class="subscribe-icon">★</span>
-                <span class="subscribe-text">광고 없이, 끊김없이 — <strong>무료로 구독 시작하기</strong></span>
-            </a>
-            <div class="topbar-right">
-                <a href="/login" class="btn btn-outline btn-sm" id="auth-link">로그인</a>
-                <div class="avatar">
-                    <svg viewBox="0 0 40 40">
-                        <path d="M14,9 C13,5 11,3 9,2" stroke="#F4B942" stroke-width="1.6" stroke-linecap="round" fill="none"/>
-                        <circle cx="9" cy="2" r="1.8" fill="#F4B942"/>
-                        <path d="M26,9 C27,5 29,3 31,2" stroke="#F4B942" stroke-width="1.6" stroke-linecap="round" fill="none"/>
-                        <circle cx="31" cy="2" r="1.8" fill="#F4B942"/>
-                        <circle cx="20" cy="23" r="13" fill="#F4B942"/>
-                        <ellipse cx="8" cy="14" rx="8" ry="9" fill="#F4B942" transform="rotate(-20 8 14)"/>
-                        <ellipse cx="32" cy="14" rx="8" ry="9" fill="#F4B942" transform="rotate(20 32 14)"/>
-                        <ellipse cx="8" cy="26" rx="5.5" ry="6.5" fill="#F4B942" transform="rotate(-10 8 26)"/>
-                        <ellipse cx="32" cy="26" rx="5.5" ry="6.5" fill="#F4B942" transform="rotate(10 32 26)"/>
-                        
-                    </svg>
-                </div>
-            </div>
-        </header>
+<!--#include topbar-->
 
         <nav class="content-tabs">
-            <a href="/" class="content-tab">홈</a>
-            <a href="/latest-music" class="content-tab">최신음악</a>
-            <a href="/latest-albums" class="content-tab">최신앨범</a>
-            <a href="/genre" class="content-tab">장르음악</a>
-            <a href="/chart" class="content-tab">차트</a>
-            <a href="/playlists" class="content-tab">플레이리스트</a>
-            <a href="/events" class="content-tab active">이벤트</a>
+<!--#include tabs-->
         </nav>
 
         <main class="main-content">
@@ -134,18 +25,7 @@
                 <div class="section-head">
                 <h2 class="section-title">
                     진행 중인 이벤트
-                    <svg class="bee-mascot" viewBox="0 0 40 40">
-                        <path d="M14,9 C13,5 11,3 9,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
-                        <circle cx="9" cy="2" r="1.8" fill="#2A1B06"/>
-                        <path d="M26,9 C27,5 29,3 31,2" stroke="#2A1B06" stroke-width="1.6" stroke-linecap="round" fill="none"/>
-                        <circle cx="31" cy="2" r="1.8" fill="#2A1B06"/>
-                        <circle cx="20" cy="23" r="13" fill="#F4B942"/>
-                        <ellipse cx="20" cy="25" rx="11" ry="3" fill="#2A1B06"/>
-                        <ellipse cx="8" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(-20 8 14)"/>
-                        <ellipse cx="32" cy="14" rx="8" ry="9" fill="rgba(255,255,255,0.5)" transform="rotate(20 32 14)"/>
-                        <ellipse cx="8" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(-10 8 26)"/>
-                        <ellipse cx="32" cy="26" rx="5.5" ry="6.5" fill="rgba(255,255,255,0.5)" transform="rotate(10 32 26)"/>
-                    </svg>
+<!--#include bee-->
                 </h2>
                 </div>
                 <div class="event-feed">
@@ -210,33 +90,11 @@
     </div>
 </div>
 
-<footer class="player-bar">
-    <div class="player-now-playing">
-        <div class="track-thumb sm" style="background:linear-gradient(135deg,#E8A33D,#8A5A2B);"></div>
-        <div>
-            <div class="track-name">Daybreak</div>
-            <div class="track-sub">ARCS, NOVA</div>
-        </div>
-    </div>
-    <div class="player-controls">
-        <div class="player-buttons">
-            <button class="ctrl-btn" type="button">⏮</button>
-            <button class="ctrl-btn play" type="button" id="play-btn"><span>▶</span></button>
-            <button class="ctrl-btn" type="button">⏭</button>
-        </div>
-        <div class="player-progress">
-            <span class="time">1:12</span>
-            <div class="progress-track"><div class="progress-fill"></div></div>
-            <span class="time">3:48</span>
-        </div>
-    </div>
-    <div class="player-volume">
-        <span class="icon">🔊</span>
-        <input type="range" class="volume-slider" id="site-volume" min="0" max="1" step="0.05" value="0.7" aria-label="음량">
-    </div>
-</footer>
+<!--#include player-->
 
-<script src="/js/api.js"></script>
-<script src="/js/pages/main.js"></script>
+<script defer src="/js/api.js"></script>
+<script defer src="/js/recommended-playlists.js"></script>
+<script defer src="/js/fixed-catalog.js"></script>
+<script defer src="/js/pages/main.js"></script>
 </body>
 </html>

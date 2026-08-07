@@ -1,8 +1,10 @@
+(function () {
+const { formatDuration, createHandoff } = window.FlowbeeDetailPlayer;
+
 const statusBox = document.getElementById('playlist-status');
 const content = document.getElementById('playlist-content');
 const playlistBody = document.getElementById('playlist-body');
 const playerBar = document.getElementById('playlist-player');
-const drawer = document.getElementById('now-playing-drawer');
 if (window.ensureSiteNowPlayingDrawer) window.ensureSiteNowPlayingDrawer();
 const audio = document.getElementById('audio-player');
 const seek = document.getElementById('player-seek');
@@ -11,17 +13,10 @@ const playbackButtons = [document.getElementById('playlist-play'), document.getE
 const previewLimit = 30;
 let tracks = [];
 let currentIndex = -1;
-// 다른 화면에서 재생하던 곡을 이어받은 상태. render 가 커버를 덮어쓰지 않게 표시해 둔다.
-let handoffActive = false;
-
-const formatDuration = (milliseconds) => {
-  if (!Number.isFinite(milliseconds) || milliseconds < 0) return '—';
-  const seconds = Math.floor(milliseconds / 1000);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-};
 
 const totalDuration = (items) => items.reduce((total, track) => total + (track.durationMs || 0), 0);
 const setPlaying = (playing) => playbackButtons.forEach((button) => button.classList.toggle('is-playing', playing));
+const handoff = createHandoff({ audio, seek, setPlaying, playerBar });
 
 const updatePlayer = () => {
   const elapsed = Number.isFinite(audio.currentTime) ? Math.min(audio.currentTime, previewLimit) : 0;
@@ -31,40 +26,6 @@ const updatePlayer = () => {
   seek.style.setProperty('--progress', `${duration ? (elapsed / duration) * 100 : 0}%`);
   document.getElementById('player-current').textContent = formatDuration(elapsed * 1000);
   document.getElementById('player-duration').textContent = formatDuration(duration * 1000);
-};
-
-let ytHandoffActive = false;
-let ytHandoffPlayer = null;
-let ytHandoffTimer = null;
-
-const updateYtHandoffTime = () => {
-  if (!ytHandoffPlayer || typeof ytHandoffPlayer.getDuration !== 'function') return;
-  const duration = ytHandoffPlayer.getDuration();
-  if (!duration) return;
-  const elapsed = ytHandoffPlayer.getCurrentTime();
-  seek.max = String(duration);
-  seek.value = String(elapsed);
-  seek.style.setProperty('--progress', `${(elapsed / duration) * 100}%`);
-  document.getElementById('player-current').textContent = formatDuration(elapsed * 1000);
-  document.getElementById('player-duration').textContent = formatDuration(duration * 1000);
-};
-
-const onYtHandoffState = (event) => {
-  if (!ytHandoffActive) return;
-  const playing = event.data === window.YT.PlayerState.PLAYING;
-  setPlaying(playing);
-  clearInterval(ytHandoffTimer);
-  ytHandoffTimer = playing ? setInterval(updateYtHandoffTime, 500) : null;
-  updateYtHandoffTime();
-};
-
-const stopYtHandoff = () => {
-  if (!ytHandoffActive) return;
-  ytHandoffActive = false;
-  clearInterval(ytHandoffTimer);
-  ytHandoffTimer = null;
-  if (ytHandoffPlayer) ytHandoffPlayer.pauseVideo();
-  setPlaying(false);
 };
 
 const updateDrawer = (track, index) => {
@@ -87,9 +48,8 @@ const updateDrawer = (track, index) => {
 const selectTrack = (index, autoplay = true) => {
   const track = tracks[index];
   if (!track) return;
-  stopYtHandoff();
+  handoff.stop();
   currentIndex = index;
-  handoffActive = false;
   document.getElementById('now-title').textContent = track.title;
   document.getElementById('now-artist').textContent = track.artist;
   updateDrawer(track, index);
@@ -109,11 +69,7 @@ const selectTrack = (index, autoplay = true) => {
 };
 
 const togglePlayback = () => {
-  if (ytHandoffActive && ytHandoffPlayer) {
-    if (ytHandoffPlayer.getPlayerState() === window.YT.PlayerState.PLAYING) ytHandoffPlayer.pauseVideo();
-    else ytHandoffPlayer.playVideo();
-    return;
-  }
+  if (handoff.togglePlayback()) return;
   if (currentIndex < 0) selectTrack(0);
   else if (audio.paused) {
     if (audio.currentTime >= previewLimit - .1) audio.currentTime = 0;
@@ -137,60 +93,6 @@ const createTrackRow = (track, index) => {
   return row;
 };
 
-const ensureStylesheet = (href) => {
-  if (document.querySelector(`link[href="${href}"]`)) return;
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = href;
-  document.head.append(link);
-};
-
-const openLibraryWithoutStoppingPlayback = async (event, pushHistory = true) => {
-  event?.preventDefault();
-  // 이 화면의 <audio> 를 그대로 살려서 옮기므로, 새 페이지가 handoff 로 또 한 번
-  // 재생을 시작하면 소리가 겹친다. 여기서 지워서 이중 재생을 막는다.
-  if (window.clearNowPlaying) window.clearNowPlaying();
-  drawer?.classList.add('is-collapsed');
-  const drawerToggle = document.getElementById('drawer-toggle');
-  if (drawerToggle) {
-    drawerToggle.textContent = '‹';
-    drawerToggle.setAttribute('aria-label', '현재 재생 패널 열기');
-  }
-  try {
-    const response = await fetch('/');
-    if (!response.ok) throw new Error('라이브러리를 불러오지 못했습니다.');
-    const nextDocument = new DOMParser().parseFromString(await response.text(), 'text/html');
-    const shell = nextDocument.querySelector('.app-shell');
-    if (!shell) throw new Error('라이브러리 화면을 찾지 못했습니다.');
-    ensureStylesheet('/css/pages/main.css');
-    ensureStylesheet('/css/pages/main-dynamic.css');
-    document.body.prepend(shell);
-    const ytHost = document.getElementById('site-yt-host');
-    [...document.body.children].forEach((child) => {
-      if (child !== shell && child !== playerBar && child !== audio && child !== drawer && child !== ytHost) child.remove();
-    });
-    document.title = nextDocument.title;
-    if (pushHistory) history.pushState({ flowbeeLibrary: true }, '', '/');
-    const playlistDefinitions = document.createElement('script');
-    playlistDefinitions.src = '/js/recommended-playlists.js';
-    playlistDefinitions.addEventListener('load', () => {
-      const fixedCatalog = document.createElement('script');
-      fixedCatalog.src = '/js/fixed-catalog.js';
-      fixedCatalog.addEventListener('load', () => {
-        const mainScript = document.createElement('script');
-        mainScript.src = `/js/pages/main.js?v=${Date.now()}`;
-        document.body.append(mainScript);
-      });
-      document.body.append(fixedCatalog);
-    });
-    document.body.append(playlistDefinitions);
-  } catch (error) {
-    statusBox.hidden = false;
-    statusBox.textContent = error.message;
-    statusBox.classList.add('is-error');
-  }
-};
-
 const render = (playlist) => {
   tracks = playlist.tracks.slice(0, 15);
   document.title = `${playlist.title} | 플로비`;
@@ -204,7 +106,8 @@ const render = (playlist) => {
   document.getElementById('playlist-code').textContent = String(window.FlowbeePlaylists.definitions.findIndex((item) => item.slug === playlist.slug) + 1).padStart(2, '0');
   document.getElementById('playlist-tags').replaceChildren(...playlist.tags.map((tag) => Object.assign(document.createElement('span'), { textContent: tag })));
   document.getElementById('playlist-tracks').replaceChildren(...tracks.map(createTrackRow));
-  if (!handoffActive) document.getElementById('player-cover').src = playlist.coverUrl;
+  // 다른 화면에서 넘어온 곡을 이어 재생 중이면 재생바 커버를 덮어쓰지 않는다.
+  if (!handoff.active) document.getElementById('player-cover').src = playlist.coverUrl;
   statusBox.hidden = true;
   content.hidden = false;
   playlistBody.hidden = false;
@@ -261,43 +164,17 @@ audio.addEventListener('timeupdate', () => {
 });
 audio.addEventListener('loadedmetadata', updatePlayer);
 seek.addEventListener('input', () => {
-  if (ytHandoffActive && ytHandoffPlayer) {
-    ytHandoffPlayer.seekTo(Number(seek.value), true);
-    updateYtHandoffTime();
-    return;
-  }
+  if (handoff.seekTo(Number(seek.value))) return;
   if (tracks[currentIndex]?.playUrl) audio.currentTime = Number(seek.value);
   updatePlayer();
 });
 volume.addEventListener('input', () => { audio.volume = Number(volume.value); volume.style.setProperty('--progress', `${audio.volume * 100}%`); });
 audio.volume = Number(volume.value);
-document.querySelectorAll('.back-link, .playlist-brand').forEach((link) => link.addEventListener('click', openLibraryWithoutStoppingPlayback));
-window.addEventListener('popstate', () => {
-  if (location.pathname === '/') openLibraryWithoutStoppingPlayback(null, false);
-  else location.reload();
-}, { once: true });
+// 라이브러리로 돌아가는 링크는 api.js 의 전역 클릭 핸들러가 가로챈다.
+// 재생 중인 <audio> 를 살린 채 셸만 갈아끼운다.
+window.addEventListener('popstate', () => location.reload(), { once: true });
 
-if (window.loadNowPlayingHandoff) {
-  const handoff = window.loadNowPlayingHandoff();
-  if (handoff && handoff.isPlaying && handoff.playUrl) {
-    handoffActive = true;
-    document.getElementById('now-title').textContent = handoff.title;
-    document.getElementById('now-artist').textContent = handoff.artist;
-    if (handoff.thumbnailUrl) document.getElementById('player-cover').src = handoff.thumbnailUrl;
-    if (window.fillNowPlayingDrawer) window.fillNowPlayingDrawer(handoff);
-    playerBar.hidden = false;
-    if (handoff.source === 'youtube') {
-      ytHandoffActive = true;
-      window.resumeYouTubeHandoff(handoff, onYtHandoffState)
-        .then((player) => { ytHandoffPlayer = player; })
-        .catch(() => stopYtHandoff());
-    } else {
-      audio.src = handoff.playUrl;
-      audio.addEventListener('loadedmetadata', () => { audio.currentTime = handoff.currentTime || 0; }, { once: true });
-      audio.play().catch(() => setPlaying(false));
-    }
-  }
-}
+handoff.start();
 
 const slug = location.pathname.match(/^\/playlist\/([^/]+)\/?$/)?.[1] || new URLSearchParams(location.search).get('id') || window.FlowbeePlaylists.definitions[0].slug;
 const definition = window.FlowbeePlaylists.find(decodeURIComponent(slug));
@@ -310,3 +187,4 @@ if (!definition) {
     statusBox.classList.add('is-error');
   });
 }
+}());

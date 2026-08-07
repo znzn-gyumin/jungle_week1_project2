@@ -1,7 +1,9 @@
+from datetime import date
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     BigInteger,
+    Date,
     ForeignKey,
     Index,
     Integer,
@@ -43,6 +45,15 @@ class Track(PKMixin, TimestampMixin, Base):
     duration_ms: Mapped[int | None] = mapped_column(Integer)
     thumbnail_url: Mapped[str | None] = mapped_column(Text)
     play_url: Mapped[str | None] = mapped_column(Text)
+
+    # 소스가 주는 부가 정보. 아직 화면에 안 나오지만 재검색 없이 쌓아 둔다.
+    # artist_source_id 는 아티스트 페이지, genre 는 추천, release_date 는 정렬,
+    # disc/track_number 는 앨범 상세 트랙 순서용.
+    artist_source_id: Mapped[str | None] = mapped_column(String(128))
+    genre: Mapped[str | None] = mapped_column(Text)
+    release_date: Mapped[date | None] = mapped_column(Date)
+    disc_number: Mapped[int | None] = mapped_column(Integer)
+    track_number: Mapped[int | None] = mapped_column(Integer)
 
     album: Mapped["Album | None"] = relationship(back_populates="tracks")
     playlist_links: Mapped[list["PlaylistTrack"]] = relationship(

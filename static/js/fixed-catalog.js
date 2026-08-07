@@ -81,9 +81,11 @@
         return found && { ...found, ...fixed };
     };
 
-    const loadLatestAlbums = () => resolveAll(latestAlbums, findFixedAlbum);
-    const loadMelonChart = () => resolveAll(melonChart, findFixedTrack);
-    const loadLatestMusic = () => resolveAll(latestMusic, findFixedTrack);
+    // 목록이 고정이라 결과도 고정이다. 캐시하지 않으면 화면에 들어올 때마다
+    // /api/search 를 항목 수만큼(20/20/8회) 다시 쏜다. withCache 는 3일 뒤 만료된다.
+    const loadLatestAlbums = () => withCache('flowbee_fixed_albums_v1', () => resolveAll(latestAlbums, findFixedAlbum));
+    const loadMelonChart = () => withCache('flowbee_fixed_melon_v1', () => resolveAll(melonChart, findFixedTrack));
+    const loadLatestMusic = () => withCache('flowbee_fixed_latest_v1', () => resolveAll(latestMusic, findFixedTrack));
 
     window.FlowbeeFixedCatalog = { latestAlbums, latestMusic, melonChart, loadLatestAlbums, loadLatestMusic, loadMelonChart };
 }());

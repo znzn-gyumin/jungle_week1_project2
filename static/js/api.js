@@ -1,3 +1,4 @@
+(function () {
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -393,10 +394,36 @@ const dynamicPageScripts = new Set(['/latest-music', '/latest-albums', '/genre',
 function loadPageScript(src) {
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = `${src}?spa=${Date.now()}`;
-        script.onload = resolve;
-        script.onerror = reject;
+        script.src = src;
+        // 실행이 끝난 <script> 는 지운다. 남겨두면 화면을 옮길 때마다 쌓인다.
+        // 태그를 지워도 이미 실행된 코드는 그대로 살아 있다.
+        const done = (handler) => () => { script.remove(); handler(); };
+        script.onload = done(resolve);
+        script.onerror = done(() => reject(new Error(`스크립트를 불러오지 못했습니다: ${src}`)));
         document.body.appendChild(script);
+    });
+}
+
+// 상세 화면(앨범/추천 플레이리스트)에는 .app-shell 이 없다. 그 경우엔 라이브러리 셸을
+// 앞에 붙이고 재생 중인 것들만 남긴다. 상세 화면이 각자 복사해 두던 로직을 여기로 모았다.
+function swapInShell(nextShell) {
+    const currentShell = document.querySelector('.app-shell');
+    if (currentShell) {
+        currentShell.replaceWith(nextShell);
+        return;
+    }
+    // 재생 중인 <audio> 를 그대로 들고 가므로, 새 화면이 handoff 로 또 틀면 소리가 겹친다.
+    const keep = new Set([
+        document.getElementById('audio-player'),
+        document.getElementById('site-audio'),
+        document.getElementById('site-yt-host'),
+        document.getElementById('now-playing-drawer'),
+        document.querySelector('.album-player'),
+    ]);
+    clearNowPlaying();
+    document.body.prepend(nextShell);
+    [...document.body.children].forEach((child) => {
+        if (child !== nextShell && !keep.has(child)) child.remove();
     });
 }
 
@@ -405,8 +432,7 @@ async function navigateWithoutStoppingPlayback(path, pushHistory = true) {
     if (!response.ok) throw new Error('화면을 불러오지 못했습니다.');
     const nextDocument = new DOMParser().parseFromString(await response.text(), 'text/html');
     const nextShell = nextDocument.querySelector('.app-shell');
-    const currentShell = document.querySelector('.app-shell');
-    if (!nextShell || !currentShell) throw new Error('화면 영역을 찾지 못했습니다.');
+    if (!nextShell) throw new Error('화면 영역을 찾지 못했습니다.');
 
     nextDocument.querySelectorAll('link[rel="stylesheet"]').forEach((stylesheet) => {
         const href = stylesheet.getAttribute('href');
@@ -416,7 +442,7 @@ async function navigateWithoutStoppingPlayback(path, pushHistory = true) {
         link.href = href;
         document.head.appendChild(link);
     });
-    currentShell.replaceWith(nextShell);
+    swapInShell(nextShell);
     document.title = nextDocument.title;
     ensureSiteNowPlayingDrawer().classList.add('is-collapsed');
     const toggle = document.getElementById('drawer-toggle');
@@ -655,5 +681,28 @@ document.addEventListener('click', (event) => {
     });
 });
 
+// 다른 스크립트가 실제로 쓰는 것만 내보낸다. 나머지는 이 파일 안에 갇혀 있어야
+// 페이지 스크립트가 같은 이름을 써도 부딪히지 않는다.
+Object.assign(window, {
+    escapeHtml,
+    withCache,
+    fetchSearch,
+    renderChartRow,
+    renderAlbumCard,
+    renderApiStatus,
+    ensureSiteNowPlayingDrawer,
+    fillNowPlayingDrawer,
+    resumeYouTubeHandoff,
+    saveNowPlaying,
+    clearNowPlaying,
+    loadNowPlayingHandoff,
+    initSitePlayer,
+    playSiteTrack,
+    getCurrentUser,
+    handleAddToPlaylistClick,
+    navigateWithoutStoppingPlayback,
+});
+
 initSitePlayer();
 initializePersistentNavigation();
+}());
