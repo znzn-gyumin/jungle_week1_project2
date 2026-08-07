@@ -19,16 +19,21 @@ CREATE UNIQUE INDEX uq_users_email_lower    ON users (lower(email));
 
 
 CREATE TABLE albums (
-    id            bigserial    NOT NULL,
-    source        source_type  NOT NULL,
-    source_id     varchar(128) NOT NULL,
-    name          text         NOT NULL,
-    artist        text         NOT NULL,
-    release_date  date,
-    total_tracks  integer,
-    thumbnail_url text,
-    created_at    timestamptz  NOT NULL DEFAULT now(),
-    updated_at    timestamptz  NOT NULL DEFAULT now(),
+    id               bigserial    NOT NULL,
+    source           source_type  NOT NULL,
+    source_id        varchar(128) NOT NULL,
+    name             text         NOT NULL,
+    artist           text         NOT NULL,
+    release_date     date,
+    total_tracks     integer,
+    thumbnail_url    text,
+    artist_source_id varchar(128),
+    genre            text,
+    -- 트랙 목록을 소스에서 마지막으로 채운 시각. services.albums 가 이 값으로
+    -- 재조회를 건너뛴다.
+    tracks_synced_at timestamptz,
+    created_at       timestamptz  NOT NULL DEFAULT now(),
+    updated_at       timestamptz  NOT NULL DEFAULT now(),
 
     CONSTRAINT pk_albums PRIMARY KEY (id),
     CONSTRAINT uq_albums_source_source_id UNIQUE (source, source_id)
@@ -36,17 +41,23 @@ CREATE TABLE albums (
 
 
 CREATE TABLE tracks (
-    id            bigserial    NOT NULL,
-    source        source_type  NOT NULL,
-    source_id     varchar(128) NOT NULL,
-    title         text         NOT NULL,
-    artist        text         NOT NULL,
-    album_id      bigint,
-    duration_ms   integer,
-    thumbnail_url text,
-    play_url      text,
-    created_at    timestamptz  NOT NULL DEFAULT now(),
-    updated_at    timestamptz  NOT NULL DEFAULT now(),
+    id               bigserial    NOT NULL,
+    source           source_type  NOT NULL,
+    source_id        varchar(128) NOT NULL,
+    title            text         NOT NULL,
+    artist           text         NOT NULL,
+    album_id         bigint,
+    duration_ms      integer,
+    thumbnail_url    text,
+    play_url         text,
+    -- 소스가 주는 부가 정보. 아직 화면엔 안 나오지만 재검색 없이 쌓아 둔다.
+    artist_source_id varchar(128),
+    genre            text,
+    release_date     date,
+    disc_number      integer,
+    track_number     integer,
+    created_at       timestamptz  NOT NULL DEFAULT now(),
+    updated_at       timestamptz  NOT NULL DEFAULT now(),
 
     CONSTRAINT pk_tracks PRIMARY KEY (id),
     CONSTRAINT uq_tracks_source_source_id UNIQUE (source, source_id),
@@ -125,5 +136,23 @@ CREATE TABLE likes (
 CREATE INDEX ix_likes_user_id_created_at ON likes (user_id, created_at DESC);
 CREATE INDEX ix_likes_album_id           ON likes (album_id);
 CREATE INDEX ix_likes_playlist_id        ON likes (playlist_id);
+
+
+-- 질의 -> 결과 행 ID 매핑. 트랙/앨범 실물은 tracks/albums 가 원본이고
+-- 여기엔 순서만 남는다. updated_at 이 외부 API 를 마지막으로 친 시각이다.
+CREATE TABLE search_cache (
+    id           bigserial    NOT NULL,
+    kind         varchar(16)  NOT NULL,
+    source       varchar(16)  NOT NULL,
+    query        varchar(200) NOT NULL,
+    result_limit integer      NOT NULL,
+    result_ids   bigint[]     NOT NULL,
+    created_at   timestamptz  NOT NULL DEFAULT now(),
+    updated_at   timestamptz  NOT NULL DEFAULT now(),
+
+    CONSTRAINT pk_search_cache PRIMARY KEY (id),
+    CONSTRAINT uq_search_cache_kind_source_query_result_limit
+        UNIQUE (kind, source, query, result_limit)
+);
 
 COMMIT;

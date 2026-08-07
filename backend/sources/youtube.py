@@ -89,7 +89,9 @@ def _thumbnail(snippet: dict[str, Any]) -> str | None:
     return None
 
 
-async def search_videos(term: str, limit: int = 25) -> list[dict[str, Any]]:
+async def search_videos(
+    term: str, limit: int = 25, country: str = "KR"
+) -> list[dict[str, Any]]:
     body = await _get(
         "/search",
         {
@@ -101,20 +103,55 @@ async def search_videos(term: str, limit: int = 25) -> list[dict[str, Any]]:
         },
     )
     items = [i for i in body.get("items", []) if (i.get("id") or {}).get("videoId")]
-    durations = await _durations([i["id"]["videoId"] for i in items])
-    return [{**i, "_duration_ms": durations.get(i["id"]["videoId"])} for i in items]
+    details = await _details([i["id"]["videoId"] for i in items])
+
+    out = []
+    for item in items:
+        detail = details.get(item["id"]["videoId"], {})
+        if not playable(detail, country):
+            continue
+        out.append({**item, "_duration_ms": detail.get("duration_ms")})
+    return out
 
 
-async def _durations(video_ids: list[str]) -> dict[str, int | None]:
+async def _details(video_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """재생 길이와 재생 가능 여부. part 를 몇 개 넣든 videos.list 는 1 유닛이다."""
     if not video_ids:
         return {}
     body = await _get(
-        "/videos", {"part": "contentDetails", "id": ",".join(video_ids[:YOUTUBE_MAX_RESULTS])}
+        "/videos",
+        {
+            "part": "contentDetails,status",
+            "id": ",".join(video_ids[:YOUTUBE_MAX_RESULTS]),
+        },
     )
-    return {
-        i["id"]: parse_duration((i.get("contentDetails") or {}).get("duration"))
-        for i in body.get("items", [])
-    }
+    out: dict[str, dict[str, Any]] = {}
+    for i in body.get("items", []):
+        content = i.get("contentDetails") or {}
+        out[i["id"]] = {
+            "duration_ms": parse_duration(content.get("duration")),
+            "region": content.get("regionRestriction") or {},
+            "embeddable": (i.get("status") or {}).get("embeddable", True),
+        }
+    return out
+
+
+def playable(detail: dict[str, Any], country: str) -> bool:
+    """embed 재생이 되는가.
+
+    play_url 이 embed URL 이라 embeddable=false 면 어느 나라에서도 안 나온다.
+    지역 제한은 allowed 가 있으면 화이트리스트, 없으면 blocked 가 블랙리스트다.
+
+    ponytail: 단일 국가 가정 - 판정을 저장할 때 한 번만 한다. 국가별로 서비스하려면
+    tracks 에 allowed/blocked regions 컬럼을 두고 조회 시 필터로 전환할 것.
+    """
+    if not detail.get("embeddable", True):
+        return False
+    region = detail.get("region") or {}
+    allowed = region.get("allowed")
+    if allowed is not None:
+        return country in allowed
+    return country not in (region.get("blocked") or ())
 
 
 def to_track(item: dict[str, Any]) -> dict[str, Any]:
@@ -128,4 +165,13 @@ def to_track(item: dict[str, Any]) -> dict[str, Any]:
         "duration_ms": item.get("_duration_ms"),
         "thumbnail_url": _thumbnail(snippet),
         "play_url": f"{EMBED}/{video_id}",
+        # 키를 빼면 upsert 의 excluded 가 기본값(NULL)을 집어넣어 기존 행을 덮는다.
+        # YouTube 에 없는 값은 명시적으로 None 이어야 한다.
+        "artist_source_id": snippet.get("channelId"),
+        "genre": None,  # search.list 에 장르 없음. categoryId 는 전부 10(Music)
+        # publishedAt 은 발매일이 아니라 업로드 날짜다. 재업로드·커버·공식 발매
+        # 몇 년 뒤 업로드가 섞여서 정렬 기준으로 못 쓴다.
+        "release_date": None,
+        "disc_number": None,
+        "track_number": None,
     }

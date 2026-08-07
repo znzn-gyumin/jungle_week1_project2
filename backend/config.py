@@ -21,7 +21,12 @@ class Settings(BaseSettings):
     postgres_db: str = "flowbee"
 
     youtube_api_key: SecretStr = SecretStr("")
+    # iTunes storefront 이자 YouTube 지역 제한 판정 국가. 같은 ISO 코드를 쓴다.
     itunes_country: str = "KR"
+
+    # 같은 검색어를 이 시간 안에 다시 물으면 외부 API 대신 DB 에서 읽는다.
+    # iTunes 는 IP 당 약 20회/분, YouTube 는 검색 1회에 쿼터 100 유닛이다.
+    search_cache_ttl: int = 86400
 
     # HTTPS 배포에서는 true - 쿠키가 평문 HTTP 로 나가지 않는다.
     cookie_secure: bool = False

@@ -17,6 +17,7 @@ Exit code is 0 when every assertion passes.
 import asyncio
 import sys
 import tempfile
+from datetime import date
 from pathlib import Path
 
 import httpx
@@ -33,6 +34,7 @@ except ModuleNotFoundError:
 
 from backend.db.session import get_db  # noqa: E402
 from backend.main import app  # noqa: E402
+from backend.sources import itunes, youtube  # noqa: E402
 
 PASS, FAIL = [], []
 
@@ -283,6 +285,86 @@ async def run_tests(a: httpx.AsyncClient, b: httpx.AsyncClient, Session) -> None
     async with Session() as s:
         left = (await s.execute(sql_text("SELECT count(*) FROM tracks"))).scalar_one()
     check("공용 캐시 tracks 는 남음", left == 3, left)
+
+    await test_search_cache(a, Session)
+
+
+ITUNES_RESULT = {
+    "trackId": 90001,
+    "trackName": "Cached Song",
+    "artistName": "Cache Artist",
+    "artistId": 777,
+    "collectionId": 55501,
+    "collectionName": "Cache Album",
+    "trackTimeMillis": 210000,
+    "artworkUrl100": "https://img/100x100bb.jpg",
+    "previewUrl": "https://audio/preview.m4a",
+    "releaseDate": "2024-05-24T12:00:00Z",
+    "primaryGenreName": "K-Pop",
+    "discNumber": 1,
+    "trackNumber": 4,
+    "trackCount": 10,
+}
+
+
+async def test_search_cache(a: httpx.AsyncClient, Session) -> None:
+    """같은 검색어를 다시 물으면 iTunes 를 안 친다 (search_cache)."""
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        return httpx.Response(200, json={"results": [ITUNES_RESULT]})
+
+    def youtube_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"items": []})
+
+    itunes.set_client(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    youtube.set_client(httpx.AsyncClient(transport=httpx.MockTransport(youtube_handler)))
+    try:
+        r = await a.get("/api/search", params={"q": "Cached", "source": "itunes"})
+        first = r.json()["tracks"]
+        check("검색 1회차 200", r.status_code == 200 and len(first) == 1, r.text)
+        check("검색 1회차는 iTunes 를 친다", len(calls) == 1, calls)
+        check(
+            "버리던 필드가 저장됨",
+            first[0]["durationMs"] == 210000 and first[0]["album"]["name"] == "Cache Album",
+            first,
+        )
+
+        r = await a.get("/api/search", params={"q": "Cached", "source": "itunes"})
+        check("검색 2회차 캐시 적중 - 외부 호출 없음", len(calls) == 1, calls)
+        check("캐시 결과가 1회차와 동일", r.json()["tracks"] == first, r.text)
+
+        r = await a.get("/api/search", params={"q": "CACHED", "source": "itunes"})
+        check("대소문자만 다른 검색어도 적중", len(calls) == 1, calls)
+
+        r = await a.get("/api/search", params={"q": "Cached", "source": "itunes", "limit": 5})
+        check("limit 이 다르면 새로 친다", len(calls) == 2, calls)
+
+        r = await a.get("/api/search", params={"q": "x" * 201})
+        check("201자 검색어 422", r.status_code == 422, r.status_code)
+
+        async with Session() as s:
+            row = (
+                await s.execute(
+                    sql_text(
+                        "SELECT genre, disc_number, track_number, release_date, "
+                        "artist_source_id FROM tracks WHERE source_id = '90001'"
+                    )
+                )
+            ).one()
+        check(
+            "새 컬럼이 채워짐",
+            row == ("K-Pop", 1, 4, date(2024, 5, 24), "777"),
+            row,
+        )
+
+        cached_calls = len(calls)
+        await a.get("/api/search", params={"q": "Cached", "source": "all"})
+        check("source=all 이어도 iTunes 몫은 재사용", len(calls) == cached_calls, calls)
+    finally:
+        itunes.set_client(None)
+        youtube.set_client(None)
 
 
 if __name__ == "__main__":
