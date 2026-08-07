@@ -193,13 +193,13 @@ const openLibraryWithoutStoppingPlayback = async (event, pushHistory = true) => 
 
 const render = (playlist) => {
   tracks = playlist.tracks.slice(0, 15);
-  document.title = `${playlist.title} | Flowbee`;
+  document.title = `${playlist.title} | 플로비`;
   const cover = document.getElementById('playlist-cover');
   if (playlist.coverUrl) cover.src = playlist.coverUrl;
   cover.alt = `${playlist.title} 커버`;
   document.getElementById('playlist-title').textContent = playlist.title;
   document.getElementById('playlist-description').textContent = playlist.description;
-  document.getElementById('playlist-summary').textContent = `Flowbee Curated · ${tracks.length}곡 · ${Math.floor(totalDuration(tracks) / 60000)}분`;
+  document.getElementById('playlist-summary').textContent = `플로비 Curated · ${tracks.length}곡 · ${Math.floor(totalDuration(tracks) / 60000)}분`;
   document.getElementById('playlist-count').textContent = `${tracks.length}곡`;
   document.getElementById('playlist-code').textContent = String(window.FlowbeePlaylists.definitions.findIndex((item) => item.slug === playlist.slug) + 1).padStart(2, '0');
   document.getElementById('playlist-tags').replaceChildren(...playlist.tags.map((tag) => Object.assign(document.createElement('span'), { textContent: tag })));

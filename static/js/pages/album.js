@@ -239,7 +239,7 @@ const createTrackRow = (track, index) => {
 
 const renderAlbum = (album) => {
   tracks = album.tracks || [];
-  document.title = `${album.name} | Flowbee`;
+  document.title = `${album.name} | 플로비`;
   const cover = document.getElementById('album-cover');
   if (album.thumbnailUrl) {
     cover.crossOrigin = 'anonymous';
@@ -250,7 +250,7 @@ const renderAlbum = (album) => {
   document.getElementById('album-title').textContent = album.name;
   document.getElementById('album-artist').textContent = album.artist;
   document.getElementById('album-type').textContent = `${album.source.toUpperCase()} ALBUM${album.releaseDate ? ` · ${album.releaseDate.slice(0, 4)}` : ''}`;
-  document.getElementById('album-description').textContent = `${album.artist}의 앨범 수록곡을 Flowbee에서 들어보세요.`;
+  document.getElementById('album-description').textContent = `${album.artist}의 앨범 수록곡을 플로비에서 들어보세요.`;
   document.getElementById('album-summary').textContent = [album.releaseDate, `${tracks.length || album.totalTracks || 0}곡`, formatTotalDuration(tracks)].filter(Boolean).join(' · ');
   document.getElementById('album-number').textContent = String(album.id).padStart(2, '0').slice(-2);
   document.getElementById('track-count').textContent = `${tracks.length || album.totalTracks || 0}곡`;

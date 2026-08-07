@@ -50,7 +50,7 @@ const createPlaylistCard = (playlist) => {
     title.textContent = playlist.title;
     const subtitle = document.createElement('div');
     subtitle.className = 'track-sub';
-    subtitle.textContent = `Flowbee 추천 · ${playlist.tracks.length}곡`;
+    subtitle.textContent = `플로비 추천 · ${playlist.tracks.length}곡`;
     card.append(cover, title, subtitle);
     return card;
 };
@@ -104,7 +104,7 @@ const updateSliderControls = (section, grid = section.querySelector('[data-album
 
 const loadRecommendedPlaylists = async () => {
     if (!playlistGrid || !window.FlowbeePlaylists) return;
-    showGridMessage(playlistGrid, 'Flowbee 추천 플레이리스트를 만드는 중입니다.');
+    showGridMessage(playlistGrid, '플로비 추천 플레이리스트를 만드는 중입니다.');
     const results = await Promise.allSettled(
         window.FlowbeePlaylists.definitions.map(window.FlowbeePlaylists.load),
     );
@@ -121,7 +121,7 @@ const loadRecommendedPlaylists = async () => {
 
 const loadFixedPlaylists = async () => {
     if (!playlistFixedGrid || !window.FlowbeePlaylists) return;
-    showGridMessage(playlistFixedGrid, 'Flowbee 추천 플레이리스트를 만드는 중입니다.');
+    showGridMessage(playlistFixedGrid, '플로비 추천 플레이리스트를 만드는 중입니다.');
     const playlists = await window.FlowbeePlaylists.loadFixed(10);
     if (!playlists.length) {
         showGridMessage(playlistFixedGrid, '추천 플레이리스트를 만들지 못했습니다.', true);

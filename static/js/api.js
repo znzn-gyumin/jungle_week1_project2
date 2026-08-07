@@ -118,7 +118,7 @@ function ensureSiteNowPlayingDrawer() {
         drawer = document.createElement('aside');
         drawer.className = 'now-playing-drawer is-collapsed';
         drawer.id = 'now-playing-drawer';
-        drawer.innerHTML = '<button class="drawer-toggle" id="drawer-toggle" type="button" aria-label="현재 재생 패널 열기">‹</button><div class="drawer-content"><p class="drawer-label">NOW PLAYING · 30초 미리듣기</p><div class="drawer-empty-cover" id="drawer-empty-cover" aria-hidden="true">♪</div><img class="drawer-cover" id="drawer-cover" alt="" hidden><h2 class="drawer-title" id="drawer-title">재생 중인 곡이 없습니다</h2><p class="drawer-artist" id="drawer-artist">곡을 선택해 주세요.</p><div class="drawer-preview">Flowbee는 iTunes에서 제공하는 30초 미리듣기를 재생합니다.</div><h3 class="drawer-queue-title">다음 재생 목록</h3><div class="drawer-queue" id="drawer-queue"></div></div>';
+        drawer.innerHTML = '<button class="drawer-toggle" id="drawer-toggle" type="button" aria-label="현재 재생 패널 열기">‹</button><div class="drawer-content"><p class="drawer-label">NOW PLAYING · 30초 미리듣기</p><div class="drawer-empty-cover" id="drawer-empty-cover" aria-hidden="true">♪</div><img class="drawer-cover" id="drawer-cover" alt="" hidden><h2 class="drawer-title" id="drawer-title">재생 중인 곡이 없습니다</h2><p class="drawer-artist" id="drawer-artist">곡을 선택해 주세요.</p><div class="drawer-preview">플로비는 iTunes에서 제공하는 30초 미리듣기를 재생합니다.</div><h3 class="drawer-queue-title">다음 재생 목록</h3><div class="drawer-queue" id="drawer-queue"></div></div>';
         document.body.insertBefore(drawer, document.querySelector('.player-bar'));
     }
     const toggle = drawer.querySelector('#drawer-toggle');

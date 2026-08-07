@@ -59,5 +59,5 @@ http.createServer((request, response) => {
   response.writeHead(404);
   response.end('Not found');
 }).listen(port, () => {
-  console.log(`Flowbee is running at http://localhost:${port}`);
+  console.log(`플로비 is running at http://localhost:${port}`);
 });
