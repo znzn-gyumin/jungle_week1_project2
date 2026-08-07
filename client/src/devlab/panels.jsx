@@ -272,6 +272,10 @@ export function AccountPanel({ me, run, onChanged }) {
               채운 필드만 보낸다. 셋 다 비우면 아무것도 안 바뀐다. 더미 계정을 고치면
               위 목록의 저장된 값도 함께 갱신된다.
             </p>
+            <p className="muted small">
+              <b>password 를 바꾸면 그 계정의 다른 세션은 즉시 끊긴다.</b> 지금 이 탭만 남는다.
+              다른 브라우저·시크릿 창으로 같은 계정에 로그인해 둔 게 있으면 그쪽은 401 이 된다.
+            </p>
             <form className="stack-form" onSubmit={submitPatch}>
               <Field label="nickname"><input {...patchField('nickname')} maxLength={30} /></Field>
               <Field label="email"><input {...patchField('email')} /></Field>
@@ -503,6 +507,7 @@ export function PlaylistPanel({
   const [create, setCreate] = useState({ name: '', description: '', isPublic: false })
   const [edit, setEdit] = useState({ name: '', description: '' })
   const [lookup, setLookup] = useState('')
+  const [limit, setLimit] = useState('')
 
   const move = async (index, delta) => {
     const ids = detail.items.map((i) => i.itemId)
@@ -549,6 +554,26 @@ export function PlaylistPanel({
           </label>
           <button className="btn-primary" type="submit">POST /api/playlists</button>
         </form>
+
+        <form
+          className="row-form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            run(() => api.playlists.list(limit || undefined)).catch(() => {})
+          }}
+        >
+          <input
+            value={limit}
+            onChange={(e) => setLimit(e.target.value)}
+            placeholder="limit (비우면 50)"
+            type="number"
+          />
+          <button className="btn-ghost" type="submit">GET /api/playlists?limit=</button>
+        </form>
+        <p className="muted small">
+          1 미만이거나 200 초과면 422 다. 응답의 <code>limit</code> 이 실제로 적용된 값이라,
+          목록이 잘렸는지는 이 값과 개수를 비교해서 판단한다.
+        </p>
 
         <div className="row-form">
           <button className="btn-ghost" onClick={onLoadPublic}>GET /api/playlists/public</button>
@@ -730,6 +755,7 @@ export function PlaylistPanel({
 
 export function LikePanel({ likes, run, onChanged, onOpen }) {
   const [albumId, setAlbumId] = useState('')
+  const [limit, setLimit] = useState('')
   const empty = likes.albums.length === 0 && likes.playlists.length === 0
 
   return (
@@ -769,6 +795,27 @@ export function LikePanel({ likes, run, onChanged, onOpen }) {
         <p className="muted small">
           같은 id 로 PUT 을 두 번 보내면 두 번째는 <code className="mono">created: false</code> 다.
           중복 체크를 앱이 아니라 UNIQUE 제약에 맡긴 결과라 에러가 아니다.
+        </p>
+
+        <form
+          className="row-form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            run(() => api.likes.list(limit || undefined)).catch(() => {})
+          }}
+        >
+          <input
+            value={limit}
+            onChange={(e) => setLimit(e.target.value)}
+            placeholder="limit (비우면 50)"
+            type="number"
+          />
+          <button className="btn-ghost" type="submit">GET /api/likes?limit=</button>
+        </form>
+        <p className="muted small">
+          응답은 <code className="mono">albums</code> · <code className="mono">playlists</code> 두 벌이다.
+          예전에 있던 <code className="mono">likes</code> 배열은 같은 데이터를 한 번 더 실어 보내서 없앴다.
+          limit 은 두 벌을 합친 개수에 걸린다.
         </p>
 
         {empty && <p className="empty muted">아직 좋아요가 없다.</p>}
@@ -871,6 +918,18 @@ export function ErrorPanel({ me, playlists, run, onChanged }) {
       label: '순서 배열에 항목 누락',
       disabled: !mine,
       call: () => api.playlists.reorder(mine.id, []),
+    },
+    {
+      status: 429,
+      // 없는 계정을 쓴다. 제한은 (IP, 이메일) 단위라 쓰던 계정이 잠기지 않는다.
+      label: '없는 계정으로 로그인 11번 반복 (시도 제한)',
+      call: async () => {
+        const email = `nobody${Date.now()}@devlab.test`
+        for (let i = 0; i < 10; i += 1) {
+          await api.users.login({ email, password: 'wrongwrong' }).catch(() => {})
+        }
+        return api.users.login({ email, password: 'wrongwrong' })
+      },
     },
   ]
 

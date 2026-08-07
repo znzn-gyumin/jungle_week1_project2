@@ -33,6 +33,12 @@ const qs = (params) =>
     Object.entries(params).filter(([, v]) => v !== undefined && v !== null),
   ).toString()
 
+// 값이 있는 파라미터만 붙인다. limit 을 안 주면 서버 기본값이 그대로 쓰인다.
+const withQuery = (path, params) => {
+  const query = qs(params)
+  return query ? `${path}?${query}` : path
+}
+
 export const api = {
   health: {
     check: () => request('/api/health'),
@@ -49,7 +55,7 @@ export const api = {
   },
 
   playlists: {
-    list: () => request('/api/playlists'),
+    list: (limit) => request(withQuery('/api/playlists', { limit })),
     public: () => request('/api/playlists/public'),
     create: (body) => request('/api/playlists', json('POST', body)),
     detail: (id) => request(`/api/playlists/${id}`),
@@ -64,7 +70,7 @@ export const api = {
   },
 
   likes: {
-    list: () => request('/api/likes'),
+    list: (limit) => request(withQuery('/api/likes', { limit })),
     likeAlbum: (id) => request(`/api/likes/albums/${id}`, { method: 'PUT' }),
     unlikeAlbum: (id) => request(`/api/likes/albums/${id}`, { method: 'DELETE' }),
     likePlaylist: (id) => request(`/api/likes/playlists/${id}`, { method: 'PUT' }),

@@ -11,11 +11,11 @@ export const PUBLIC_SECTIONS = SECTIONS.filter((s) => !s.auth).map((s) => s.key)
 export const ENDPOINTS = {
   user: [
     ['POST', '/api/users/signup', '{nickname, email, password}', '가입 즉시 로그인. 쿠키 uid 발급'],
-    ['POST', '/api/users/login', '{email, password}', ''],
-    ['POST', '/api/users/logout', '', '세션 파기'],
+    ['POST', '/api/users/login', '{email, password}', '틀리면 401. 실패가 쌓이면 429 + Retry-After'],
+    ['POST', '/api/users/logout', '', '이 세션만 파기'],
     ['GET', '/api/users/me', '', '비로그인이면 401 이 아니라 {loggedIn:false}'],
-    ['PATCH', '/api/users/me', '{nickname?, email?, password?}', '보낸 필드만 바뀐다'],
-    ['DELETE', '/api/users/me', '', '플레이리스트·좋아요 CASCADE'],
+    ['PATCH', '/api/users/me', '{nickname?, email?, password?}', 'password 를 바꾸면 다른 기기 세션은 전부 끊긴다'],
+    ['DELETE', '/api/users/me', '', '플레이리스트·좋아요 CASCADE + 그 계정의 모든 세션 파기'],
   ],
   catalog: [
     ['GET', '/api/search?q=&type=track&source=all&limit=', '', 'iTunes + YouTube 검색 → tracks upsert'],
