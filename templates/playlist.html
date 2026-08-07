@@ -7,13 +7,41 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/common.css">
-  <link rel="stylesheet" href="/css/pages/playlist.css">
+  <link rel="stylesheet" href="/static/css/common.css">
+  <link rel="stylesheet" href="/static/css/playlist.css">
 </head>
 <body>
-  <header class="playlist-nav"><a class="playlist-brand" href="/"><span>FB</span>Flowbee</a><a class="back-link" href="/">라이브러리로 돌아가기</a></header>
+  <header class="playlist-nav">
+    <a class="playlist-brand" href="/"><span class="brand-mark">FB</span>Flowbee</a>
+    <a class="back-link" href="/">← 라이브러리로 돌아가기</a>
+  </header>
   <main>
-    <section class="playlist-hero"><div class="playlist-cover"><img src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=800&q=85" alt="playlist cover"><b>FLOW<br>PLAYLIST</b></div><div class="playlist-meta"><p>PUBLIC PLAYLIST</p><h1>Golden Afternoon</h1><h2>해가 가장 따뜻한 시간, 천천히 마음을 열어 주는 음악들.</h2><strong>Flowbee Curated · 18곡 · 약 57분</strong><div class="tags"><span>#sunlit</span><span>#easy-listening</span><span>#slow-flow</span></div></div><i>FLOW<br>02</i></section>
-    <section class="playlist-body"><div class="playlist-actions"><button class="play-control" id="playlist-play" aria-label="재생"></button><button class="action-icon add-button" aria-label="추가">+</button><button class="action-icon playlist-like" aria-label="좋아요"></button><button class="action-icon more-button" id="more-button" aria-label="더보기">...</button><div class="more-menu" id="more-menu"><button>플레이리스트 공유</button><button>플레이리스트 신고</button></div><span>18곡</span></div><div class="track-head"><span>#</span><span>제목</span><span>앨범</span><span>좋아요</span><span>길이</span></div><ol class="playlist-tracks"><li><span>1</span><img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=120&q=70" alt=""><div><b>Honey on Air</b><small>Flowbee Mix</small></div><em>Honey on Air</em><button class="track-heart">♡</button><time>3:12</time></li><li><span>2</span><img src="https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=120&q=70" alt=""><div><b>Walk With The Sun</b><small>Roa</small></div><em>Small Days</em><button class="track-heart">♡</button><time>3:31</time></li><li><span>3</span><img src="https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?auto=format&fit=crop&w=120&q=70" alt=""><div><b>Little Wings</b><small>June Park</small></div><em>In Between</em><button class="track-heart">♡</button><time>2:57</time></li><li><span>4</span><img src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=120&q=70" alt=""><div><b>Daydreaming</b><small>Haze Club</small></div><em>Golden Field</em><button class="track-heart">♡</button><time>3:42</time></li><li><span>5</span><img src="https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=120&q=70" alt=""><div><b>Slow Bloom</b><small>Sora Kim</small></div><em>Soft Landing</em><button class="track-heart">♡</button><time>3:06</time></li></ol></section>
-  </main><footer class="playlist-player"><div><b id="now-title">Honey on Air</b><small>Flowbee Mix</small></div><button class="play-control" id="player-toggle" aria-label="재생"></button><time>0:00 · 3:12</time></footer><script src="/js/pages/playlist.js"></script>
-</body></html>
+    <section class="playlist-hero">
+      <div class="playlist-cover"><img src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=800&q=85" alt="Golden Afternoon playlist cover"><span>FLOW<br>PLAYLIST</span></div>
+      <div class="playlist-meta"><p class="mono-label">PUBLIC PLAYLIST</p><h1>Golden Afternoon</h1><p class="playlist-description">해가 가장 따뜻한 시간, 천천히 마음을 열어 주는 음악들.</p><p class="creator"><i>●</i> Flowbee Curated <strong>· 18곡 · 약 57분</strong></p><div class="tag-list"><span>#sunlit</span><span>#easy-listening</span><span>#slow-flow</span></div></div>
+      <p class="hero-code">FLOW<br>02</p>
+    </section>
+    <section class="playlist-body">
+      <div class="playlist-actions">
+        <button class="round-play play-control" id="playlist-play" aria-label="플레이리스트 재생"></button>
+        <button class="action-icon add-button" aria-label="내 라이브러리에 추가">+</button>
+        <button class="action-icon playlist-like" aria-label="플레이리스트 좋아요"></button>
+        <button class="action-icon more-button" id="more-button" aria-label="더 보기">...</button>
+        <div class="more-menu" id="more-menu"><button>플레이리스트 공유</button><button>플레이리스트 신고</button></div>
+        <span>18곡</span>
+      </div>
+      <div class="track-head"><span>#</span><span>제목</span><span>앨범</span><span>좋아요</span><span>길이</span></div>
+      <ol class="playlist-tracks">
+        <li><span>1</span><img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=120&q=70" alt=""><div><b>Honey on Air</b><small>Flowbee Mix</small></div><em>Honey on Air</em><button class="track-heart">♡</button><time>3:12</time></li>
+        <li><span>2</span><img src="https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=120&q=70" alt=""><div><b>Walk With The Sun</b><small>Roa</small></div><em>Small Days</em><button class="track-heart">♡</button><time>3:31</time></li>
+        <li><span>3</span><img src="https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?auto=format&fit=crop&w=120&q=70" alt=""><div><b>Little Wings</b><small>June Park</small></div><em>In Between</em><button class="track-heart">♡</button><time>2:57</time></li>
+        <li><span>4</span><img src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=120&q=70" alt=""><div><b>Daydreaming</b><small>Haze Club</small></div><em>Golden Field</em><button class="track-heart">♡</button><time>3:42</time></li>
+        <li><span>5</span><img src="https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=120&q=70" alt=""><div><b>Slow Bloom</b><small>Sora Kim</small></div><em>Soft Landing</em><button class="track-heart">♡</button><time>3:06</time></li>
+        <li><span>6</span><img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=120&q=70" alt=""><div><b>Golden Hour</b><small>Flowbee Mix</small></div><em>Honey on Air</em><button class="track-heart">♡</button><time>2:48</time></li>
+      </ol>
+    </section>
+  </main>
+  <footer class="playlist-player"><div><b id="now-title">Honey on Air</b><span>Flowbee Mix</span></div><button class="play-control" id="player-toggle" aria-label="재생 또는 일시정지"></button><time>0:00 · 3:12</time></footer>
+  <script src="/static/js/playlist.js"></script>
+</body>
+</html>
