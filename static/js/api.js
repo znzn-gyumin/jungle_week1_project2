@@ -66,7 +66,7 @@ function renderChartRow(rank, track, genreLabel) {
     const thumb = escapeHtml(track.thumbnailUrl || '');
     const playUrl = escapeHtml(track.playUrl || '');
     const source = escapeHtml(track.source || '');
-    return `<div class="chart-row" data-id="${track.id}" data-title="${title}" data-artist="${artist}" data-thumb="${thumb}" data-play-url="${playUrl}" data-source="${source}">
+    return `<div class="chart-row" data-id="${escapeHtml(track.id)}" data-title="${title}" data-artist="${artist}" data-thumb="${thumb}" data-play-url="${playUrl}" data-source="${source}">
         <span class="chart-rank">${rank}</span>
         <img class="chart-thumb" src="${thumb}" alt="">
         <div class="chart-meta"><b>${title}</b><small>${artist}</small></div>
@@ -286,7 +286,8 @@ function updatePlayerProgress(current, duration) {
 }
 
 const NOW_PLAYING_KEY = 'flowbee_now_playing';
-const NOW_PLAYING_HANDOFF_MAX_AGE_MS = 8000;
+// 느린 네트워크/콜드 캐시에서는 다음 페이지가 뜨는 데만 8초를 넘길 수 있다.
+const NOW_PLAYING_HANDOFF_MAX_AGE_MS = 30000;
 
 function saveNowPlaying(track, currentTime, isPlaying) {
     try {
@@ -425,20 +426,11 @@ async function navigateWithoutStoppingPlayback(path, pushHistory = true) {
     }
     if (pushHistory) history.pushState({ flowbeePersistentPage: true }, '', path);
 
-    if (path === '/') {
-        await loadPageScript('/js/recommended-playlists.js');
-        await loadPageScript('/js/fixed-catalog.js');
-        await loadPageScript('/js/pages/main.js');
-    } else {
-        await loadPageScript('/js/pages/main.js');
-        if (path === '/latest-music' || path === '/latest-albums' || path === '/chart') {
-            await loadPageScript('/js/fixed-catalog.js');
-        }
-        if (dynamicPageScripts.has(path)) {
-            const pageName = path.slice(1);
-            await loadPageScript(`/js/pages/${pageName}.js`);
-        }
-    }
+    // 어느 화면에서 넘어오든 main.js/페이지 스크립트가 쓰는 전역이 먼저 준비돼 있어야 한다.
+    if (!window.FlowbeePlaylists) await loadPageScript('/js/recommended-playlists.js');
+    if (!window.FlowbeeFixedCatalog) await loadPageScript('/js/fixed-catalog.js');
+    await loadPageScript('/js/pages/main.js');
+    if (dynamicPageScripts.has(path)) await loadPageScript(`/js/pages/${path.slice(1)}.js`);
 }
 
 function initializePersistentNavigation() {
