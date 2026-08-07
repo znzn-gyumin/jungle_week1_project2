@@ -71,7 +71,6 @@ function renderChartRow(rank, track, genreLabel) {
         <img class="chart-thumb" src="${thumb}" alt="">
         <div class="chart-meta"><b>${title}</b><small>${artist}</small></div>
         <span class="chart-album">${escapeHtml(albumText)}</span>
-        <button class="chart-like" aria-label="곡은 좋아요를 누를 수 없습니다" disabled>♡</button>
         <button class="chart-play" type="button" aria-label="재생">▷</button>
         <button class="chart-add" type="button" aria-label="플레이리스트에 담기">+</button>
     </div>`;
@@ -200,6 +199,46 @@ function updatePlayerProgress(current, duration) {
     if (timeEls[1]) timeEls[1].textContent = formatTime(duration);
 }
 
+const NOW_PLAYING_KEY = 'flowbee_now_playing';
+const NOW_PLAYING_HANDOFF_MAX_AGE_MS = 8000;
+
+function saveNowPlaying(track, currentTime, isPlaying) {
+    try {
+        localStorage.setItem(NOW_PLAYING_KEY, JSON.stringify({
+            title: track.title,
+            artist: track.artist,
+            thumbnailUrl: track.thumbnailUrl,
+            playUrl: track.playUrl,
+            source: track.source,
+            currentTime: currentTime || 0,
+            isPlaying: !!isPlaying,
+            ts: Date.now(),
+        }));
+    } catch {
+        // localStorage 를 못 쓰면 이어재생은 그냥 포기한다
+    }
+}
+
+function clearNowPlaying() {
+    try {
+        localStorage.removeItem(NOW_PLAYING_KEY);
+    } catch {
+        // no-op
+    }
+}
+
+function loadNowPlayingHandoff() {
+    try {
+        const raw = localStorage.getItem(NOW_PLAYING_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (Date.now() - data.ts > NOW_PLAYING_HANDOFF_MAX_AGE_MS) return null;
+        return data;
+    } catch {
+        return null;
+    }
+}
+
 function initSitePlayer() {
     const audio = getSiteAudio();
     if (sitePlayerUI) return audio;
@@ -224,12 +263,25 @@ function initSitePlayer() {
             else audio.pause();
         });
     }
-    audio.addEventListener('play', () => { if (activePlayMode === 'audio') setIcon(true); });
-    audio.addEventListener('pause', () => { if (activePlayMode === 'audio') setIcon(false); });
-    audio.addEventListener('ended', () => { if (activePlayMode === 'audio') setIcon(false); });
+    audio.addEventListener('play', () => {
+        if (activePlayMode !== 'audio') return;
+        setIcon(true);
+        if (currentTrack) saveNowPlaying(currentTrack, audio.currentTime, true);
+    });
+    audio.addEventListener('pause', () => {
+        if (activePlayMode !== 'audio') return;
+        setIcon(false);
+        if (currentTrack) saveNowPlaying(currentTrack, audio.currentTime, false);
+    });
+    audio.addEventListener('ended', () => {
+        if (activePlayMode !== 'audio') return;
+        setIcon(false);
+        clearNowPlaying();
+    });
     audio.addEventListener('timeupdate', () => {
         if (activePlayMode !== 'audio' || !Number.isFinite(audio.duration) || !audio.duration) return;
         updatePlayerProgress(audio.currentTime, audio.duration);
+        if (currentTrack && !audio.paused) saveNowPlaying(currentTrack, audio.currentTime, true);
     });
 
     const volumeSlider = document.querySelector('.player-volume .volume-slider');
@@ -243,11 +295,15 @@ function initSitePlayer() {
             volumeSlider.style.setProperty('--progress', `${value * 100}%`);
         });
     }
+    resumeHandoffPlayback();
     return audio;
 }
 
-async function playSiteTrack(track) {
+let currentTrack = null;
+
+async function playSiteTrack(track, startAt = 0) {
     if (!track) return;
+    currentTrack = track;
     const nameEl = document.querySelector('.player-now-playing .track-name');
     const subEl = document.querySelector('.player-now-playing .track-sub');
     const thumbEl = document.querySelector('.player-now-playing .track-thumb');
@@ -273,7 +329,7 @@ async function playSiteTrack(track) {
         const player = await getYtPlayer();
         const volumeSlider = document.querySelector('.player-volume .volume-slider');
         if (volumeSlider) player.setVolume(Number(volumeSlider.value) * 100);
-        player.loadVideoById(videoId);
+        player.loadVideoById(videoId, startAt || 0);
         player.playVideo();
         return;
     }
@@ -282,7 +338,22 @@ async function playSiteTrack(track) {
     stopYtProgressPolling();
     activePlayMode = 'audio';
     audio.src = track.playUrl;
+    if (startAt) {
+        audio.addEventListener('loadedmetadata', () => { audio.currentTime = startAt; }, { once: true });
+    }
     audio.play().catch(() => {});
+}
+
+function resumeHandoffPlayback() {
+    const handoff = loadNowPlayingHandoff();
+    if (!handoff || !handoff.isPlaying) return;
+    playSiteTrack({
+        title: handoff.title,
+        artist: handoff.artist,
+        thumbnailUrl: handoff.thumbnailUrl,
+        playUrl: handoff.playUrl,
+        source: handoff.source,
+    }, handoff.currentTime);
 }
 
 let currentUserPromise = null;
@@ -420,7 +491,7 @@ document.addEventListener('click', (event) => {
     }
 
     const row = event.target.closest('.chart-row[data-title]');
-    if (!row || event.target.closest('.chart-like, .chart-add')) return;
+    if (!row || event.target.closest('.chart-add')) return;
     playSiteTrack({
         title: row.dataset.title,
         artist: row.dataset.artist,

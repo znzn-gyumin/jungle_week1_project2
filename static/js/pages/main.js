@@ -270,14 +270,28 @@ const initializeSearch = () => {
     if (clearBtn) clearBtn.addEventListener('click', clearSearch);
 };
 
-const createMyPlaylistCard = (playlist) => {
+const getPlaylistCover = (playlistId) => fetch(`/api/playlists/${playlistId}`)
+    .then((r) => r.json())
+    .then((data) => {
+        const first = (data.items || [])[0];
+        return first ? first.track.thumbnailUrl : null;
+    })
+    .catch(() => null);
+
+const createMyPlaylistCard = (playlist, coverUrl) => {
     const card = document.createElement('a');
     card.className = 'track-card';
-    card.href = '/playlist';
+    card.href = `/my-playlist/${playlist.id}`;
 
     const thumb = document.createElement('div');
     thumb.className = 'track-thumb';
-    thumb.style.background = 'linear-gradient(150deg,#8A6A3F,#4A3218)';
+    if (coverUrl) {
+        thumb.style.backgroundImage = `url("${coverUrl.replaceAll('"', '%22')}")`;
+        thumb.style.backgroundSize = 'cover';
+        thumb.style.backgroundPosition = 'center';
+    } else {
+        thumb.style.background = 'linear-gradient(150deg,#8A6A3F,#4A3218)';
+    }
 
     const name = document.createElement('div');
     name.className = 'track-name';
@@ -308,7 +322,8 @@ const loadMyPlaylists = async () => {
             showGridMessage(grid, '아직 만든 플레이리스트가 없어요. 곡의 + 버튼으로 담아보세요.');
             return;
         }
-        grid.replaceChildren(...playlists.map(createMyPlaylistCard));
+        const covers = await Promise.all(playlists.map((p) => getPlaylistCover(p.id)));
+        grid.replaceChildren(...playlists.map((p, i) => createMyPlaylistCard(p, covers[i])));
         updateMoreButton(grid.closest('.section'));
     } catch (error) {
         showGridMessage(grid, error.message, true);
@@ -349,34 +364,15 @@ const sidebarDeleteBtn = (label, onDelete) => {
     return btn;
 };
 
-const createSidebarTrackRow = (item, playlistId, onRemoved) => {
-    const row = document.createElement('div');
-    row.className = 'sidebar-track-row';
-    const label = document.createElement('span');
-    label.className = 'sidebar-track-title';
-    label.textContent = `${item.track.title} · ${item.track.artist}`;
-    const del = sidebarDeleteBtn('곡 삭제', async () => {
-        try {
-            const res = await fetch(`/api/playlists/${playlistId}/tracks/${item.itemId}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error();
-            onRemoved();
-        } catch {
-            alert('곡을 삭제하지 못했어요.');
-        }
-    });
-    row.append(label, del);
-    return row;
-};
-
-const createSidebarPlaylistItem = (playlist, onChanged) => {
+const createSidebarPlaylistItem = (playlist, coverUrl, onChanged) => {
     const wrap = document.createElement('div');
     wrap.className = 'sidebar-playlist-row';
 
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'sidebar-playlist-item sidebar-playlist-toggle';
-    toggle.append(
-        sidebarThumb(null, 'linear-gradient(150deg,#8A6A3F,#4A3218)'),
+    const link = document.createElement('a');
+    link.href = `/my-playlist/${playlist.id}`;
+    link.className = 'sidebar-playlist-item';
+    link.append(
+        sidebarThumb(coverUrl, 'linear-gradient(150deg,#8A6A3F,#4A3218)'),
         document.createTextNode(`${playlist.name} · ${playlist.totalTracks}곡`),
     );
 
@@ -391,32 +387,7 @@ const createSidebarPlaylistItem = (playlist, onChanged) => {
         }
     });
 
-    const trackList = document.createElement('div');
-    trackList.className = 'sidebar-playlist-tracks';
-    trackList.hidden = true;
-
-    toggle.addEventListener('click', async () => {
-        const expanding = trackList.hidden;
-        trackList.hidden = !expanding;
-        if (expanding && !trackList.dataset.loaded) {
-            trackList.textContent = '불러오는 중...';
-            try {
-                const res = await fetch(`/api/playlists/${playlist.id}`);
-                const data = await res.json().catch(() => ({}));
-                const items = data.items || [];
-                trackList.dataset.loaded = '1';
-                if (!items.length) {
-                    trackList.replaceChildren(sidebarEmptyNote('담긴 곡이 없어요.'));
-                } else {
-                    trackList.replaceChildren(...items.map((item) => createSidebarTrackRow(item, playlist.id, onChanged)));
-                }
-            } catch {
-                trackList.textContent = '불러오지 못했어요.';
-            }
-        }
-    });
-
-    wrap.append(toggle, del, trackList);
+    wrap.append(link, del);
     return wrap;
 };
 
@@ -436,12 +407,34 @@ const createSidebarAlbumItem = (like) => {
     return wrap;
 };
 
+const RECOMMENDED_LIKES_KEY = 'flowbee_liked_recommended_playlists';
+const getLikedRecommendedPlaylists = () => {
+    try { return JSON.parse(localStorage.getItem(RECOMMENDED_LIKES_KEY) || '{}'); } catch { return {}; }
+};
+
+const createSidebarRecommendedPlaylistItem = (slug, info) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'sidebar-playlist-row';
+    const link = document.createElement('a');
+    link.href = `/playlist/${slug}`;
+    link.className = 'sidebar-playlist-item';
+    link.append(sidebarThumb(info.coverUrl, 'linear-gradient(140deg,#F4B942,#C88A2E)'), document.createTextNode(info.title));
+    const del = sidebarDeleteBtn('좋아요 취소', () => {
+        const likes = getLikedRecommendedPlaylists();
+        delete likes[slug];
+        try { localStorage.setItem(RECOMMENDED_LIKES_KEY, JSON.stringify(likes)); } catch { /* no-op */ }
+        loadSidebarData();
+    });
+    wrap.append(link, del);
+    return wrap;
+};
+
 const createSidebarLikedPlaylistItem = (like) => {
     const playlist = like.playlist;
     const wrap = document.createElement('div');
     wrap.className = 'sidebar-playlist-row';
     const link = document.createElement('a');
-    link.href = '/playlist';
+    link.href = `/my-playlist/${playlist.id}`;
     link.className = 'sidebar-playlist-item';
     link.append(sidebarThumb(null, 'linear-gradient(140deg,#F4B942,#C88A2E)'), document.createTextNode(playlist.name));
     const del = sidebarDeleteBtn('좋아요 취소', async () => {
@@ -466,15 +459,21 @@ const loadSidebarData = async () => {
             fetch('/api/likes').then((r) => r.json()),
         ]);
         const playlists = playlistsData.playlists || [];
+        const covers = await Promise.all(playlists.map((p) => getPlaylistCover(p.id)));
         myGrid.replaceChildren(...(playlists.length
-            ? playlists.map((playlist) => createSidebarPlaylistItem(playlist, () => { loadSidebarData(); loadMyPlaylists(); }))
+            ? playlists.map((playlist, i) => createSidebarPlaylistItem(playlist, covers[i], () => { loadSidebarData(); loadMyPlaylists(); }))
             : [sidebarEmptyNote('아직 만든 플레이리스트가 없어요.')]));
 
         const likedAlbums = likesData.albums || [];
         likedAlbumsGrid.replaceChildren(...(likedAlbums.length ? likedAlbums.map(createSidebarAlbumItem) : [sidebarEmptyNote('좋아요 누른 앨범이 없어요.')]));
 
         const likedPlaylists = likesData.playlists || [];
-        likedPlaylistsGrid.replaceChildren(...(likedPlaylists.length ? likedPlaylists.map(createSidebarLikedPlaylistItem) : [sidebarEmptyNote('좋아요 누른 플레이리스트가 없어요.')]));
+        const recommendedLikes = getLikedRecommendedPlaylists();
+        const likedPlaylistItems = [
+            ...likedPlaylists.map(createSidebarLikedPlaylistItem),
+            ...Object.entries(recommendedLikes).map(([slug, info]) => createSidebarRecommendedPlaylistItem(slug, info)),
+        ];
+        likedPlaylistsGrid.replaceChildren(...(likedPlaylistItems.length ? likedPlaylistItems : [sidebarEmptyNote('좋아요 누른 플레이리스트가 없어요.')]));
     } catch {
         // 실패하면 기본 목업을 그대로 둔다
     }

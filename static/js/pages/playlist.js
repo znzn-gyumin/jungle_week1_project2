@@ -92,11 +92,33 @@ const render = (playlist) => {
   content.hidden = false;
   playlistBody.hidden = false;
   playerBar.hidden = false;
+  document.querySelector('.playlist-like').classList.toggle('liked', Boolean(getLikedRecommended()[playlist.slug]));
+};
+
+const RECOMMENDED_LIKES_KEY = 'flowbee_liked_recommended_playlists';
+const getLikedRecommended = () => {
+  try { return JSON.parse(localStorage.getItem(RECOMMENDED_LIKES_KEY) || '{}'); } catch { return {}; }
+};
+const setLikedRecommended = (likes) => {
+  try { localStorage.setItem(RECOMMENDED_LIKES_KEY, JSON.stringify(likes)); } catch { /* no-op */ }
 };
 
 playbackButtons.forEach((button) => button.addEventListener('click', togglePlayback));
 document.querySelector('.add-button').addEventListener('click', (event) => event.currentTarget.classList.toggle('added'));
-document.querySelector('.playlist-like').addEventListener('click', (event) => event.currentTarget.classList.toggle('liked'));
+document.querySelector('.playlist-like').addEventListener('click', (event) => {
+  const button = event.currentTarget;
+  const liked = button.classList.toggle('liked');
+  const likes = getLikedRecommended();
+  if (liked) {
+    likes[definition.slug] = {
+      title: document.getElementById('playlist-title').textContent,
+      coverUrl: document.getElementById('playlist-cover').src,
+    };
+  } else {
+    delete likes[definition.slug];
+  }
+  setLikedRecommended(likes);
+});
 document.getElementById('player-prev').addEventListener('click', () => tracks.length && selectTrack(currentIndex > 0 ? currentIndex - 1 : tracks.length - 1));
 document.getElementById('player-next').addEventListener('click', () => tracks.length && selectTrack(currentIndex + 1 < tracks.length ? currentIndex + 1 : 0));
 audio.addEventListener('play', () => setPlaying(true));

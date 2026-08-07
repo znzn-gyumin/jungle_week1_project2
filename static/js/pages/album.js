@@ -80,6 +80,9 @@ const openLibraryWithoutStoppingPlayback = async (event) => {
   event.preventDefault();
   const link = event.currentTarget;
   link.classList.add('is-loading');
+  // 이 앨범의 <audio> 를 그대로 살려서 옮기므로, 새 페이지가 handoff 로 또 한 번
+  // 재생을 시작하면 소리가 겹친다. 여기서 지워서 이중 재생을 막는다.
+  if (window.clearNowPlaying) window.clearNowPlaying();
   try {
     const response = await fetch('/');
     if (!response.ok) throw new Error('라이브러리를 불러오지 못했습니다.');
@@ -219,11 +222,34 @@ document.querySelector('.album-like').addEventListener('click', async (event) =>
     alert('좋아요 처리에 실패했어요.');
   }
 });
-audio.addEventListener('play', () => setPlaying(true));
-audio.addEventListener('pause', () => setPlaying(false));
+const nowPlayingSnapshot = () => ({
+  title: document.getElementById('now-title').textContent,
+  artist: document.getElementById('now-artist').textContent,
+  thumbnailUrl: document.getElementById('player-cover').src,
+  playUrl: audio.src,
+  source: 'itunes',
+});
+
+audio.addEventListener('play', () => {
+  setPlaying(true);
+  if (window.saveNowPlaying) window.saveNowPlaying(nowPlayingSnapshot(), audio.currentTime, true);
+});
+audio.addEventListener('pause', () => {
+  setPlaying(false);
+  if (window.saveNowPlaying) window.saveNowPlaying(nowPlayingSnapshot(), audio.currentTime, false);
+});
 audio.addEventListener('timeupdate', updatePlayerTime);
+audio.addEventListener('timeupdate', () => {
+  if (window.saveNowPlaying && !audio.paused) window.saveNowPlaying(nowPlayingSnapshot(), audio.currentTime, true);
+});
 audio.addEventListener('loadedmetadata', updatePlayerTime);
-audio.addEventListener('ended', () => currentIndex + 1 < tracks.length ? selectTrack(currentIndex + 1) : setPlaying(false));
+audio.addEventListener('ended', () => {
+  if (currentIndex + 1 < tracks.length) selectTrack(currentIndex + 1);
+  else {
+    setPlaying(false);
+    if (window.clearNowPlaying) window.clearNowPlaying();
+  }
+});
 audio.addEventListener('timeupdate', () => {
   const limit = Number.isFinite(audio.duration) ? Math.min(audio.duration, previewLimit) : previewLimit;
   if (audio.currentTime >= limit) {
@@ -249,6 +275,19 @@ volume.addEventListener('input', () => {
 audio.volume = Number(volume.value);
 document.querySelectorAll('.back-link, .album-brand').forEach((link) => link.addEventListener('click', openLibraryWithoutStoppingPlayback));
 window.addEventListener('popstate', () => location.reload(), { once: true });
+
+if (window.loadNowPlayingHandoff) {
+  const handoff = window.loadNowPlayingHandoff();
+  if (handoff && handoff.isPlaying && handoff.playUrl && handoff.source !== 'youtube') {
+    document.getElementById('now-title').textContent = handoff.title;
+    document.getElementById('now-artist').textContent = handoff.artist;
+    if (handoff.thumbnailUrl) document.getElementById('player-cover').src = handoff.thumbnailUrl;
+    playerBar.hidden = false;
+    audio.src = handoff.playUrl;
+    audio.addEventListener('loadedmetadata', () => { audio.currentTime = handoff.currentTime || 0; }, { once: true });
+    audio.play().catch(() => setPlaying(false));
+  }
+}
 
 const albumId = albumIdFromLocation();
 if (!/^\d+$/.test(albumId || '')) showError('앨범 ID가 필요합니다. /album/앨범ID 주소로 접속해 주세요.');

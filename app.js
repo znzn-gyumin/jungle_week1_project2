@@ -76,6 +76,11 @@ app.get(['/genre', '/genre.html'], (req, res) => {
   res.sendFile(path.join(__dirname, 'templates', 'genre.html'));
 });
 
+// 내 플레이리스트 상세 페이지 (templates/my-playlist.html 파일 전달)
+app.get(['/my-playlist/:playlistId'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'my-playlist.html'));
+});
+
 // 플레이리스트 목록 페이지 (templates/playlists.html 파일 전달)
 app.get(['/playlists', '/playlists.html'], (req, res) => {
   res.sendFile(path.join(__dirname, 'templates', 'playlists.html'));
