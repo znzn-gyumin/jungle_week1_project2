@@ -212,7 +212,7 @@ const initializeSearch = () => {
     });
 };
 
-const createPlaylistCard = (playlist) => {
+const createMyPlaylistCard = (playlist) => {
     const card = document.createElement('a');
     card.className = 'track-card';
     card.href = '/playlist';
@@ -250,7 +250,7 @@ const loadMyPlaylists = async () => {
             showGridMessage(grid, '아직 만든 플레이리스트가 없어요. 곡의 + 버튼으로 담아보세요.');
             return;
         }
-        grid.replaceChildren(...playlists.map(createPlaylistCard));
+        grid.replaceChildren(...playlists.map(createMyPlaylistCard));
         updateMoreButton(grid.closest('.section'));
     } catch (error) {
         showGridMessage(grid, error.message, true);
