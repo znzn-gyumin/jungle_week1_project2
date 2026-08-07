@@ -50,6 +50,7 @@
     transition:transform .35s ease, z-index 0.3s;
 }
 .tape-card:hover{ transform:scale(1.08) rotate(0deg) !important; z-index:20 !important; }
+.tape-card{cursor:pointer;}
 .tape-card:nth-child(1){ transform:rotate(5deg); z-index: 1; }
 .tape-card:nth-child(2){ transform:rotate(-6deg) translateY(24px); z-index: 2; }
 .tape-card:nth-child(3){ transform:rotate(-4deg) translateY(-6px); z-index: 3; }

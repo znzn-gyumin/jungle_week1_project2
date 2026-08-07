@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     # 넓히면 클라이언트가 IP 를 위조해 로그인 시도 제한을 우회할 수 있다.
     trusted_proxies: str = "127.0.0.1"
 
+    ssl_trust_system: bool = False
+
     client_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
     server_host: str = "127.0.0.1"
     server_port: int = 8000

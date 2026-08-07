@@ -156,6 +156,7 @@ Compose 경로와 동일하다.
 |---|---|---|
 | `YOUTUBE_API_KEY` | (없음) | 비우면 YouTube 검색을 건너뛰고 iTunes 만 쓴다 |
 | `ITUNES_COUNTRY` | `KR` | iTunes 는 국가별로 카탈로그가 다르다 |
+| `SSL_TRUST_SYSTEM` | `false` | 외부 API 호출의 TLS 검증에 OS 인증서 저장소를 함께 쓴다 |
 | `CLIENT_ORIGINS` | `127.0.0.1:5173,localhost:5173` | CORS 허용 오리진. 쉼표로 여러 개 |
 | `SERVER_HOST` / `SERVER_PORT` / `SERVER_RELOAD` | `127.0.0.1` / `8000` / `false` | `python -m backend` 가 읽는다 |
 | `COOKIE_SECURE` | `false` | HTTPS 배포에서 `true`. 세션 쿠키에 `Secure` 가 붙는다 |
@@ -675,11 +676,38 @@ macOS/Linux 는 `.venv-test/bin/python`. 모든 단언이 통과하면 종료 �
 호출이 조용히 실패한다. `settings.youtube_key` 처럼 `.get_secret_value()` 를
 거친 값을 쓸 것.
 
+**백신의 HTTPS 검사가 `/api/search` 를 죽인다**
+Avast·AVG 같은 백신의 "웹 실드"는 TLS 를 중간에서 풀어 자기 루트 CA 로 다시
+서명한다. 그 인증서가 `certifi` 번들에 없기도 하고, OS 저장소에 있어도 Basic
+Constraints 를 critical 로 표시하지 않아 **Python 3.13 부터 기본으로 켜지는**
+`VERIFY_X509_STRICT` 에 걸린다. 증상은 iTunes·YouTube 양쪽 모두
+`CERTIFICATE_VERIFY_FAILED` 라서 `/api/search` 가 502 다. DB 는 멀쩡하다.
+
+`.env` 에 `SSL_TRUST_SYSTEM=true` 를 주면 `main.py` 의 `_ssl_context()` 가
+certifi + OS 저장소를 함께 싣고 엄격 검증만 끈다. **검증 자체는 그대로다.**
+근본 해결은 백신의 HTTPS 검사를 끄는 것이므로, 이 값은 개발 머신에서만 켠다.
+
 **`docker-compose.yml` 은 루트에 있어야 한다**
 Compose 는 compose 파일이 있는 디렉터리의 `.env` 를 읽는다. `backend/` 에 두면
 루트 `.env` 의 `POSTGRES_PORT` 등이 무시된다. 또 Compose 프로젝트 이름이
 디렉터리명에서 오므로 위치를 옮기면 **볼륨 이름도 바뀌어 기존 데이터가 딸린
 다른 볼륨에 남는다.**
+
+**Windows 에서 `uvicorn --reload` 는 개발 스택 전체를 죽인다**
+uvicorn 의 리로더는 재시작할 때 **콘솔 프로세스 그룹 전체**에 CTRL_C 를 보낸다.
+`concurrently` 로 같은 콘솔에 뜬 `pages` · `devlab` 이 그걸 같이 받고,
+`npm:` 접두사로 부르면 cmd 배치 래퍼가 `일괄 작업을 끝내시겠습니까 (Y/N)?` 를
+띄운 채 셋 다 죽는다. 백엔드 파일 한 줄만 고쳐도 프론트까지 내려가는 증상이다.
+
+그래서 `scripts/run-api.mjs` 는 `--reload` 를 빼고 **nodemon 이 `backend/` 와
+`.env` 를 지켜보다 프로세스를 죽였다 살리는** 방식으로 돌린다. 리로드 동작은
+같고 CTRL_C 가 생기지 않는다. `dev` 스크립트가 `npm:dev:*` 대신 `node ...` 를
+직접 부르는 것도 배치 래퍼를 없애려는 것이다.
+
+죽다 만 uvicorn 이 남아 8000 을 물고 있으면 새 프로세스가 `[Errno 10048]` 로
+바인드에 실패한다. `Get-NetTCPConnection -LocalPort 8000` 의 소유자를 죽인다.
+이때 잔재는 `python.exe -c "from multiprocessing..."` 이라 **명령줄에 저장소
+경로가 없어** 경로로 걸러내면 안 잡힌다.
 
 **기동 로그는 `uvicorn.error` 로거로 찍는다**
 `logging.getLogger("backend")` 처럼 새 로거를 만들면 uvicorn 이 핸들러를 붙이지

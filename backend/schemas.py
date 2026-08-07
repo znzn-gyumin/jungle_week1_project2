@@ -1,6 +1,6 @@
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from backend.models.enums import SourceType
@@ -35,6 +35,21 @@ class TrackOut(Schema):
     duration_ms: int | None = None
     thumbnail_url: str | None = None
     play_url: str | None = None
+
+
+class AlbumTrackOut(Schema):
+    id: int
+    source: SourceType
+    source_id: str
+    title: str
+    artist: str
+    duration_ms: int | None = None
+    thumbnail_url: str | None = None
+    play_url: str | None = None
+
+
+class AlbumDetailOut(AlbumOut):
+    tracks: list[AlbumTrackOut] = Field(default_factory=list)
 
 
 class SourceError(Schema):

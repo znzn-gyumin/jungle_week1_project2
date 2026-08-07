@@ -111,7 +111,13 @@ async def list_tracks(
 
 
 async def get_album(db: AsyncSession, album_id: int) -> Album | None:
-    return await db.get(Album, album_id)
+    stmt = (
+        select(Album)
+        .options(selectinload(Album.tracks))
+        .where(Album.id == album_id)
+        .execution_options(populate_existing=True)
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()
 
 
 async def list_albums(

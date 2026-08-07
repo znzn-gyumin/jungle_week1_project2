@@ -80,6 +80,9 @@ npm run db                                              # initdb + 기동 + flow
 npm run dev        # DB + API(8000) + 페이지(3001) + API Lab(5173)
 ```
 
+`predev` 의 로컬 DB 기동은 `.env` 의 `POSTGRES_HOST` 가 원격이면 건너뛴다.
+Windows 는 `bash` 가 필요한 `scripts/db.sh` 를 못 부르므로 역시 건너뛴다.
+
 <http://localhost:3001> 로 연다.
 
 `predev` 가 `npm run db` 를 먼저 부르지만, `POSTGRES_HOST` 가 원격이면

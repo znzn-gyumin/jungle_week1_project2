@@ -1,11 +1,14 @@
 window.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('signup-form');
     const error = document.getElementById('signup-error');
+    const submitBtn = form.querySelector('.login-submit');
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
         error.hidden = true;
 
+        const nickname = form.nickname.value.trim();
+        const email = form.email.value.trim();
         const password = form.password.value;
         const password2 = form.password2.value;
 
@@ -25,7 +28,21 @@ window.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // TODO: 실제 회원가입 API 연동 전까지는 임시로 로그인 화면으로 이동
-        window.location.href = '/login';
+        submitBtn.disabled = true;
+        try {
+            const res = await fetch('/api/users/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ nickname, email, password }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || '회원가입에 실패했어요.');
+            window.location.href = '/';
+        } catch (err) {
+            error.textContent = err.message;
+            error.hidden = false;
+            submitBtn.disabled = false;
+        }
     });
 });

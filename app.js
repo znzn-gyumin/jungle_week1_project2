@@ -63,13 +63,48 @@ app.get('/forgot-password', (req, res) => {
   res.sendFile(path.join(__dirname, 'templates', 'forgot-password.html'));
 });
 
+// 차트 페이지 (templates/chart.html 파일 전달)
+app.get(['/chart', '/chart.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'chart.html'));
+});
+
+// 최신음악 페이지 (templates/latest-music.html 파일 전달)
+app.get(['/latest-music', '/latest-music.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'latest-music.html'));
+});
+
+// 최신앨범 페이지 (templates/latest-albums.html 파일 전달)
+app.get(['/latest-albums', '/latest-albums.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'latest-albums.html'));
+});
+
+// 장르음악 페이지 (templates/genre.html 파일 전달)
+app.get(['/genre', '/genre.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'genre.html'));
+});
+
+// 내 플레이리스트 상세 페이지 (templates/my-playlist.html 파일 전달)
+app.get(['/my-playlist/:playlistId'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'my-playlist.html'));
+});
+
+// 플레이리스트 목록 페이지 (templates/playlists.html 파일 전달)
+app.get(['/playlists', '/playlists.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'playlists.html'));
+});
+
+// 이벤트 페이지 (templates/events.html 파일 전달)
+app.get(['/events', '/events.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates', 'events.html'));
+});
+
 // 앨범 페이지 (templates/album.html 파일 전달)
-app.get(['/album', '/album.html'], (req, res) => {
+app.get(['/album', '/album.html', '/album/:albumId'], (req, res) => {
   res.sendFile(path.join(__dirname, 'templates', 'album.html'));
 });
 
 // 플레이리스트 페이지 (templates/playlist.html 파일 전달)
-app.get(['/playlist', '/playlist.html'], (req, res) => {
+app.get(['/playlist', '/playlist.html', '/playlist/:playlistSlug'], (req, res) => {
   res.sendFile(path.join(__dirname, 'templates', 'playlist.html'));
 });
 
