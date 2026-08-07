@@ -3,6 +3,7 @@ const statusBox = document.getElementById('album-status');
 const content = document.getElementById('album-content');
 const body = document.getElementById('album-body');
 const playerBar = document.getElementById('album-player');
+const drawer = document.getElementById('now-playing-drawer');
 const audio = document.getElementById('audio-player');
 const albumButtons = [document.getElementById('album-play'), document.getElementById('player-toggle')];
 const seek = document.getElementById('player-seek');
@@ -83,6 +84,16 @@ const openLibraryWithoutStoppingPlayback = async (event) => {
   // 이 앨범의 <audio> 를 그대로 살려서 옮기므로, 새 페이지가 handoff 로 또 한 번
   // 재생을 시작하면 소리가 겹친다. 여기서 지워서 이중 재생을 막는다.
   if (window.clearNowPlaying) window.clearNowPlaying();
+const openLibraryWithoutStoppingPlayback = async (event, pushHistory = true) => {
+  event?.preventDefault();
+  drawer?.classList.add('is-collapsed');
+  const drawerToggle = document.getElementById('drawer-toggle');
+  if (drawerToggle) {
+    drawerToggle.textContent = '‹';
+    drawerToggle.setAttribute('aria-label', '현재 재생 패널 열기');
+  }
+  const link = event?.currentTarget;
+  link?.classList.add('is-loading');
   try {
     const response = await fetch('/');
     if (!response.ok) throw new Error('라이브러리를 불러오지 못했습니다.');
@@ -94,15 +105,15 @@ const openLibraryWithoutStoppingPlayback = async (event) => {
     ensureStylesheet('/css/pages/main-dynamic.css');
     document.body.prepend(shell);
     [...document.body.children].forEach((child) => {
-      if (child !== shell && child !== playerBar && child !== audio) child.remove();
+      if (child !== shell && child !== playerBar && child !== audio && child !== drawer) child.remove();
     });
     document.title = nextDocument.title;
-    history.pushState({ flowbeeLibrary: true }, '', '/');
+    if (pushHistory) history.pushState({ flowbeeLibrary: true }, '', '/');
     const script = document.createElement('script');
     script.src = `/js/pages/main.js?v=${Date.now()}`;
     document.body.append(script);
   } catch (error) {
-    link.classList.remove('is-loading');
+    link?.classList.remove('is-loading');
     statusBox.hidden = false;
     statusBox.textContent = error.message;
     statusBox.classList.add('is-error');
@@ -122,12 +133,30 @@ const updatePlayerTime = () => {
   document.getElementById('player-duration').textContent = formatDuration(duration * 1000);
 };
 
+const updateDrawer = (track, index) => {
+  document.getElementById('drawer-cover').src = track.thumbnailUrl || document.getElementById('album-cover').src;
+  document.getElementById('drawer-title').textContent = track.title;
+  document.getElementById('drawer-artist').textContent = track.artist;
+  const queue = tracks.slice(index + 1, index + 6).map((item, offset) => {
+    const row = document.createElement('div');
+    row.className = 'drawer-queue-item';
+    row.innerHTML = '<img alt=""><div><b></b><small></small></div>';
+    row.querySelector('img').src = item.thumbnailUrl || document.getElementById('album-cover').src;
+    row.querySelector('b').textContent = item.title;
+    row.querySelector('small').textContent = item.artist;
+    row.addEventListener('click', () => selectTrack(index + offset + 1));
+    return row;
+  });
+  document.getElementById('drawer-queue').replaceChildren(...queue);
+};
+
 const selectTrack = (index, autoplay = true) => {
   const track = tracks[index];
   if (!track) return;
   currentIndex = index;
   document.getElementById('now-title').textContent = track.title;
   document.getElementById('now-artist').textContent = track.artist;
+  updateDrawer(track, index);
   const playerCover = document.getElementById('player-cover');
   playerCover.src = track.thumbnailUrl || document.getElementById('album-cover').src;
   playerCover.alt = `${track.title} 표지`;

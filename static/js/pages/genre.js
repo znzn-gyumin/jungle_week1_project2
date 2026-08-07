@@ -1,4 +1,5 @@
-window.addEventListener('DOMContentLoaded', () => {
+(function () {
+const initializeGenrePage = () => {
     const list = document.getElementById('chart-list');
     const filter = document.querySelector('.genre-filter');
     if (!list || !filter) return;
@@ -61,4 +62,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     renderApiStatus(list, '불러오는 중...');
     loadAll().catch(() => renderApiStatus(list, '음악을 불러오는 데 실패했어요.'));
-});
+};
+if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', initializeGenrePage, { once: true });
+else initializeGenrePage();
+}());

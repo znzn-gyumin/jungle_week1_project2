@@ -16,7 +16,7 @@
 
   const cacheKey = (slug) => `flowbee:recommended:${slug}`;
   const sourceKey = (slug) => `flowbee:recommended:source:${slug}`;
-  const selectionKey = 'flowbee:recommended:selection';
+  const selectionKey = 'flowbee:recommended:selection:v2';
   const generationKey = 'flowbee:recommended:generation';
 
   const randomSelection = (excludedSlugs = []) => themePool
@@ -27,8 +27,8 @@
   try { savedSlugs = JSON.parse(sessionStorage.getItem(selectionKey) || 'null'); } catch { sessionStorage.removeItem(selectionKey); }
   let definitions = Array.isArray(savedSlugs)
     ? savedSlugs.map((slug) => themePool.find((item) => item.slug === slug)).filter(Boolean).slice(0, 6)
-    : randomSelection();
-  if (definitions.length !== 6) definitions = randomSelection();
+    : themePool.slice(0, 6);
+  if (definitions.length !== 6) definitions = themePool.slice(0, 6);
   sessionStorage.setItem(selectionKey, JSON.stringify(definitions.map((item) => item.slug)));
   if (!sessionStorage.getItem(generationKey)) sessionStorage.setItem(generationKey, String(Date.now()));
 

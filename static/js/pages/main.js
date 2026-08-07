@@ -1,3 +1,4 @@
+(function () {
 const albumGrids = [...document.querySelectorAll('[data-album-grid]')];
 const playlistGrid = document.querySelector('[data-playlist-grid]');
 const playlistFixedGrid = document.querySelector('[data-playlist-grid-fixed]');
@@ -142,6 +143,18 @@ const initializePlaylistReroll = () => {
     });
 };
 
+const initializeNowPlayingDrawer = () => {
+    const drawer = document.getElementById('now-playing-drawer');
+    const toggle = document.getElementById('drawer-toggle');
+    if (!drawer || !toggle || toggle.dataset.initialized === 'true') return;
+    toggle.dataset.initialized = 'true';
+    toggle.addEventListener('click', () => {
+        const collapsed = drawer.classList.toggle('is-collapsed');
+        toggle.textContent = collapsed ? '‹' : '›';
+        toggle.setAttribute('aria-label', collapsed ? '현재 재생 패널 열기' : '현재 재생 패널 닫기');
+    });
+};
+
 const trackSearchUrl = (query, limit = 1) => {
     const params = new URLSearchParams({
         q: query,
@@ -206,7 +219,18 @@ const loadAlbums = async (grid, query) => {
 };
 
 const initializeAlbumGrids = () => Promise.all(
-    albumGrids.map((grid) => loadAlbums(grid, grid.dataset.query)),
+    albumGrids.map(async (grid) => {
+        if (grid.dataset.fixedLatest === 'true' && window.FlowbeeFixedCatalog) {
+            showGridMessage(grid, '고정 최신 앨범을 불러오는 중...');
+            const albums = await window.FlowbeeFixedCatalog.loadLatestAlbums();
+            grid.replaceChildren(...albums.map(createAlbumCard));
+            const section = grid.closest('.section');
+            updateMoreButton(section);
+            updateSliderControls(section);
+            return albums;
+        }
+        return loadAlbums(grid, grid.dataset.query);
+    }),
 );
 
 const searchAlbumsUrl = (query) => `/api/search?${new URLSearchParams({ q: query, type: 'album', source: 'itunes', limit: '50' })}`;
@@ -472,6 +496,7 @@ const initializeAuthUI = async () => {
 
 const initializeMainPage = () => {
     if (window.initSitePlayer) window.initSitePlayer();
+    initializeNowPlayingDrawer();
     initializeAuthUI();
 
     [...document.querySelectorAll('.section')]
@@ -493,3 +518,4 @@ if (document.readyState === 'loading') {
 } else {
     initializeMainPage();
 }
+}());

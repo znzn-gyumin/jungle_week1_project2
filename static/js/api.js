@@ -60,7 +60,7 @@ async function fetchMixedAlbums(terms, perTerm = 3) {
 }
 
 function renderChartRow(rank, track, genreLabel) {
-    const albumText = genreLabel || (track.album ? track.album.name : (track.source === 'youtube' ? 'YouTube' : ''));
+    const albumText = genreLabel || (typeof track.album === 'string' ? track.album : (track.album?.name || (track.source === 'youtube' ? 'YouTube' : '')));
     const title = escapeHtml(track.title);
     const artist = escapeHtml(track.artist);
     const thumb = escapeHtml(track.thumbnailUrl || '');
@@ -104,6 +104,35 @@ function getSiteAudio() {
         document.body.appendChild(audio);
     }
     return audio;
+}
+
+function ensureSiteNowPlayingDrawer() {
+    let drawer = document.getElementById('now-playing-drawer');
+    if (!document.querySelector('link[href="/css/components/now-playing-drawer.css"]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = '/css/components/now-playing-drawer.css';
+        document.head.appendChild(link);
+    }
+    if (!drawer) {
+        drawer = document.createElement('aside');
+        drawer.className = 'now-playing-drawer is-collapsed';
+        drawer.id = 'now-playing-drawer';
+        drawer.innerHTML = '<button class="drawer-toggle" id="drawer-toggle" type="button" aria-label="현재 재생 패널 열기">‹</button><div class="drawer-content"><p class="drawer-label">NOW PLAYING · 30초 미리듣기</p><div class="drawer-empty-cover" id="drawer-empty-cover" aria-hidden="true">♪</div><img class="drawer-cover" id="drawer-cover" alt="" hidden><h2 class="drawer-title" id="drawer-title">재생 중인 곡이 없습니다</h2><p class="drawer-artist" id="drawer-artist">곡을 선택해 주세요.</p><div class="drawer-preview">Flowbee는 iTunes에서 제공하는 30초 미리듣기를 재생합니다.</div><h3 class="drawer-queue-title">다음 재생 목록</h3><div class="drawer-queue" id="drawer-queue"></div></div>';
+        document.body.insertBefore(drawer, document.querySelector('.player-bar'));
+    }
+    // 앨범/플레이리스트 상세 화면은 각 페이지 재생기가 토글을 직접 관리한다.
+    if (document.getElementById('album-page') || document.getElementById('playlist-page')) return drawer;
+    const toggle = drawer.querySelector('#drawer-toggle');
+    if (toggle && toggle.dataset.initialized !== 'true') {
+        toggle.dataset.initialized = 'true';
+        toggle.addEventListener('click', () => {
+            const collapsed = drawer.classList.toggle('is-collapsed');
+            toggle.textContent = collapsed ? '‹' : '›';
+            toggle.setAttribute('aria-label', collapsed ? '현재 재생 패널 열기' : '현재 재생 패널 닫기');
+        });
+    }
+    return drawer;
 }
 
 function extractYouTubeId(embedUrl) {
@@ -240,6 +269,7 @@ function loadNowPlayingHandoff() {
 }
 
 function initSitePlayer() {
+    ensureSiteNowPlayingDrawer();
     const audio = getSiteAudio();
     if (sitePlayerUI) return audio;
 
@@ -299,9 +329,80 @@ function initSitePlayer() {
     return audio;
 }
 
-let currentTrack = null;
+const persistentPageRoutes = new Set(['/', '/latest-music', '/latest-albums', '/genre', '/chart', '/playlists', '/events']);
+const dynamicPageScripts = new Set(['/latest-music', '/latest-albums', '/genre', '/chart']);
 
-async function playSiteTrack(track, startAt = 0) {
+function loadPageScript(src) {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = `${src}?spa=${Date.now()}`;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.body.appendChild(script);
+    });
+}
+
+async function navigateWithoutStoppingPlayback(path, pushHistory = true) {
+    const response = await fetch(path);
+    if (!response.ok) throw new Error('화면을 불러오지 못했습니다.');
+    const nextDocument = new DOMParser().parseFromString(await response.text(), 'text/html');
+    const nextShell = nextDocument.querySelector('.app-shell');
+    const currentShell = document.querySelector('.app-shell');
+    if (!nextShell || !currentShell) throw new Error('화면 영역을 찾지 못했습니다.');
+
+    nextDocument.querySelectorAll('link[rel="stylesheet"]').forEach((stylesheet) => {
+        const href = stylesheet.getAttribute('href');
+        if (!href || document.querySelector(`link[href="${href}"]`)) return;
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        document.head.appendChild(link);
+    });
+    currentShell.replaceWith(nextShell);
+    document.title = nextDocument.title;
+    ensureSiteNowPlayingDrawer().classList.add('is-collapsed');
+    const toggle = document.getElementById('drawer-toggle');
+    if (toggle) {
+        toggle.textContent = '‹';
+        toggle.setAttribute('aria-label', '현재 재생 패널 열기');
+    }
+    if (pushHistory) history.pushState({ flowbeePersistentPage: true }, '', path);
+
+    if (path === '/') {
+        await loadPageScript('/js/recommended-playlists.js');
+        await loadPageScript('/js/fixed-catalog.js');
+        await loadPageScript('/js/pages/main.js');
+    } else {
+        await loadPageScript('/js/pages/main.js');
+        if (path === '/latest-music' || path === '/latest-albums' || path === '/chart') {
+            await loadPageScript('/js/fixed-catalog.js');
+        }
+        if (dynamicPageScripts.has(path)) {
+            const pageName = path.slice(1);
+            await loadPageScript(`/js/pages/${pageName}.js`);
+        }
+    }
+}
+
+function initializePersistentNavigation() {
+    if (document.documentElement.dataset.persistentNavigation === 'true') return;
+    document.documentElement.dataset.persistentNavigation = 'true';
+    document.addEventListener('click', (event) => {
+        const link = event.target.closest('a[href]');
+        if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const url = new URL(link.href, location.href);
+        const path = url.pathname.replace(/\/$/, '') || '/';
+        if (url.origin !== location.origin || !persistentPageRoutes.has(path)) return;
+        event.preventDefault();
+        navigateWithoutStoppingPlayback(path).catch(() => { location.href = path; });
+    });
+    window.addEventListener('popstate', () => {
+        const path = location.pathname.replace(/\/$/, '') || '/';
+        if (persistentPageRoutes.has(path)) navigateWithoutStoppingPlayback(path, false).catch(() => location.reload());
+    });
+}
+
+async function playSiteTrack(track) {
     if (!track) return;
     currentTrack = track;
     const nameEl = document.querySelector('.player-now-playing .track-name');
@@ -315,6 +416,23 @@ async function playSiteTrack(track, startAt = 0) {
         thumbEl.style.backgroundPosition = 'center';
     }
 
+    const drawer = document.getElementById('now-playing-drawer');
+    const drawerCover = document.getElementById('drawer-cover');
+    const drawerEmptyCover = document.getElementById('drawer-empty-cover');
+    const drawerTitle = document.getElementById('drawer-title');
+    const drawerArtist = document.getElementById('drawer-artist');
+    if (drawerTitle) drawerTitle.textContent = track.title;
+    if (drawerArtist) drawerArtist.textContent = track.artist;
+    if (drawerCover && track.thumbnailUrl) {
+        drawerCover.src = track.thumbnailUrl;
+        drawerCover.alt = `${track.title} 앨범 표지`;
+        drawerCover.hidden = false;
+        drawerCover.style.display = 'block';
+        if (drawerEmptyCover) {
+            drawerEmptyCover.hidden = true;
+            drawerEmptyCover.style.display = 'none';
+        }
+    }
     const audio = initSitePlayer();
 
     if (track.source === 'youtube') {
@@ -500,3 +618,6 @@ document.addEventListener('click', (event) => {
         source: row.dataset.source,
     });
 });
+
+initSitePlayer();
+initializePersistentNavigation();

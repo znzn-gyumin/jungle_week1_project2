@@ -51,11 +51,6 @@ app.get('/forgot-password', (req, res) => {
   res.sendFile(path.join(__dirname, 'templates', 'forgot-password.html'));
 });
 
-// 보관함 페이지 (templates/library.html 파일 전달)
-app.get(['/library', '/library.html'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'library.html'));
-});
-
 // 차트 페이지 (templates/chart.html 파일 전달)
 app.get(['/chart', '/chart.html'], (req, res) => {
   res.sendFile(path.join(__dirname, 'templates', 'chart.html'));

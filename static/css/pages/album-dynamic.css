@@ -206,3 +206,5 @@
   .player-buttons > button:not(.play-control) { display: none; }
   .player-track-info img { width: 48px; height: 48px; }
 }
+:root { --drawer-motion-duration: .42s; }
+.now-playing-drawer { transition-duration:var(--drawer-motion-duration); will-change:transform; }

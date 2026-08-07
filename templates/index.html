@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="/css/common.css">
 <link rel="stylesheet" href="/css/pages/main.css">
 <link rel="stylesheet" href="/css/pages/main-dynamic.css">
+<link rel="stylesheet" href="/css/components/now-playing-drawer.css">
 </head>
 <body>
 
@@ -40,9 +41,6 @@
             </a>
             <a href="#" class="sidebar-link">
                 <span class="icon">⌕</span> 검색
-            </a>
-            <a href="/library" class="sidebar-link">
-                <span class="icon">☰</span> 보관함
             </a>
         </nav>
 
@@ -230,7 +228,7 @@
                 <div class="section-head">
                 <h2 class="section-title">최신 발매</h2>
                 </div>
-                <div class="card-grid" data-album-grid data-query="K-pop">
+                <div class="card-grid" data-album-grid data-fixed-latest="true" data-query="K-pop">
                     <a class="track-card" href="/album">
                         <div class="track-thumb" style="background:linear-gradient(135deg,#F4B942,#D9822B);"></div>
                         <div class="track-name">Tideline</div>
@@ -289,34 +287,6 @@
 
             <section class="section">
                 <div class="section-head">
-                <h2 class="section-title">내 플레이리스트</h2>
-                </div>
-                <div class="card-grid" id="my-playlists-grid">
-                    <a class="track-card" href="/playlist">
-                        <div class="track-thumb" style="background:linear-gradient(150deg,#D9822B,#8A5A2B);"></div>
-                        <div class="track-name">비 오는 날</div>
-                        <div class="track-sub">플레이리스트 · 24곡</div>
-                    </a>
-                    <a class="track-card" href="/playlist">
-                        <div class="track-thumb" style="background:linear-gradient(160deg,#4A3218,#2A1B06);"></div>
-                        <div class="track-name">늦은 밤 드라이브</div>
-                        <div class="track-sub">플레이리스트 · 30곡</div>
-                    </a>
-                    <a class="track-card" href="/playlist">
-                        <div class="track-thumb" style="background:linear-gradient(140deg,#F4B942,#C88A2E);"></div>
-                        <div class="track-name">카페 무드</div>
-                        <div class="track-sub">플레이리스트 · 40곡</div>
-                    </a>
-                    <a class="track-card" href="/playlist">
-                        <div class="track-thumb" style="background:linear-gradient(160deg,#8A6A3F,#3b2a1c);"></div>
-                        <div class="track-name">집중이 필요할 때</div>
-                        <div class="track-sub">플레이리스트 · 20곡</div>
-                    </a>
-                </div>
-            </section>
-
-            <section class="section">
-                <div class="section-head">
                 <h2 class="section-title">추천 플레이리스트</h2>
                 <button class="playlist-reroll" id="playlist-reroll" type="button" aria-label="추천 플레이리스트 새로 만들기">↻ 새 추천</button>
                 </div>
@@ -342,6 +312,20 @@
         </main>
     </div>
 </div>
+
+<aside class="now-playing-drawer is-collapsed" id="now-playing-drawer">
+    <button class="drawer-toggle" id="drawer-toggle" type="button" aria-label="현재 재생 패널 열기">‹</button>
+    <div class="drawer-content">
+        <p class="drawer-label">NOW PLAYING · 30초 미리듣기</p>
+        <div class="drawer-empty-cover" id="drawer-empty-cover" aria-hidden="true">♪</div>
+        <img class="drawer-cover" id="drawer-cover" alt="" hidden>
+        <h2 class="drawer-title" id="drawer-title">재생 중인 곡이 없습니다</h2>
+        <p class="drawer-artist" id="drawer-artist">앨범이나 곡을 선택해 주세요.</p>
+        <div class="drawer-preview">Flowbee는 iTunes에서 제공하는 30초 미리듣기를 재생합니다.</div>
+        <h3 class="drawer-queue-title">다음 재생 목록</h3>
+        <div class="drawer-queue" id="drawer-queue"><p class="drawer-empty-message">재생을 시작하면 다음 곡이 여기에 표시됩니다.</p></div>
+    </div>
+</aside>
 
 <footer class="player-bar">
     <div class="player-now-playing">
@@ -370,6 +354,7 @@
 </footer>
 
 <script src="/js/recommended-playlists.js"></script>
+<script src="/js/fixed-catalog.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/pages/main.js"></script>
 </body>
