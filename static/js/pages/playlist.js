@@ -10,6 +10,8 @@ const playbackButtons = [document.getElementById('playlist-play'), document.getE
 const previewLimit = 30;
 let tracks = [];
 let currentIndex = -1;
+// 다른 화면에서 재생하던 곡을 이어받은 상태. render 가 커버를 덮어쓰지 않게 표시해 둔다.
+let handoffActive = false;
 
 const formatDuration = (milliseconds) => {
   if (!Number.isFinite(milliseconds) || milliseconds < 0) return '—';
@@ -51,6 +53,7 @@ const selectTrack = (index, autoplay = true) => {
   const track = tracks[index];
   if (!track) return;
   currentIndex = index;
+  handoffActive = false;
   document.getElementById('now-title').textContent = track.title;
   document.getElementById('now-artist').textContent = track.artist;
   updateDrawer(track, index);
@@ -103,6 +106,9 @@ const ensureStylesheet = (href) => {
 
 const openLibraryWithoutStoppingPlayback = async (event, pushHistory = true) => {
   event?.preventDefault();
+  // 이 화면의 <audio> 를 그대로 살려서 옮기므로, 새 페이지가 handoff 로 또 한 번
+  // 재생을 시작하면 소리가 겹친다. 여기서 지워서 이중 재생을 막는다.
+  if (window.clearNowPlaying) window.clearNowPlaying();
   drawer?.classList.add('is-collapsed');
   const drawerToggle = document.getElementById('drawer-toggle');
   if (drawerToggle) {
@@ -156,7 +162,7 @@ const render = (playlist) => {
   document.getElementById('playlist-code').textContent = String(window.FlowbeePlaylists.definitions.findIndex((item) => item.slug === playlist.slug) + 1).padStart(2, '0');
   document.getElementById('playlist-tags').replaceChildren(...playlist.tags.map((tag) => Object.assign(document.createElement('span'), { textContent: tag })));
   document.getElementById('playlist-tracks').replaceChildren(...tracks.map(createTrackRow));
-  document.getElementById('player-cover').src = playlist.coverUrl;
+  if (!handoffActive) document.getElementById('player-cover').src = playlist.coverUrl;
   statusBox.hidden = true;
   content.hidden = false;
   playlistBody.hidden = false;
@@ -190,12 +196,25 @@ document.querySelector('.playlist-like').addEventListener('click', (event) => {
 });
 document.getElementById('player-prev').addEventListener('click', () => tracks.length && selectTrack(currentIndex > 0 ? currentIndex - 1 : tracks.length - 1));
 document.getElementById('player-next').addEventListener('click', () => tracks.length && selectTrack(currentIndex + 1 < tracks.length ? currentIndex + 1 : 0));
-audio.addEventListener('play', () => setPlaying(true));
-audio.addEventListener('pause', () => setPlaying(false));
+const nowPlayingSnapshot = () => ({
+  title: document.getElementById('now-title').textContent,
+  artist: document.getElementById('now-artist').textContent,
+  thumbnailUrl: document.getElementById('player-cover').src,
+  playUrl: audio.src,
+  source: 'itunes',
+});
+const saveSnapshot = (isPlaying) => {
+  if (window.saveNowPlaying && audio.src) window.saveNowPlaying(nowPlayingSnapshot(), audio.currentTime, isPlaying);
+};
+
+audio.addEventListener('play', () => { setPlaying(true); saveSnapshot(true); });
+audio.addEventListener('pause', () => { setPlaying(false); saveSnapshot(false); });
+audio.addEventListener('ended', () => { if (window.clearNowPlaying) window.clearNowPlaying(); });
 audio.addEventListener('timeupdate', () => {
   const limit = Number.isFinite(audio.duration) ? Math.min(audio.duration, previewLimit) : previewLimit;
   if (audio.currentTime >= limit) { audio.pause(); audio.currentTime = limit; }
   updatePlayer();
+  if (!audio.paused) saveSnapshot(true);
 });
 audio.addEventListener('loadedmetadata', updatePlayer);
 seek.addEventListener('input', () => { if (tracks[currentIndex]?.playUrl) audio.currentTime = Number(seek.value); updatePlayer(); });
@@ -206,6 +225,20 @@ window.addEventListener('popstate', () => {
   if (location.pathname === '/') openLibraryWithoutStoppingPlayback(null, false);
   else location.reload();
 }, { once: true });
+
+if (window.loadNowPlayingHandoff) {
+  const handoff = window.loadNowPlayingHandoff();
+  if (handoff && handoff.isPlaying && handoff.playUrl && handoff.source !== 'youtube') {
+    handoffActive = true;
+    document.getElementById('now-title').textContent = handoff.title;
+    document.getElementById('now-artist').textContent = handoff.artist;
+    if (handoff.thumbnailUrl) document.getElementById('player-cover').src = handoff.thumbnailUrl;
+    playerBar.hidden = false;
+    audio.src = handoff.playUrl;
+    audio.addEventListener('loadedmetadata', () => { audio.currentTime = handoff.currentTime || 0; }, { once: true });
+    audio.play().catch(() => setPlaying(false));
+  }
+}
 
 const slug = location.pathname.match(/^\/playlist\/([^/]+)\/?$/)?.[1] || new URLSearchParams(location.search).get('id') || window.FlowbeePlaylists.definitions[0].slug;
 const definition = window.FlowbeePlaylists.find(decodeURIComponent(slug));

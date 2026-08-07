@@ -148,6 +148,7 @@ let ytPlayer = null;
 let ytReadyPromise = null;
 let ytProgressTimer = null;
 let sitePlayerUI = null;
+let currentTrack = null;
 
 function loadYouTubeApi() {
     if (ytReadyPromise) return ytReadyPromise;
@@ -402,7 +403,7 @@ function initializePersistentNavigation() {
     });
 }
 
-async function playSiteTrack(track) {
+async function playSiteTrack(track, startAt = 0) {
     if (!track) return;
     currentTrack = track;
     const nameEl = document.querySelector('.player-now-playing .track-name');
@@ -463,6 +464,8 @@ async function playSiteTrack(track) {
 }
 
 function resumeHandoffPlayback() {
+    // 앨범/플레이리스트 상세는 자기 <audio> 로 직접 이어받는다. 여기서 또 틀면 소리가 겹친다.
+    if (document.getElementById('album-page') || document.getElementById('playlist-page')) return;
     const handoff = loadNowPlayingHandoff();
     if (!handoff || !handoff.isPlaying) return;
     playSiteTrack({
