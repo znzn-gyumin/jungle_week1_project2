@@ -175,6 +175,7 @@
 }
 .card-grid > .track-card:nth-child(n+6){ display:none; }
 .section.expanded .card-grid > .track-card{ display:block; }
+.card-grid[data-playlist-grid-fixed] > .track-card{ display:block; }
 
 @media(max-width:900px){
     .card-grid{ grid-template-columns:repeat(3, 1fr); }

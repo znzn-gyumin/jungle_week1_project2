@@ -75,10 +75,34 @@
     return definitions;
   };
 
+  const FIXED_SELECTION_KEY = 'flowbee:fixed:selection';
+  const FIXED_TIMESTAMP_KEY = 'flowbee:fixed:timestamp';
+  const FIXED_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+  const getFixedDefinitions = (count = 10) => {
+    let savedSlugs2 = null;
+    try { savedSlugs2 = JSON.parse(localStorage.getItem(FIXED_SELECTION_KEY) || 'null'); } catch { localStorage.removeItem(FIXED_SELECTION_KEY); }
+    const savedAt = Number(localStorage.getItem(FIXED_TIMESTAMP_KEY) || 0);
+    const isStale = !Array.isArray(savedSlugs2) || !savedSlugs2.length || Date.now() - savedAt > FIXED_MAX_AGE_MS;
+    if (isStale) {
+      savedSlugs2 = [...themePool].sort(() => Math.random() - .5).slice(0, count).map((item) => item.slug);
+      localStorage.setItem(FIXED_SELECTION_KEY, JSON.stringify(savedSlugs2));
+      localStorage.setItem(FIXED_TIMESTAMP_KEY, String(Date.now()));
+    }
+    return savedSlugs2.map((slug) => themePool.find((item) => item.slug === slug)).filter(Boolean);
+  };
+
+  const loadFixed = async (count = 10) => {
+    const defs = getFixedDefinitions(count);
+    const results = await Promise.allSettled(defs.map(load));
+    return results.filter((result) => result.status === 'fulfilled' && result.value.tracks.length).map((result) => result.value);
+  };
+
   window.FlowbeePlaylists = {
     get definitions() { return definitions; },
     find: (slug) => themePool.find((item) => item.slug === slug),
     load,
     reroll,
+    loadFixed,
   };
 }());

@@ -1,5 +1,6 @@
 const albumGrids = [...document.querySelectorAll('[data-album-grid]')];
 const playlistGrid = document.querySelector('[data-playlist-grid]');
+const playlistFixedGrid = document.querySelector('[data-playlist-grid-fixed]');
 
 const albumSearchUrl = (query, limit = 10) => {
     const params = new URLSearchParams({
@@ -115,6 +116,17 @@ const loadRecommendedPlaylists = async () => {
     const section = playlistGrid.closest('.section');
     updateMoreButton(section);
     updateSliderControls(section);
+};
+
+const loadFixedPlaylists = async () => {
+    if (!playlistFixedGrid || !window.FlowbeePlaylists) return;
+    showGridMessage(playlistFixedGrid, 'Flowbee 추천 플레이리스트를 만드는 중입니다.');
+    const playlists = await window.FlowbeePlaylists.loadFixed(10);
+    if (!playlists.length) {
+        showGridMessage(playlistFixedGrid, '추천 플레이리스트를 만들지 못했습니다.', true);
+        return;
+    }
+    playlistFixedGrid.replaceChildren(...playlists.map(createPlaylistCard));
 };
 
 const initializePlaylistReroll = () => {
@@ -463,7 +475,7 @@ const initializeMainPage = () => {
     initializeAuthUI();
 
     [...document.querySelectorAll('.section')]
-        .filter((section) => !section.querySelector('[data-album-grid], [data-playlist-grid]'))
+        .filter((section) => !section.querySelector('[data-album-grid], [data-playlist-grid], [data-playlist-grid-fixed]'))
         .forEach(updateMoreButton);
     initializeSearch();
     initializeAlbumGrids();
@@ -473,6 +485,7 @@ const initializeMainPage = () => {
     loadSidebarData();
     loadRecommendedPlaylists();
     initializePlaylistReroll();
+    loadFixedPlaylists();
 };
 
 if (document.readyState === 'loading') {

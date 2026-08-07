@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/common.css">
 <link rel="stylesheet" href="/css/pages/main.css">
+<link rel="stylesheet" href="/css/pages/main-dynamic.css">
 </head>
 <body>
 
@@ -150,43 +151,7 @@
                     </svg>
                 </h2>
                 </div>
-                <div class="card-grid">
-                    <a class="track-card" href="/playlist">
-                        <div class="track-thumb" style="background:linear-gradient(135deg,#D9822B,#F4B942);"></div>
-                        <div class="track-name">좋아하는 음악</div>
-                        <div class="track-sub">플레이리스트 · 32곡</div>
-                    </a>
-                    <a class="track-card" href="/playlist">
-                        <div class="track-thumb" style="background:linear-gradient(160deg,#5C3A21,#2A1B06);"></div>
-                        <div class="track-name">출근길 플레이리스트</div>
-                        <div class="track-sub">플레이리스트 · 18곡</div>
-                    </a>
-                    <a class="track-card" href="/playlist">
-                        <div class="track-thumb" style="background:linear-gradient(150deg,#8A6A3F,#4A3218);"></div>
-                        <div class="track-name">Lo-Fi Study</div>
-                        <div class="track-sub">플레이리스트 · 45곡</div>
-                    </a>
-                    <a class="track-card" href="/playlist">
-                        <div class="track-thumb" style="background:linear-gradient(150deg,#D9822B,#8A5A2B);"></div>
-                        <div class="track-name">비 오는 날</div>
-                        <div class="track-sub">플레이리스트 · 24곡</div>
-                    </a>
-                    <a class="track-card" href="/playlist">
-                        <div class="track-thumb" style="background:linear-gradient(160deg,#4A3218,#2A1B06);"></div>
-                        <div class="track-name">늦은 밤 드라이브</div>
-                        <div class="track-sub">플레이리스트 · 30곡</div>
-                    </a>
-                    <a class="track-card" href="/playlist">
-                        <div class="track-thumb" style="background:linear-gradient(140deg,#F4B942,#C88A2E);"></div>
-                        <div class="track-name">카페 무드</div>
-                        <div class="track-sub">플레이리스트 · 40곡</div>
-                    </a>
-                    <a class="track-card" href="/playlist">
-                        <div class="track-thumb" style="background:linear-gradient(160deg,#8A6A3F,#3b2a1c);"></div>
-                        <div class="track-name">집중이 필요할 때</div>
-                        <div class="track-sub">플레이리스트 · 20곡</div>
-                    </a>
-                </div>
+                <div class="card-grid" data-playlist-grid-fixed></div>
             </section>
 
         </main>
@@ -219,6 +184,7 @@
     </div>
 </footer>
 
+<script src="/js/recommended-playlists.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/pages/main.js"></script>
 </body>
