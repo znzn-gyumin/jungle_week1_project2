@@ -8,6 +8,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,6 +25,8 @@ class Track(PKMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("source", "source_id", name="uq_tracks_source_source_id"),
         Index("ix_tracks_album_id", "album_id"),
+        # repository.list_tracks 의 ORDER BY updated_at DESC LIMIT n 용
+        Index("ix_tracks_updated_at", text("updated_at DESC")),
     )
 
     source: Mapped[SourceType] = mapped_column(source_enum(), nullable=False)

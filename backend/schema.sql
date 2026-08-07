@@ -55,6 +55,8 @@ CREATE TABLE tracks (
 );
 
 CREATE INDEX ix_tracks_album_id    ON tracks (album_id);
+-- list_tracks 가 ORDER BY updated_at DESC LIMIT n 으로 읽는다. 없으면 전체 Seq Scan + 정렬.
+CREATE INDEX ix_tracks_updated_at  ON tracks (updated_at DESC);
 
 
 CREATE TABLE playlists (

@@ -7,14 +7,68 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jungle}
       POSTGRES_DB: ${POSTGRES_DB:-flowbee}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - flowbee
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jungle} -d ${POSTGRES_DB:-flowbee}"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: flowbee_api
+    # .env 를 그대로 넣는다. 호스트에서 `npm run dev:api` 로 띄울 때와 같은 값을 쓴다.
+    # 컨테이너에서만 달라야 하는 것들은 아래 environment 가 덮어쓴다(environment 우선).
+    env_file:
+      - .env
+    environment:
+      # 컨테이너 loopback 에 묶으면 호스트에서 못 붙는다.
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "8000"
+      # 호스트 app.js 에서 온 요청의 출발지는 도커 브리지 게이트웨이다.
+      # 이 IP 만 믿어야 X-Forwarded-For 가 반영되고 로그인 시도 제한이 IP 를 구분한다.
+      # 넓히면 위조가 가능해진다 - backend/config.py 의 trusted_proxies 주석 참고.
+      TRUSTED_PROXIES: "172.28.0.1"
+      # 윈도우 바인드 마운트는 inotify 이벤트가 안 올라온다. 폴링으로 감시해야
+      # SERVER_RELOAD=true 가 실제로 동작한다.
+      WATCHFILES_FORCE_POLLING: "true"
+    ports:
+      # 호스트 loopback 에만 공개한다. 8000 이 LAN 에 열리면 아무나
+      # X-Forwarded-For 를 위조해 프록시를 우회할 수 있다.
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    volumes:
+      # 코드 수정이 바로 반영된다. 컨테이너는 읽기만 한다.
+      - ./backend:/app/backend:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - flowbee
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health').read()"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+networks:
+  flowbee:
+    # 게이트웨이 IP 를 고정한다. 안 하면 도커가 매번 다른 대역을 잡아서
+    # 위 TRUSTED_PROXIES 가 어긋난다.
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+          gateway: 172.28.0.1
 
 volumes:
   pgdata:

@@ -1,0 +1,6 @@
+.signup-terms{
+    align-items:flex-start;
+    margin-bottom:20px;
+}
+.signup-terms input{ margin-top:3px; }
+.signup-terms span{ line-height:1.4; }

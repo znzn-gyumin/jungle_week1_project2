@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.accounts import CurrentUser, DbSession, OptionalUser
 from backend.models import Playlist, PlaylistTrack, Track, User
+from backend.routers.limits import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT
 from backend.serializers import playlist_out
 
 router = APIRouter(prefix="/api/playlists", tags=["playlists"])
@@ -35,8 +36,15 @@ class ReorderBody(BaseModel):
     itemIds: list[int]
 
 
-async def _owned(playlist_id: int, user: User, db: AsyncSession) -> Playlist:
-    playlist = await db.get(Playlist, playlist_id)
+async def _owned(
+    playlist_id: int, user: User, db: AsyncSession, lock: bool = False
+) -> Playlist:
+    """lock=True 면 플레이리스트 행에 FOR UPDATE 를 건다.
+
+    같은 플레이리스트에 동시에 곡을 담는 요청들을 줄 세워서
+    position 계산과 total_tracks 증가가 서로를 덮어쓰지 않게 한다.
+    """
+    playlist = await db.get(Playlist, playlist_id, with_for_update=lock)
     if playlist is None:
         raise HTTPException(404, "플레이리스트를 찾을 수 없습니다")
     if playlist.user_id != user.id:
@@ -64,14 +72,17 @@ async def create(
 
 @router.get("")
 async def list_mine(
-    user: User = CurrentUser, db: AsyncSession = DbSession
+    limit: int = Query(DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
+    user: User = CurrentUser,
+    db: AsyncSession = DbSession,
 ) -> dict[str, Any]:
     rows = await db.execute(
         select(Playlist)
         .where(Playlist.user_id == user.id)
-        .order_by(Playlist.created_at.desc())
+        .order_by(Playlist.created_at.desc(), Playlist.id.desc())
+        .limit(limit)
     )
-    return {"playlists": [playlist_out(p) for p in rows.scalars()]}
+    return {"playlists": [playlist_out(p) for p in rows.scalars()], "limit": limit}
 
 
 @router.get("/public")
@@ -161,7 +172,10 @@ async def add_track(
     user: User = CurrentUser,
     db: AsyncSession = DbSession,
 ) -> dict[str, Any]:
-    playlist = await _owned(playlist_id, user, db)
+    # lock=True 가 같은 플레이리스트의 동시 요청을 줄 세운다.
+    # 락이 없으면 아래 max(position) 을 여러 요청이 같은 값으로 읽어
+    # position UNIQUE 위반 500 이 나고 total_tracks 증가가 유실된다.
+    playlist = await _owned(playlist_id, user, db, lock=True)
     if await db.get(Track, body.trackId) is None:
         raise HTTPException(404, "곡을 찾을 수 없습니다")
 
@@ -187,7 +201,7 @@ async def remove_track(
     user: User = CurrentUser,
     db: AsyncSession = DbSession,
 ) -> dict[str, Any]:
-    playlist = await _owned(playlist_id, user, db)
+    playlist = await _owned(playlist_id, user, db, lock=True)
     item = await db.get(PlaylistTrack, item_id)
     if item is None or item.playlist_id != playlist_id:
         raise HTTPException(404, "항목을 찾을 수 없습니다")
@@ -218,7 +232,7 @@ async def reorder(
     db: AsyncSession = DbSession,
 ) -> dict[str, Any]:
     """position UNIQUE 가 DEFERRABLE 이라 한 트랜잭션에서 통째로 갈아끼울 수 있다."""
-    await _owned(playlist_id, user, db)
+    await _owned(playlist_id, user, db, lock=True)
     rows = list(
         (
             await db.execute(

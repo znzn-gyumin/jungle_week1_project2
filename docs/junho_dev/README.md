@@ -37,6 +37,8 @@ kept. Everything in [03-playlist-invariants.md](03-playlist-invariants.md) and
 | [04-dev-only-code.md](04-dev-only-code.md) | `devtools` / `devlab` isolation and its reasoning |
 | [05-verification.md](05-verification.md) | How the integration tests ran and what they caught |
 | [06-open-questions.md](06-open-questions.md) | What is still undecided and what to weigh |
+| [07-shared-dev-db.md](07-shared-dev-db.md) | The shared PostgreSQL server: connection, TLS, migration etiquette |
+| [08-running.md](08-running.md) | Every way to run this: 3 DB paths × Linux/macOS/Windows |
 
 ## Editing these documents
 

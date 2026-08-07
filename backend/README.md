@@ -30,7 +30,7 @@
 
 ```bash
 cp .env.example .env                              # 1. 환경변수
-docker compose up -d                              # 2. DB 컨테이너
+docker compose up -d postgres                     # 2. DB 컨테이너만
 alembic -c backend/alembic.ini upgrade head       #    스키마 적용
 
 python -m venv .venv                              # 3. 의존성
@@ -41,6 +41,85 @@ python -m backend                                 # 4. 실행
 ```
 
 API 문서는 <http://127.0.0.1:8000/docs>.
+
+### 백엔드까지 Docker 로 띄우기 (윈도우 권장)
+
+파이썬도 `uv` 도 안 깔고 API 를 돌리는 경로다. 윈도우에는 `scripts/db.sh` 도
+`.venv/bin/uvicorn` 도 없으므로 이쪽이 사실상 유일한 실행법이다.
+
+필요한 건 Docker Desktop (WSL2 백엔드) 과 Node 뿐이다.
+
+```powershell
+copy .env.example .env      # POSTGRES_HOST=localhost 로 바꾸면 compose 의 DB 를 쓴다
+npm install
+npm run docker:up           # postgres + api 빌드/기동, 마이그레이션 자동 적용
+npm run dev:pages           # 페이지 서버 3001 (별도 터미널)
+```
+
+<http://localhost:3001> 로 열고, API 단독 확인은 <http://127.0.0.1:8000/docs>.
+
+`npm run dev:docker` 한 줄로 `docker:up` + 페이지(3001) + API Lab(5173) 을 같이 띄운다.
+
+| 명령 | 하는 일 |
+|---|---|
+| `npm run docker:up` | 이미지 빌드 후 `postgres` + `api` 기동 |
+| `npm run docker:down` | 둘 다 정지 (`-v` 를 붙여야 데이터까지 지워진다) |
+| `npm run docker:logs` | `api` 로그 따라가기 |
+| `npm run docker:migrate` | 마이그레이션만 수동 실행 |
+| `npm run docker:psql` | 컨테이너 DB 에 psql 접속 |
+
+컨테이너가 알아서 처리하는 것:
+
+- **`.env` 의 `localhost` → `postgres`.** `.env` 는 호스트 기준으로 쓰여 있다.
+  컨테이너 안에서 `localhost` 는 컨테이너 자신이라 `docker-entrypoint.sh` 가
+  compose 서비스 이름으로 바꾸고 포트도 내부 포트 5432 로 맞춘다. 호스트에 공개하는
+  포트(`POSTGRES_PORT`)를 5433 같은 걸로 바꿔도 컨테이너 사이 통신은 안 깨진다.
+- **마이그레이션.** 기동 직전에 `alembic upgrade head` 를 건다. 단 `POSTGRES_HOST`
+  가 원격(공유 개발 DB)이면 건너뛴다 — 팀 전체가 쓰는 스키마를 컨테이너가 멋대로
+  올리면 안 된다. `RUN_MIGRATIONS=false` 로 끌 수 있다.
+- **`SERVER_HOST`.** `.env` 의 `127.0.0.1` 은 컨테이너 loopback 이라 호스트에서 못 붙는다.
+  compose 가 `0.0.0.0` 으로 덮어쓴다. 호스트에 공개되는 포트는 `API_PORT`(기본 8000).
+- **핫 리로드.** `./backend` 를 읽기 전용으로 마운트한다. 윈도우 바인드 마운트는
+  inotify 이벤트가 안 올라오므로 `WATCHFILES_FORCE_POLLING=true` 를 켜 뒀다.
+
+공유 개발 DB 를 가리켜도 `postgres` 컨테이너는 같이 뜬다 — 안 쓸 뿐이다.
+그것도 띄우기 싫으면 `docker compose up -d --no-deps --build api` 로 API 만 올린다.
+
+`SERVER_RELOAD` · `TRUSTED_PROXIES` 는 [설정과 실행](#설정과-실행) 절의 함정을 그대로 따른다.
+`TRUSTED_PROXIES` 만 도커에서 값이 다르다 — 아래 절 참고.
+
+#### 도커에서의 `X-Forwarded-For`
+
+`app.js` 는 호스트에서 돈다. 컨테이너 입장에서 그 요청의 출발지 IP 는 호스트가
+아니라 **도커 브리지 게이트웨이**다. 그래서 compose 가 `TRUSTED_PROXIES=172.28.0.1`
+로 넣고, 게이트웨이가 매번 바뀌지 않게 네트워크 대역을 `172.28.0.0/16` 으로 고정해 뒀다.
+
+값이 어긋나면 uvicorn 이 `X-Forwarded-For` 를 무시하고 모든 요청을 게이트웨이 IP 하나로
+본다. 보안 구멍은 아니지만(더 빡빡해지는 쪽이다) 로그인 시도 제한이 IP 를 구분하지
+못해서 한 명이 10번 틀리면 전원이 잠긴다. 확인:
+
+```bash
+curl -s -H "X-Forwarded-For: 203.0.113.9" http://127.0.0.1:8000/api/health >/dev/null
+npm run docker:logs        # 로그에 203.0.113.9 이 찍히면 정상
+```
+
+게이트웨이 IP 가 다르게 잡히면(`docker network inspect <project>_flowbee`) compose 의
+`TRUSTED_PROXIES` 를 그 값으로 맞춘다. 넓은 대역이나 `*` 를 넣으면 클라이언트가 IP 를
+위조해 시도 제한을 우회할 수 있다.
+
+API 포트는 `127.0.0.1:8000` 으로만 공개한다. LAN 에 열면 `app.js` 를 건너뛰고
+위조된 `X-Forwarded-For` 를 직접 꽂을 수 있다.
+
+#### 윈도우에서 밟는 것들
+
+- **줄바꿈.** `docker-entrypoint.sh` 가 CRLF 로 체크아웃되면 컨테이너가
+  `exec ...: no such file or directory` 로 죽는다. 루트 `.gitattributes` 가 `*.sh` 를
+  LF 로 강제한다. 이미 CRLF 로 받았다면 `git rm --cached -r . && git reset --hard`.
+- **`docker compose`** (띄어쓰기, v2). `docker-compose` 는 아니다.
+- **`npm run dev`** 는 윈도우에서 안 돈다 — `./scripts/db.sh` 와 `.venv/bin/uvicorn` 은
+  POSIX 경로다. `npm run dev:docker` 를 쓴다.
+- **빌드가 느리면** 저장소를 `C:\` 가 아니라 WSL2 파일시스템(`\\wsl$\...`) 에 두는 게
+  훨씬 빠르다. `/mnt/c` 를 거치는 바인드 마운트는 파일 I/O 가 느리다.
 
 ### Docker 없이 DB 띄우기
 
@@ -79,7 +158,11 @@ Compose 경로와 동일하다.
 | `ITUNES_COUNTRY` | `KR` | iTunes 는 국가별로 카탈로그가 다르다 |
 | `CLIENT_ORIGINS` | `127.0.0.1:5173,localhost:5173` | CORS 허용 오리진. 쉼표로 여러 개 |
 | `SERVER_HOST` / `SERVER_PORT` / `SERVER_RELOAD` | `127.0.0.1` / `8000` / `false` | `python -m backend` 가 읽는다 |
+| `COOKIE_SECURE` | `false` | HTTPS 배포에서 `true`. 세션 쿠키에 `Secure` 가 붙는다 |
+| `TRUSTED_PROXIES` | `127.0.0.1` | `X-Forwarded-For` 를 믿을 프록시. 넓히면 IP 위조가 가능해진다 |
 | `POSTGRES_*` | `jungle` / `flowbee` | `docker-compose.yml` 기본값과 맞춰져 있다 |
+| `API_PORT` | `8000` | 도커 전용. `api` 컨테이너를 호스트 loopback 에 공개할 포트 |
+| `RUN_MIGRATIONS` | `true` | 도커 전용. `api` 기동 전 `alembic upgrade head` 여부 |
 
 `YOUTUBE_API_KEY` 는 **`.env` 에만** 둔다. `config.py` 의 기본값 자리에 넣으면
 git 에 커밋된다.
@@ -114,7 +197,8 @@ uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 
 ```bash
 npm install
-npm run dev          # API(8000) + Vite(5173) 동시 실행
+npm run dev          # API(8000) + 페이지(3001) + Vite(5173) 동시 실행
+npm run dev:devlab   # Vite 만 따로 띄울 때
 ```
 
 <http://127.0.0.1:5173> 로 연다. Vite 가 `/api` 를 8000 으로 프록시하므로 쿠키가
@@ -137,8 +221,10 @@ same-origin 으로 붙는다. **8000 을 직접 열면 로그인 쿠키가 다�
 `youtube off` 는 대개 서버가 낡은 `.env` 를 물고 있다는 뜻이다. `get_settings()`
 가 `lru_cache` 라 `.env` 를 고쳐도 프로세스를 다시 띄우기 전에는 안 바뀐다.
 
-배포 대상이 아니다. 지울 때는 `client/`, `package.json`, `package-lock.json`,
-`vite.config.js` 를 지우면 백엔드는 그대로 돈다.
+배포 대상이 아니다. 지울 때는 `client/` 와 `vite.config.js` 를 지우고
+`package.json` 에서 `react` · `react-dom` · `@vitejs/plugin-react` · `vite` 와
+`dev:devlab` · `build` · `preview` 스크립트를 빼면 된다. `package.json` 자체는
+`app.js` 가 쓰는 `express` 때문에 남겨야 한다.
 
 ---
 
@@ -169,7 +255,8 @@ package.json  vite.config.js
 │   │   └── users.py  playlists.py  likes.py
 │   ├── accounts.py          로그인 의존성 (CurrentUser · OptionalUser · DbSession)
 │   ├── security.py          비밀번호 해시 · 검증
-│   ├── sessions.py          인메모리 세션 저장소
+│   ├── sessions.py          인메모리 세션 저장소 (TTL · 유저별 색인)
+│   ├── ratelimit.py         로그인 실패 카운터 (인메모리, 고정 창)
 │   ├── serializers.py       위 라우터들의 dict 응답 (camelCase 수기 변환)
 │   │
 │   ├── db/                  DB 접근 계층. HTTP 를 모른다
@@ -180,7 +267,7 @@ package.json  vite.config.js
 │   ├── models/              SQLAlchemy 모델 (from backend.models import Track)
 │   ├── migrations/          Alembic
 │   ├── schema.sql           순수 SQL 생성 스크립트. 스택 무관
-│   ├── devtools/            배포 전 삭제 대상. 지금은 integration_test.py 하나
+│   ├── devtools/            배포 전 삭제 대상. integration_test.py · regression_test.py
 │   └── README.md            이 문서
 │
 └── client/                  API Lab. Vite + React
@@ -267,13 +354,32 @@ routers  ->  db (Postgres)
 | Method | Path | 본문 | 설명 |
 |---|---|---|---|
 | POST | `/api/users/signup` | `{nickname, email, password}` | 가입 즉시 로그인. 201 |
-| POST | `/api/users/login` | `{email, password}` | 틀리면 401 |
+| POST | `/api/users/login` | `{email, password}` | 틀리면 401. 실패가 쌓이면 429 |
 | POST | `/api/users/logout` | | 세션 파기 |
 | GET | `/api/users/me` | | 비로그인이면 **401 이 아니라** `{"loggedIn": false}` |
 | PATCH | `/api/users/me` | `{nickname?, email?, password?}` | 보낸 필드만 바뀐다 |
 | DELETE | `/api/users/me` | | 플레이리스트·좋아요 CASCADE |
 
-닉네임·이메일 중복은 409. 유일성은 `lower(nickname)` · `lower(email)` 함수 인덱스
+로그인은 계정이 없어도 더미 해시로 같은 비용의 scrypt 검증을 돌린다. 응답 시간으로
+가입 여부를 알아내지 못하게 하려는 것이다. 실패는 (클라이언트 IP, 이메일) 별로
+세어서 `ratelimit.LOGIN_MAX_ATTEMPTS` 회에 닿으면 창이 끝날 때까지 429 (`Retry-After`
+헤더 포함) — 그 동안은 **비밀번호가 맞아도 거절**한다. 카운터는 세션과 마찬가지로
+프로세스 메모리라 단일 워커 전제다.
+
+**IP 는 프록시를 거쳐 온다.** 브라우저는 `app.js`(3001) 를 보고, `/api` 는 거기서
+FastAPI 로 넘어간다. 그대로 두면 모든 요청이 `127.0.0.1` 로 보여서 IP 로 가를 수가
+없다. 그래서 `app.js` 가 `proxyReq` 에서 `X-Forwarded-For` 를 **덮어쓰고**
+(`xfwd: true` 는 헤더가 이미 있으면 통과시켜 위조가 그대로 들어온다 — 쓰지 않는다),
+uvicorn 은 `--forwarded-allow-ips`(`TRUSTED_PROXIES`) 로 그 프록시만 믿는다.
+신뢰 목록을 넓히면 클라이언트가 IP 를 위조해 제한을 우회할 수 있다.
+
+비밀번호를 바꾸면 그 계정의 **다른 세션은 전부 끊긴다** (요청을 보낸 세션만 남는다).
+계정 삭제도 현재 쿠키가 아니라 그 계정의 모든 세션을 파기한다.
+
+닉네임·이메일 중복은 409. 어느 쪽인지는 제약조건 이름(`uq_users_email_lower` ·
+`uq_users_nickname_lower`)으로 가른다. 그 밖의 `IntegrityError` 는 409 로 감추지
+않고 그대로 올려보낸다 — FK·NOT NULL 위반이 "닉네임 중복"으로 둔갑하면 안 된다.
+유일성은 `lower(nickname)` · `lower(email)` 함수 인덱스
 라서 **대소문자를 무시한다** — `Alice` 와 `alice` 는 같은 닉네임이다. 이메일은
 추가로 소문자 정규화해서 저장하지만, 닉네임은 입력한 표기 그대로 남는다.
 
@@ -282,7 +388,7 @@ routers  ->  db (Postgres)
 | Method | Path | 본문 | 설명 |
 |---|---|---|---|
 | POST | `/api/playlists` | `{name, description?, isPublic?}` | 기본 비공개 |
-| GET | `/api/playlists` | | 내 것만 |
+| GET | `/api/playlists?limit=` | | 내 것만. 기본 50, 최대 200 |
 | GET | `/api/playlists/public` | | `view_count` 내림차순 |
 | GET | `/api/playlists/{id}` | | 수록곡 포함. 타인이 열면 `view_count` +1 |
 | PATCH | `/api/playlists/{id}` | `{name?, description?, isPublic?}` | |
@@ -299,7 +405,7 @@ routers  ->  db (Postgres)
 
 | Method | Path | 설명 |
 |---|---|---|
-| GET | `/api/likes` | `likes` / `albums` / `playlists` 세 벌로 내려준다 |
+| GET | `/api/likes?limit=` | `albums` / `playlists` 로 나눠서. 기본 50, 최대 200 |
 | PUT | `/api/likes/albums/{id}` | 멱등. 이미 있으면 `created: false` |
 | DELETE | `/api/likes/albums/{id}` | 없어도 200, `removed: false` |
 | PUT | `/api/likes/playlists/{id}` | 비공개 남의 것이면 403 |
@@ -307,11 +413,15 @@ routers  ->  db (Postgres)
 
 ### 인증
 
-로그인하면 `uid` 쿠키(HttpOnly · SameSite=Lax · 30일)가 나가고, 세션 본문은
-**서버 프로세스 메모리**(`sessions.py`)에 있다. 서버를 재시작하면 전원 로그아웃
-된다. 워커를 여러 개 띄우면 요청마다 다른 프로세스에 붙어 로그인이 오락가락하므로,
-지금 구조에서는 **단일 워커로만 돌려야 한다.** Redis 나 DB 로 옮기는 것이 다음
-단계다.
+로그인하면 `uid` 쿠키(HttpOnly · SameSite=Lax · 30일 · `COOKIE_SECURE=true` 면
+Secure)가 나가고, 세션 본문은 **서버 프로세스 메모리**(`sessions.py`)에 있다.
+서버를 재시작하면 전원 로그아웃 된다. 워커를 여러 개 띄우면 요청마다 다른 프로세스에
+붙어 로그인이 오락가락하므로, 지금 구조에서는 **단일 워커로만 돌려야 한다.**
+Redis 나 DB 로 옮기는 것이 다음 단계다.
+
+서버 쪽 세션에도 쿠키와 같은 수명(`sessions.SESSION_TTL`)이 붙어 있다. 만료된
+세션은 조회 시점에 사라지고, 새 세션을 만들 때 남은 항목을 한 번씩 청소한다.
+로그아웃 없이 재로그인만 반복해도 dict 가 무한히 자라지 않는다.
 
 `/api/users/me` 만 비로그인을 정상 응답으로 취급한다. 나머지 보호 라우트는
 `{"error": "로그인이 필요합니다", "loggedIn": false}` 와 함께 401 이다.
@@ -533,6 +643,14 @@ uv pip install --python .venv-test/Scripts/python.exe pgserver -r requirements.t
 
 macOS/Linux 는 `.venv-test/bin/python`. 모든 단언이 통과하면 종료 코드 0 이다.
 
+같은 환경에서 도는 `backend/devtools/regression_test.py` 는 좁게 네 가지만 본다 —
+세션 TTL 만료·정리, `add_track` 동시 요청의 position/`total_tracks` 무결성,
+핸들되지 않은 예외의 `{"error": ...}` 500 응답, 쿠키 `Secure` 플래그.
+
+```bash
+.venv-test/bin/python backend/devtools/regression_test.py
+```
+
 `uv` 가 없으면 `pip install uv` 로 넣는다. `uv venv` 가
 `Missing expected target directory for Python minor version link` 로 실패하면
 `%APPDATA%/uv/python/` (macOS/Linux 는 `~/.local/share/uv/python/`) 아래
@@ -659,6 +777,11 @@ PG enum 라벨이 소문자라 insert 시 `invalid input value for enum source_t
 
 이 DB 로케일(`en_US.utf8`)에서는 `LIKE 'prefix%'` 조차 btree 를 못 쓴다.
 `text_pattern_ops` 로 만들어야 한다.
+
+**정렬만 하는 목록도 인덱스가 필요하다**
+`repository.list_tracks` 는 `ORDER BY updated_at DESC LIMIT n` 이다. 검색어가
+없어도 인덱스가 없으면 전체를 읽고 정렬한다 — 2만 건 실측 `Seq Scan` + `Sort`
+(cost 971). `ix_tracks_updated_at` 을 두면 정렬 노드 자체가 사라진다.
 
 **검색어의 `%` `_` 는 이스케이프한다**
 LIKE 에서 `%` 는 "아무 글자 0개 이상", `_` 는 "아무 글자 1개"다. 사용자가 `100%`
