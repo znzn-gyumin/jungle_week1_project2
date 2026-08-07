@@ -60,7 +60,7 @@ async function fetchMixedAlbums(terms, perTerm = 3) {
 }
 
 function renderChartRow(rank, track, genreLabel) {
-    const albumText = genreLabel || (track.album ? track.album.name : (track.source === 'youtube' ? 'YouTube' : ''));
+    const albumText = genreLabel || (typeof track.album === 'string' ? track.album : (track.album?.name || (track.source === 'youtube' ? 'YouTube' : '')));
     const title = escapeHtml(track.title);
     const artist = escapeHtml(track.artist);
     const thumb = escapeHtml(track.thumbnailUrl || '');
@@ -259,6 +259,19 @@ async function playSiteTrack(track) {
         thumbEl.style.backgroundPosition = 'center';
     }
 
+    const drawer = document.getElementById('now-playing-drawer');
+    const drawerCover = document.getElementById('drawer-cover');
+    const drawerEmptyCover = document.getElementById('drawer-empty-cover');
+    const drawerTitle = document.getElementById('drawer-title');
+    const drawerArtist = document.getElementById('drawer-artist');
+    if (drawerTitle) drawerTitle.textContent = track.title;
+    if (drawerArtist) drawerArtist.textContent = track.artist;
+    if (drawerCover && track.thumbnailUrl) {
+        drawerCover.src = track.thumbnailUrl;
+        drawerCover.alt = `${track.title} 앨범 표지`;
+        drawerCover.hidden = false;
+        if (drawerEmptyCover) drawerEmptyCover.hidden = true;
+    }
     const audio = initSitePlayer();
 
     if (track.source === 'youtube') {

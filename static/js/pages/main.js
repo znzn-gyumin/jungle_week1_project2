@@ -131,6 +131,18 @@ const initializePlaylistReroll = () => {
     });
 };
 
+const initializeNowPlayingDrawer = () => {
+    const drawer = document.getElementById('now-playing-drawer');
+    const toggle = document.getElementById('drawer-toggle');
+    if (!drawer || !toggle || toggle.dataset.initialized === 'true') return;
+    toggle.dataset.initialized = 'true';
+    toggle.addEventListener('click', () => {
+        const collapsed = drawer.classList.toggle('is-collapsed');
+        toggle.textContent = collapsed ? '‹' : '›';
+        toggle.setAttribute('aria-label', collapsed ? '현재 재생 패널 열기' : '현재 재생 패널 닫기');
+    });
+};
+
 const trackSearchUrl = (query, limit = 1) => {
     const params = new URLSearchParams({
         q: query,
@@ -195,7 +207,18 @@ const loadAlbums = async (grid, query) => {
 };
 
 const initializeAlbumGrids = () => Promise.all(
-    albumGrids.map((grid) => loadAlbums(grid, grid.dataset.query)),
+    albumGrids.map(async (grid) => {
+        if (grid.dataset.fixedLatest === 'true' && window.FlowbeeFixedCatalog) {
+            showGridMessage(grid, '고정 최신 앨범을 불러오는 중...');
+            const albums = await window.FlowbeeFixedCatalog.loadLatestAlbums();
+            grid.replaceChildren(...albums.map(createAlbumCard));
+            const section = grid.closest('.section');
+            updateMoreButton(section);
+            updateSliderControls(section);
+            return albums;
+        }
+        return loadAlbums(grid, grid.dataset.query);
+    }),
 );
 
 const initializeSearch = () => {
@@ -210,51 +233,6 @@ const initializeSearch = () => {
         title.childNodes[0].textContent = `'${query}' 앨범 검색 결과 `;
         await loadAlbums(target, query);
     });
-};
-
-const createMyPlaylistCard = (playlist) => {
-    const card = document.createElement('a');
-    card.className = 'track-card';
-    card.href = '/playlist';
-
-    const thumb = document.createElement('div');
-    thumb.className = 'track-thumb';
-    thumb.style.background = 'linear-gradient(150deg,#8A6A3F,#4A3218)';
-
-    const name = document.createElement('div');
-    name.className = 'track-name';
-    name.textContent = playlist.name;
-
-    const sub = document.createElement('div');
-    sub.className = 'track-sub';
-    sub.textContent = `플레이리스트 · ${playlist.totalTracks}곡`;
-
-    card.append(thumb, name, sub);
-    return card;
-};
-
-const loadMyPlaylists = async () => {
-    const grid = document.getElementById('my-playlists-grid');
-    if (!grid || !window.getCurrentUser) return;
-    const me = await window.getCurrentUser();
-    if (!me.loggedIn) {
-        showGridMessage(grid, '로그인하면 나만의 플레이리스트를 만들고 곡을 담을 수 있어요.');
-        return;
-    }
-    try {
-        const response = await fetch('/api/playlists');
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || '플레이리스트를 불러오지 못했습니다.');
-        const playlists = data.playlists || [];
-        if (!playlists.length) {
-            showGridMessage(grid, '아직 만든 플레이리스트가 없어요. 곡의 + 버튼으로 담아보세요.');
-            return;
-        }
-        grid.replaceChildren(...playlists.map(createMyPlaylistCard));
-        updateMoreButton(grid.closest('.section'));
-    } catch (error) {
-        showGridMessage(grid, error.message, true);
-    }
 };
 
 const initializeAuthUI = async () => {
@@ -279,6 +257,7 @@ const initializeAuthUI = async () => {
 
 const initializeMainPage = () => {
     if (window.initSitePlayer) window.initSitePlayer();
+    initializeNowPlayingDrawer();
     initializeAuthUI();
 
     [...document.querySelectorAll('.section')]
@@ -288,7 +267,6 @@ const initializeMainPage = () => {
     initializeAlbumGrids();
     initializeWeekPickPlay();
     loadWeekPickTrack();
-    loadMyPlaylists();
     loadRecommendedPlaylists();
     initializePlaylistReroll();
 };

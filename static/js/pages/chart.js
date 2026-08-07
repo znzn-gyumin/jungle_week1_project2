@@ -1,17 +1,8 @@
 window.addEventListener('DOMContentLoaded', () => {
     const list = document.getElementById('chart-list');
-    if (!list) return;
-
-    const TERMS = ['방탄소년단', 'IVE', '아이유', '세븐틴', '뉴진스'];
-    renderApiStatus(list, '불러오는 중...');
-
-    withCache('flowbee_cache_chart_v3', () => fetchMixedTracks(TERMS, 4, 'all'))
-        .then((tracks) => {
-            if (!tracks.length) {
-                renderApiStatus(list, '불러올 곡이 없어요. 잠시 후 다시 시도해주세요.');
-                return;
-            }
-            list.innerHTML = tracks.slice(0, 30).map((track, i) => renderChartRow(i + 1, track)).join('');
-        })
-        .catch(() => renderApiStatus(list, '음악을 불러오는 데 실패했어요.'));
+    if (!list || !window.FlowbeeFixedCatalog) return;
+    renderApiStatus(list, '고정 멜론 차트를 불러오는 중...');
+    window.FlowbeeFixedCatalog.loadMelonChart()
+        .then((tracks) => { list.innerHTML = tracks.map((track, index) => renderChartRow(index + 1, track)).join(''); })
+        .catch(() => renderApiStatus(list, '멜론 차트를 불러오지 못했어요.'));
 });

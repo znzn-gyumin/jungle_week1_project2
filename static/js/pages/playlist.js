@@ -2,6 +2,7 @@ const statusBox = document.getElementById('playlist-status');
 const content = document.getElementById('playlist-content');
 const playlistBody = document.getElementById('playlist-body');
 const playerBar = document.getElementById('playlist-player');
+const drawer = document.getElementById('now-playing-drawer');
 const audio = document.getElementById('audio-player');
 const seek = document.getElementById('player-seek');
 const volume = document.getElementById('player-volume');
@@ -29,12 +30,30 @@ const updatePlayer = () => {
   document.getElementById('player-duration').textContent = formatDuration(duration * 1000);
 };
 
+const updateDrawer = (track, index) => {
+  document.getElementById('drawer-cover').src = track.thumbnailUrl || document.getElementById('playlist-cover').src;
+  document.getElementById('drawer-title').textContent = track.title;
+  document.getElementById('drawer-artist').textContent = track.artist;
+  const queue = tracks.slice(index + 1, index + 6).map((item, offset) => {
+    const row = document.createElement('div');
+    row.className = 'drawer-queue-item';
+    row.innerHTML = '<img alt=""><div><b></b><small></small></div>';
+    row.querySelector('img').src = item.thumbnailUrl || document.getElementById('playlist-cover').src;
+    row.querySelector('b').textContent = item.title;
+    row.querySelector('small').textContent = item.artist;
+    row.addEventListener('click', () => selectTrack(index + offset + 1));
+    return row;
+  });
+  document.getElementById('drawer-queue').replaceChildren(...queue);
+};
+
 const selectTrack = (index, autoplay = true) => {
   const track = tracks[index];
   if (!track) return;
   currentIndex = index;
   document.getElementById('now-title').textContent = track.title;
   document.getElementById('now-artist').textContent = track.artist;
+  updateDrawer(track, index);
   const cover = document.getElementById('player-cover');
   cover.src = track.thumbnailUrl || document.getElementById('playlist-cover').src;
   cover.alt = `${track.title} 표지`;
@@ -74,6 +93,51 @@ const createTrackRow = (track, index) => {
   return row;
 };
 
+const ensureStylesheet = (href) => {
+  if (document.querySelector(`link[href="${href}"]`)) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = href;
+  document.head.append(link);
+};
+
+const openLibraryWithoutStoppingPlayback = async (event, pushHistory = true) => {
+  event?.preventDefault();
+  drawer?.classList.add('is-collapsed');
+  const drawerToggle = document.getElementById('drawer-toggle');
+  if (drawerToggle) {
+    drawerToggle.textContent = '‹';
+    drawerToggle.setAttribute('aria-label', '현재 재생 패널 열기');
+  }
+  try {
+    const response = await fetch('/');
+    if (!response.ok) throw new Error('라이브러리를 불러오지 못했습니다.');
+    const nextDocument = new DOMParser().parseFromString(await response.text(), 'text/html');
+    const shell = nextDocument.querySelector('.app-shell');
+    if (!shell) throw new Error('라이브러리 화면을 찾지 못했습니다.');
+    ensureStylesheet('/css/pages/main.css');
+    ensureStylesheet('/css/pages/main-dynamic.css');
+    document.body.prepend(shell);
+    [...document.body.children].forEach((child) => {
+      if (child !== shell && child !== playerBar && child !== audio && child !== drawer) child.remove();
+    });
+    document.title = nextDocument.title;
+    if (pushHistory) history.pushState({ flowbeeLibrary: true }, '', '/');
+    const playlistDefinitions = document.createElement('script');
+    playlistDefinitions.src = '/js/recommended-playlists.js';
+    playlistDefinitions.addEventListener('load', () => {
+      const mainScript = document.createElement('script');
+      mainScript.src = `/js/pages/main.js?v=${Date.now()}`;
+      document.body.append(mainScript);
+    });
+    document.body.append(playlistDefinitions);
+  } catch (error) {
+    statusBox.hidden = false;
+    statusBox.textContent = error.message;
+    statusBox.classList.add('is-error');
+  }
+};
+
 const render = (playlist) => {
   tracks = playlist.tracks.slice(0, 15);
   document.title = `${playlist.title} | Flowbee`;
@@ -97,6 +161,12 @@ const render = (playlist) => {
 playbackButtons.forEach((button) => button.addEventListener('click', togglePlayback));
 document.querySelector('.add-button').addEventListener('click', (event) => event.currentTarget.classList.toggle('added'));
 document.querySelector('.playlist-like').addEventListener('click', (event) => event.currentTarget.classList.toggle('liked'));
+document.getElementById('drawer-toggle').dataset.initialized = 'true';
+document.getElementById('drawer-toggle').addEventListener('click', (event) => {
+  const collapsed = drawer.classList.toggle('is-collapsed');
+  event.currentTarget.textContent = collapsed ? '‹' : '›';
+  event.currentTarget.setAttribute('aria-label', collapsed ? '현재 재생 패널 열기' : '현재 재생 패널 닫기');
+});
 document.getElementById('player-prev').addEventListener('click', () => tracks.length && selectTrack(currentIndex > 0 ? currentIndex - 1 : tracks.length - 1));
 document.getElementById('player-next').addEventListener('click', () => tracks.length && selectTrack(currentIndex + 1 < tracks.length ? currentIndex + 1 : 0));
 audio.addEventListener('play', () => setPlaying(true));
@@ -110,6 +180,11 @@ audio.addEventListener('loadedmetadata', updatePlayer);
 seek.addEventListener('input', () => { if (tracks[currentIndex]?.playUrl) audio.currentTime = Number(seek.value); updatePlayer(); });
 volume.addEventListener('input', () => { audio.volume = Number(volume.value); volume.style.setProperty('--progress', `${audio.volume * 100}%`); });
 audio.volume = Number(volume.value);
+document.querySelectorAll('.back-link, .playlist-brand').forEach((link) => link.addEventListener('click', openLibraryWithoutStoppingPlayback));
+window.addEventListener('popstate', () => {
+  if (location.pathname === '/') openLibraryWithoutStoppingPlayback(null, false);
+  else location.reload();
+}, { once: true });
 
 const slug = location.pathname.match(/^\/playlist\/([^/]+)\/?$/)?.[1] || new URLSearchParams(location.search).get('id') || window.FlowbeePlaylists.definitions[0].slug;
 const definition = window.FlowbeePlaylists.find(decodeURIComponent(slug));
