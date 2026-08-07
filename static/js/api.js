@@ -121,8 +121,6 @@ function ensureSiteNowPlayingDrawer() {
         drawer.innerHTML = '<button class="drawer-toggle" id="drawer-toggle" type="button" aria-label="현재 재생 패널 열기">‹</button><div class="drawer-content"><p class="drawer-label">NOW PLAYING · 30초 미리듣기</p><div class="drawer-empty-cover" id="drawer-empty-cover" aria-hidden="true">♪</div><img class="drawer-cover" id="drawer-cover" alt="" hidden><h2 class="drawer-title" id="drawer-title">재생 중인 곡이 없습니다</h2><p class="drawer-artist" id="drawer-artist">곡을 선택해 주세요.</p><div class="drawer-preview">Flowbee는 iTunes에서 제공하는 30초 미리듣기를 재생합니다.</div><h3 class="drawer-queue-title">다음 재생 목록</h3><div class="drawer-queue" id="drawer-queue"></div></div>';
         document.body.insertBefore(drawer, document.querySelector('.player-bar'));
     }
-    // 앨범/플레이리스트 상세 화면은 각 페이지 재생기가 토글을 직접 관리한다.
-    if (document.getElementById('album-page') || document.getElementById('playlist-page')) return drawer;
     const toggle = drawer.querySelector('#drawer-toggle');
     if (toggle && toggle.dataset.initialized !== 'true') {
         toggle.dataset.initialized = 'true';

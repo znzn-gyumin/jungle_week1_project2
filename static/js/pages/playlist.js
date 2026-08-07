@@ -3,6 +3,7 @@ const content = document.getElementById('playlist-content');
 const playlistBody = document.getElementById('playlist-body');
 const playerBar = document.getElementById('playlist-player');
 const drawer = document.getElementById('now-playing-drawer');
+if (window.ensureSiteNowPlayingDrawer) window.ensureSiteNowPlayingDrawer();
 const audio = document.getElementById('audio-player');
 const seek = document.getElementById('player-seek');
 const volume = document.getElementById('player-volume');

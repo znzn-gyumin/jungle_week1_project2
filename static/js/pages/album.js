@@ -4,6 +4,7 @@ const content = document.getElementById('album-content');
 const body = document.getElementById('album-body');
 const playerBar = document.getElementById('album-player');
 const drawer = document.getElementById('now-playing-drawer');
+if (window.ensureSiteNowPlayingDrawer) window.ensureSiteNowPlayingDrawer();
 const audio = document.getElementById('audio-player');
 const albumButtons = [document.getElementById('album-play'), document.getElementById('player-toggle')];
 const seek = document.getElementById('player-seek');
