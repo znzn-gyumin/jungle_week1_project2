@@ -48,7 +48,8 @@ def playlist_item_out(item: PlaylistTrack) -> dict[str, Any]:
     }
 
 
-def playlist_out(playlist: Playlist, items: bool = False) -> dict[str, Any]:
+def playlist_out(playlist: Playlist, items: bool = False, cover: bool = False) -> dict[str, Any]:
+    """items/cover 는 playlist.items 를 미리 eager load 한 경우에만 켜야 한다."""
     data: dict[str, Any] = {
         "id": playlist.id,
         "userId": playlist.user_id,
@@ -62,6 +63,11 @@ def playlist_out(playlist: Playlist, items: bool = False) -> dict[str, Any]:
     }
     if items:
         data["items"] = [playlist_item_out(i) for i in playlist.items]
+    if cover:
+        # 첫 곡 표지를 목록 응답에 같이 실어 보낸다. 없으면 프런트가 플레이리스트마다
+        # /api/playlists/{id} 를 한 번씩 더 불러야 한다 (N+1).
+        first = playlist.items[0] if playlist.items else None
+        data["coverUrl"] = first.track.thumbnail_url if first else None
     return data
 
 

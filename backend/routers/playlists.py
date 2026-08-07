@@ -81,8 +81,12 @@ async def list_mine(
         .where(Playlist.user_id == user.id)
         .order_by(Playlist.created_at.desc(), Playlist.id.desc())
         .limit(limit)
+        .options(selectinload(Playlist.items).selectinload(PlaylistTrack.track))
     )
-    return {"playlists": [playlist_out(p) for p in rows.scalars()], "limit": limit}
+    return {
+        "playlists": [playlist_out(p, cover=True) for p in rows.scalars()],
+        "limit": limit,
+    }
 
 
 @router.get("/public")

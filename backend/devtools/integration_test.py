@@ -151,10 +151,18 @@ async def run_tests(a: httpx.AsyncClient, b: httpx.AsyncClient, Session) -> None
             tid = (
                 await s.execute(
                     sql_text(
-                        "INSERT INTO tracks (source, source_id, title, artist, album_id, play_url) "
-                        "VALUES ('itunes', :sid, :title, 'Test Artist', :album, :url) RETURNING id"
+                        "INSERT INTO tracks "
+                        "(source, source_id, title, artist, album_id, play_url, thumbnail_url) "
+                        "VALUES ('itunes', :sid, :title, 'Test Artist', :album, :url, :thumb) "
+                        "RETURNING id"
                     ),
-                    {"sid": f"t{i}", "title": f"Song {i}", "album": album_id, "url": f"https://audio/{i}.m4a"},
+                    {
+                        "sid": f"t{i}",
+                        "title": f"Song {i}",
+                        "album": album_id,
+                        "url": f"https://audio/{i}.m4a",
+                        "thumb": f"https://img/{i}.jpg",
+                    },
                 )
             ).scalar_one()
             track_ids.append(tid)
@@ -175,6 +183,10 @@ async def run_tests(a: httpx.AsyncClient, b: httpx.AsyncClient, Session) -> None
 
     r = await a.post(f"/api/playlists/{pid}/tracks", json={"trackId": 999999})
     check("없는 곡 담기 404", r.status_code == 404, r.text)
+
+    # 목록 응답이 첫 곡 표지를 같이 준다. 없으면 프런트가 리스트마다 상세를 또 부른다 (N+1).
+    listed = (await a.get("/api/playlists")).json()["playlists"]
+    check("목록에 coverUrl 포함", listed[0]["coverUrl"] == "https://img/0.jpg", listed)
 
     r = await a.get(f"/api/playlists/{pid}")
     detail = r.json()
