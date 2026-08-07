@@ -222,12 +222,17 @@ const initializeAlbumGrids = () => Promise.all(
     albumGrids.map(async (grid) => {
         if (grid.dataset.fixedLatest === 'true' && window.FlowbeeFixedCatalog) {
             showGridMessage(grid, '고정 최신 앨범을 불러오는 중...');
-            const albums = await window.FlowbeeFixedCatalog.loadLatestAlbums();
-            grid.replaceChildren(...albums.map(createAlbumCard));
-            const section = grid.closest('.section');
-            updateMoreButton(section);
-            updateSliderControls(section);
-            return albums;
+            try {
+                const albums = await window.FlowbeeFixedCatalog.loadLatestAlbums();
+                grid.replaceChildren(...albums.map(createAlbumCard));
+                const section = grid.closest('.section');
+                updateMoreButton(section);
+                updateSliderControls(section);
+                return albums;
+            } catch (error) {
+                showGridMessage(grid, error.message, true);
+                return [];
+            }
         }
         return loadAlbums(grid, grid.dataset.query);
     }),
