@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     youtube_api_key: SecretStr = SecretStr("")
     itunes_country: str = "KR"
 
+    ssl_trust_system: bool = False
+
     client_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
     server_host: str = "127.0.0.1"
     server_port: int = 8000
