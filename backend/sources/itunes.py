@@ -76,6 +76,25 @@ async def search_albums(
     return [r for r in results if r.get("collectionId")]
 
 
+async def lookup_album_tracks(
+    collection_id: str, country: str = "KR"
+) -> list[dict[str, Any]]:
+    results = await _get(
+        "/lookup",
+        {"id": collection_id, "entity": "song", "country": country},
+    )
+    return [r for r in results if r.get("wrapperType") == "track" and r.get("trackId")]
+
+
+async def search_album_tracks(
+    collection_id: str,
+    album_name: str,
+    country: str = "KR",
+) -> list[dict[str, Any]]:
+    results = await search_tracks(album_name, limit=ITUNES_MAX_LIMIT, country=country)
+    return [r for r in results if album_source_id(r) == collection_id]
+
+
 def _release_date(value: str | None) -> date | None:
     if not value:
         return None

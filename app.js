@@ -52,7 +52,7 @@ app.get('/forgot-password', (req, res) => {
 });
 
 // 앨범 페이지 (templates/album.html 파일 전달)
-app.get(['/album', '/album.html'], (req, res) => {
+app.get(['/album', '/album.html', '/album/:albumId'], (req, res) => {
   res.sendFile(path.join(__dirname, 'templates', 'album.html'));
 });
 
