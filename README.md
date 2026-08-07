@@ -18,7 +18,38 @@ CORS 설정도 `credentials: 'include'` 도 필요 없다.
 `--forwarded-allow-ips=127.0.0.1` 로 그 프록시만 믿는다. 로그인 시도 제한이 IP 를
 구분하려면 둘 다 필요하다 — 자세한 건 [backend/README.md](backend/README.md) 의 계정 절.
 
+API 를 컨테이너로 띄우면 이 값이 `127.0.0.1` 이 아니라 도커 브리지 게이트웨이
+(`172.28.0.1`) 다. `docker-compose.yml` 이 `TRUSTED_PROXIES` 로 넣어 준다.
+
 ## 실행
+
+두 갈래다. **윈도우면 도커 쪽으로 간다** — `scripts/db.sh` 도 `.venv/bin/uvicorn` 도
+POSIX 경로라 아래 네이티브 경로는 윈도우에서 안 돈다.
+
+### 도커 (윈도우 권장)
+
+Docker Desktop(WSL2 백엔드) 과 Node 만 있으면 된다. 파이썬·`uv` 설치 없음.
+
+```powershell
+npm install
+copy .env.example .env      # YOUTUBE_API_KEY 채우기 + 아래 DB 선택
+npm run dev:docker          # postgres + API(8000) 컨테이너 + 페이지(3001) + API Lab(5173)
+```
+
+`POSTGRES_HOST=localhost` 로 두면 compose 의 postgres 를 쓰고 마이그레이션까지 자동으로
+붙는다. 공유 개발 DB 주소를 그대로 두면 거기에 붙고 마이그레이션은 건너뛴다.
+
+| 명령 | 하는 일 |
+|---|---|
+| `npm run docker:up` | 이미지 빌드 + `postgres`·`api` 기동 |
+| `npm run docker:down` | 정지 |
+| `npm run docker:logs` | API 로그 |
+| `npm run docker:migrate` | 마이그레이션 수동 실행 |
+
+컨테이너 동작·환경변수·윈도우 함정은
+[backend/README.md](backend/README.md#백엔드까지-docker-로-띄우기-윈도우-권장) 참고.
+
+### 네이티브 (macOS · Linux)
 
 ```bash
 npm install

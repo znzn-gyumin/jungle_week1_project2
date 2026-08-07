@@ -30,7 +30,7 @@
 
 ```bash
 cp .env.example .env                              # 1. 환경변수
-docker compose up -d                              # 2. DB 컨테이너
+docker compose up -d postgres                     # 2. DB 컨테이너만
 alembic -c backend/alembic.ini upgrade head       #    스키마 적용
 
 python -m venv .venv                              # 3. 의존성
@@ -41,6 +41,85 @@ python -m backend                                 # 4. 실행
 ```
 
 API 문서는 <http://127.0.0.1:8000/docs>.
+
+### 백엔드까지 Docker 로 띄우기 (윈도우 권장)
+
+파이썬도 `uv` 도 안 깔고 API 를 돌리는 경로다. 윈도우에는 `scripts/db.sh` 도
+`.venv/bin/uvicorn` 도 없으므로 이쪽이 사실상 유일한 실행법이다.
+
+필요한 건 Docker Desktop (WSL2 백엔드) 과 Node 뿐이다.
+
+```powershell
+copy .env.example .env      # POSTGRES_HOST=localhost 로 바꾸면 compose 의 DB 를 쓴다
+npm install
+npm run docker:up           # postgres + api 빌드/기동, 마이그레이션 자동 적용
+npm run dev:pages           # 페이지 서버 3001 (별도 터미널)
+```
+
+<http://localhost:3001> 로 열고, API 단독 확인은 <http://127.0.0.1:8000/docs>.
+
+`npm run dev:docker` 한 줄로 `docker:up` + 페이지(3001) + API Lab(5173) 을 같이 띄운다.
+
+| 명령 | 하는 일 |
+|---|---|
+| `npm run docker:up` | 이미지 빌드 후 `postgres` + `api` 기동 |
+| `npm run docker:down` | 둘 다 정지 (`-v` 를 붙여야 데이터까지 지워진다) |
+| `npm run docker:logs` | `api` 로그 따라가기 |
+| `npm run docker:migrate` | 마이그레이션만 수동 실행 |
+| `npm run docker:psql` | 컨테이너 DB 에 psql 접속 |
+
+컨테이너가 알아서 처리하는 것:
+
+- **`.env` 의 `localhost` → `postgres`.** `.env` 는 호스트 기준으로 쓰여 있다.
+  컨테이너 안에서 `localhost` 는 컨테이너 자신이라 `docker-entrypoint.sh` 가
+  compose 서비스 이름으로 바꾸고 포트도 내부 포트 5432 로 맞춘다. 호스트에 공개하는
+  포트(`POSTGRES_PORT`)를 5433 같은 걸로 바꿔도 컨테이너 사이 통신은 안 깨진다.
+- **마이그레이션.** 기동 직전에 `alembic upgrade head` 를 건다. 단 `POSTGRES_HOST`
+  가 원격(공유 개발 DB)이면 건너뛴다 — 팀 전체가 쓰는 스키마를 컨테이너가 멋대로
+  올리면 안 된다. `RUN_MIGRATIONS=false` 로 끌 수 있다.
+- **`SERVER_HOST`.** `.env` 의 `127.0.0.1` 은 컨테이너 loopback 이라 호스트에서 못 붙는다.
+  compose 가 `0.0.0.0` 으로 덮어쓴다. 호스트에 공개되는 포트는 `API_PORT`(기본 8000).
+- **핫 리로드.** `./backend` 를 읽기 전용으로 마운트한다. 윈도우 바인드 마운트는
+  inotify 이벤트가 안 올라오므로 `WATCHFILES_FORCE_POLLING=true` 를 켜 뒀다.
+
+공유 개발 DB 를 가리켜도 `postgres` 컨테이너는 같이 뜬다 — 안 쓸 뿐이다.
+그것도 띄우기 싫으면 `docker compose up -d --no-deps --build api` 로 API 만 올린다.
+
+`SERVER_RELOAD` · `TRUSTED_PROXIES` 는 [설정과 실행](#설정과-실행) 절의 함정을 그대로 따른다.
+`TRUSTED_PROXIES` 만 도커에서 값이 다르다 — 아래 절 참고.
+
+#### 도커에서의 `X-Forwarded-For`
+
+`app.js` 는 호스트에서 돈다. 컨테이너 입장에서 그 요청의 출발지 IP 는 호스트가
+아니라 **도커 브리지 게이트웨이**다. 그래서 compose 가 `TRUSTED_PROXIES=172.28.0.1`
+로 넣고, 게이트웨이가 매번 바뀌지 않게 네트워크 대역을 `172.28.0.0/16` 으로 고정해 뒀다.
+
+값이 어긋나면 uvicorn 이 `X-Forwarded-For` 를 무시하고 모든 요청을 게이트웨이 IP 하나로
+본다. 보안 구멍은 아니지만(더 빡빡해지는 쪽이다) 로그인 시도 제한이 IP 를 구분하지
+못해서 한 명이 10번 틀리면 전원이 잠긴다. 확인:
+
+```bash
+curl -s -H "X-Forwarded-For: 203.0.113.9" http://127.0.0.1:8000/api/health >/dev/null
+npm run docker:logs        # 로그에 203.0.113.9 이 찍히면 정상
+```
+
+게이트웨이 IP 가 다르게 잡히면(`docker network inspect <project>_flowbee`) compose 의
+`TRUSTED_PROXIES` 를 그 값으로 맞춘다. 넓은 대역이나 `*` 를 넣으면 클라이언트가 IP 를
+위조해 시도 제한을 우회할 수 있다.
+
+API 포트는 `127.0.0.1:8000` 으로만 공개한다. LAN 에 열면 `app.js` 를 건너뛰고
+위조된 `X-Forwarded-For` 를 직접 꽂을 수 있다.
+
+#### 윈도우에서 밟는 것들
+
+- **줄바꿈.** `docker-entrypoint.sh` 가 CRLF 로 체크아웃되면 컨테이너가
+  `exec ...: no such file or directory` 로 죽는다. 루트 `.gitattributes` 가 `*.sh` 를
+  LF 로 강제한다. 이미 CRLF 로 받았다면 `git rm --cached -r . && git reset --hard`.
+- **`docker compose`** (띄어쓰기, v2). `docker-compose` 는 아니다.
+- **`npm run dev`** 는 윈도우에서 안 돈다 — `./scripts/db.sh` 와 `.venv/bin/uvicorn` 은
+  POSIX 경로다. `npm run dev:docker` 를 쓴다.
+- **빌드가 느리면** 저장소를 `C:\` 가 아니라 WSL2 파일시스템(`\\wsl$\...`) 에 두는 게
+  훨씬 빠르다. `/mnt/c` 를 거치는 바인드 마운트는 파일 I/O 가 느리다.
 
 ### Docker 없이 DB 띄우기
 
@@ -82,6 +161,8 @@ Compose 경로와 동일하다.
 | `COOKIE_SECURE` | `false` | HTTPS 배포에서 `true`. 세션 쿠키에 `Secure` 가 붙는다 |
 | `TRUSTED_PROXIES` | `127.0.0.1` | `X-Forwarded-For` 를 믿을 프록시. 넓히면 IP 위조가 가능해진다 |
 | `POSTGRES_*` | `jungle` / `flowbee` | `docker-compose.yml` 기본값과 맞춰져 있다 |
+| `API_PORT` | `8000` | 도커 전용. `api` 컨테이너를 호스트 loopback 에 공개할 포트 |
+| `RUN_MIGRATIONS` | `true` | 도커 전용. `api` 기동 전 `alembic upgrade head` 여부 |
 
 `YOUTUBE_API_KEY` 는 **`.env` 에만** 둔다. `config.py` 의 기본값 자리에 넣으면
 git 에 커밋된다.
