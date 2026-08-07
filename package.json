@@ -12,6 +12,12 @@
     "dev:api": ".venv/bin/uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000 --forwarded-allow-ips=127.0.0.1",
     "dev:pages": "nodemon --watch app.js app.js",
     "dev:devlab": "vite",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f api",
+    "docker:migrate": "docker compose run --rm -e RUN_MIGRATIONS=false api alembic -c backend/alembic.ini upgrade head",
+    "docker:psql": "docker compose exec postgres psql -U jungle -d flowbee",
+    "dev:docker": "npm run docker:up && concurrently -n pages,devlab -c green,magenta \"npm:dev:pages\" \"npm:dev:devlab\"",
     "build": "vite build",
     "preview": "vite preview"
   },
