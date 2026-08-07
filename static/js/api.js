@@ -119,16 +119,15 @@ function ensureSiteNowPlayingDrawer() {
         drawer = document.createElement('aside');
         drawer.className = 'now-playing-drawer is-collapsed';
         drawer.id = 'now-playing-drawer';
-        drawer.innerHTML = '<button class="drawer-toggle" id="drawer-toggle" type="button" aria-label="현재 재생 패널 열기">‹</button><div class="drawer-content"><p class="drawer-label">NOW PLAYING · 30초 미리듣기</p><div class="drawer-empty-cover" id="drawer-empty-cover" aria-hidden="true">♪</div><img class="drawer-cover" id="drawer-cover" alt="" hidden><h2 class="drawer-title" id="drawer-title">재생 중인 곡이 없습니다</h2><p class="drawer-artist" id="drawer-artist">곡을 선택해 주세요.</p><div class="drawer-preview">플로비는 iTunes에서 제공하는 30초 미리듣기를 재생합니다.</div><h3 class="drawer-queue-title">다음 재생 목록</h3><div class="drawer-queue" id="drawer-queue"></div></div>';
+        drawer.innerHTML = '<button class="drawer-close" id="drawer-close" type="button" aria-label="현재 재생 패널 닫기">✕</button><div class="drawer-content"><p class="drawer-label">NOW PLAYING</p><div class="drawer-empty-cover" id="drawer-empty-cover" aria-hidden="true">♪</div><img class="drawer-cover" id="drawer-cover" alt="" hidden><h2 class="drawer-title" id="drawer-title">재생 중인 곡이 없습니다</h2><p class="drawer-artist" id="drawer-artist">곡을 선택해 주세요.</p><div class="drawer-preview">플로비는 iTunes에서 제공하는 30초 미리듣기를 재생합니다.</div><h3 class="drawer-queue-title">다음 재생 목록</h3><div class="drawer-queue" id="drawer-queue"></div></div>';
         document.body.insertBefore(drawer, document.querySelector('.player-bar'));
     }
-    const toggle = drawer.querySelector('#drawer-toggle');
-    if (toggle && toggle.dataset.initialized !== 'true') {
-        toggle.dataset.initialized = 'true';
-        toggle.addEventListener('click', () => {
-            const collapsed = drawer.classList.toggle('is-collapsed');
-            toggle.textContent = collapsed ? '‹' : '›';
-            toggle.setAttribute('aria-label', collapsed ? '현재 재생 패널 열기' : '현재 재생 패널 닫기');
+    // 접힌 상태에서는 삐져나온 부분 아무 데나 누르면 열리고, 닫기는 왼쪽 위 버튼으로만 한다.
+    if (drawer.dataset.initialized !== 'true') {
+        drawer.dataset.initialized = 'true';
+        drawer.addEventListener('click', (event) => {
+            if (drawer.classList.contains('is-collapsed')) drawer.classList.remove('is-collapsed');
+            else if (event.target.closest('#drawer-close')) drawer.classList.add('is-collapsed');
         });
     }
     return drawer;
@@ -445,11 +444,6 @@ async function navigateWithoutStoppingPlayback(path, pushHistory = true) {
     swapInShell(nextShell);
     document.title = nextDocument.title;
     ensureSiteNowPlayingDrawer().classList.add('is-collapsed');
-    const toggle = document.getElementById('drawer-toggle');
-    if (toggle) {
-        toggle.textContent = '‹';
-        toggle.setAttribute('aria-label', '현재 재생 패널 열기');
-    }
     if (pushHistory) history.pushState({ flowbeePersistentPage: true }, '', path);
 
     // 어느 화면에서 넘어오든 main.js/페이지 스크립트가 쓰는 전역이 먼저 준비돼 있어야 한다.

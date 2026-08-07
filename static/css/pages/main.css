@@ -197,6 +197,16 @@
 .section.expanded .card-grid > .track-card{ display:block; }
 .card-grid[data-playlist-grid-fixed] > .track-card{ display:block; }
 
+/* 재생 드로어가 열리면 본문이 그만큼 좁아지고 한 줄에 보이는 카드도 하나 줄어든다.
+   드로어는 토프바 아래에서 시작하므로 토프바는 비켜주지 않는다. */
+.content-tabs,
+.main-content{ padding-right:44px; transition:padding-right .28s cubic-bezier(.22,1,.36,1); }
+body:has(.now-playing-drawer:not(.is-collapsed)) .content-tabs,
+body:has(.now-playing-drawer:not(.is-collapsed)) .main-content{ padding-right:min(350px,88vw); }
+body:has(.now-playing-drawer:not(.is-collapsed)) .card-grid{ grid-template-columns:repeat(4, 1fr); }
+body:has(.now-playing-drawer:not(.is-collapsed)) .card-grid:not([data-playlist-grid-fixed]) > .track-card:nth-child(n+5){ display:none; }
+body:has(.now-playing-drawer:not(.is-collapsed)) .section.expanded .card-grid > .track-card{ display:block; }
+
 @media(max-width:900px){
     .card-grid{ grid-template-columns:repeat(3, 1fr); }
 }
