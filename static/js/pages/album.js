@@ -77,15 +77,11 @@ const ensureStylesheet = (href) => {
   document.head.append(link);
 };
 
-const openLibraryWithoutStoppingPlayback = async (event) => {
-  event.preventDefault();
-  const link = event.currentTarget;
-  link.classList.add('is-loading');
+const openLibraryWithoutStoppingPlayback = async (event, pushHistory = true) => {
+  event?.preventDefault();
   // 이 앨범의 <audio> 를 그대로 살려서 옮기므로, 새 페이지가 handoff 로 또 한 번
   // 재생을 시작하면 소리가 겹친다. 여기서 지워서 이중 재생을 막는다.
   if (window.clearNowPlaying) window.clearNowPlaying();
-const openLibraryWithoutStoppingPlayback = async (event, pushHistory = true) => {
-  event?.preventDefault();
   drawer?.classList.add('is-collapsed');
   const drawerToggle = document.getElementById('drawer-toggle');
   if (drawerToggle) {
