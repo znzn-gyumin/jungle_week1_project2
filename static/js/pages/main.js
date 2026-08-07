@@ -350,61 +350,30 @@ const sidebarThumb = (thumbnailUrl, fallbackGradient) => {
     return thumb;
 };
 
-const sidebarDeleteBtn = (label, onDelete) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'sidebar-delete-btn';
-    btn.setAttribute('aria-label', label);
-    btn.textContent = '✕';
-    btn.addEventListener('click', async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        await onDelete();
-    });
-    return btn;
+const sidebarLabel = (text) => {
+    const span = document.createElement('span');
+    span.textContent = text;
+    return span;
 };
 
-const createSidebarPlaylistItem = (playlist, coverUrl, onChanged) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'sidebar-playlist-row';
-
+const createSidebarPlaylistItem = (playlist, coverUrl) => {
     const link = document.createElement('a');
     link.href = `/my-playlist/${playlist.id}`;
     link.className = 'sidebar-playlist-item';
     link.append(
         sidebarThumb(coverUrl, 'linear-gradient(150deg,#8A6A3F,#4A3218)'),
-        document.createTextNode(`${playlist.name} · ${playlist.totalTracks}곡`),
+        sidebarLabel(`${playlist.name} · ${playlist.totalTracks}곡`),
     );
-
-    const del = sidebarDeleteBtn('플레이리스트 삭제', async () => {
-        if (!confirm(`"${playlist.name}" 플레이리스트를 삭제할까요?`)) return;
-        try {
-            const res = await fetch(`/api/playlists/${playlist.id}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error();
-            onChanged();
-        } catch {
-            alert('플레이리스트를 삭제하지 못했어요.');
-        }
-    });
-
-    wrap.append(link, del);
-    return wrap;
+    return link;
 };
 
 const createSidebarAlbumItem = (like) => {
     const album = like.album;
-    const wrap = document.createElement('div');
-    wrap.className = 'sidebar-playlist-row';
     const link = document.createElement('a');
     link.href = `/album/${album.id}`;
     link.className = 'sidebar-playlist-item';
-    link.append(sidebarThumb(album.thumbnailUrl, 'linear-gradient(135deg,#E8A33D,#8A5A2B)'), document.createTextNode(album.name));
-    const del = sidebarDeleteBtn('좋아요 취소', async () => {
-        await fetch(`/api/likes/albums/${album.id}`, { method: 'DELETE' });
-        loadSidebarData();
-    });
-    wrap.append(link, del);
-    return wrap;
+    link.append(sidebarThumb(album.thumbnailUrl, 'linear-gradient(135deg,#E8A33D,#8A5A2B)'), sidebarLabel(album.name));
+    return link;
 };
 
 const RECOMMENDED_LIKES_KEY = 'flowbee_liked_recommended_playlists';
@@ -413,36 +382,20 @@ const getLikedRecommendedPlaylists = () => {
 };
 
 const createSidebarRecommendedPlaylistItem = (slug, info) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'sidebar-playlist-row';
     const link = document.createElement('a');
     link.href = `/playlist/${slug}`;
     link.className = 'sidebar-playlist-item';
-    link.append(sidebarThumb(info.coverUrl, 'linear-gradient(140deg,#F4B942,#C88A2E)'), document.createTextNode(info.title));
-    const del = sidebarDeleteBtn('좋아요 취소', () => {
-        const likes = getLikedRecommendedPlaylists();
-        delete likes[slug];
-        try { localStorage.setItem(RECOMMENDED_LIKES_KEY, JSON.stringify(likes)); } catch { /* no-op */ }
-        loadSidebarData();
-    });
-    wrap.append(link, del);
-    return wrap;
+    link.append(sidebarThumb(info.coverUrl, 'linear-gradient(140deg,#F4B942,#C88A2E)'), sidebarLabel(info.title));
+    return link;
 };
 
 const createSidebarLikedPlaylistItem = (like) => {
     const playlist = like.playlist;
-    const wrap = document.createElement('div');
-    wrap.className = 'sidebar-playlist-row';
     const link = document.createElement('a');
     link.href = `/my-playlist/${playlist.id}`;
     link.className = 'sidebar-playlist-item';
-    link.append(sidebarThumb(null, 'linear-gradient(140deg,#F4B942,#C88A2E)'), document.createTextNode(playlist.name));
-    const del = sidebarDeleteBtn('좋아요 취소', async () => {
-        await fetch(`/api/likes/playlists/${playlist.id}`, { method: 'DELETE' });
-        loadSidebarData();
-    });
-    wrap.append(link, del);
-    return wrap;
+    link.append(sidebarThumb(null, 'linear-gradient(140deg,#F4B942,#C88A2E)'), sidebarLabel(playlist.name));
+    return link;
 };
 
 const loadSidebarData = async () => {
@@ -461,7 +414,7 @@ const loadSidebarData = async () => {
         const playlists = playlistsData.playlists || [];
         const covers = await Promise.all(playlists.map((p) => getPlaylistCover(p.id)));
         myGrid.replaceChildren(...(playlists.length
-            ? playlists.map((playlist, i) => createSidebarPlaylistItem(playlist, covers[i], () => { loadSidebarData(); loadMyPlaylists(); }))
+            ? playlists.map((playlist, i) => createSidebarPlaylistItem(playlist, covers[i]))
             : [sidebarEmptyNote('아직 만든 플레이리스트가 없어요.')]));
 
         const likedAlbums = likesData.albums || [];
@@ -484,10 +437,16 @@ const initializeAuthUI = async () => {
     if (!authLink || !window.getCurrentUser) return;
     const me = await window.getCurrentUser();
     if (!me.loggedIn) return;
-    const nicknameEl = document.createElement('span');
-    nicknameEl.className = 'auth-nickname';
-    nicknameEl.textContent = `${me.nickname}님`;
-    authLink.insertAdjacentElement('beforebegin', nicknameEl);
+
+    const avatar = document.querySelector('.topbar-right .avatar');
+    if (avatar) {
+        avatar.classList.add('avatar-lg');
+        const nicknameEl = document.createElement('span');
+        nicknameEl.className = 'auth-nickname';
+        nicknameEl.textContent = me.nickname;
+        avatar.append(nicknameEl);
+    }
+
     authLink.textContent = '로그아웃';
     authLink.href = '#';
     authLink.classList.add('auth-link-loggedin');

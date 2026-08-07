@@ -42,28 +42,19 @@
 .sidebar-playlists{ display:flex; flex-direction:column; gap:4px; overflow-y:auto; }
 .sidebar-section-title{
     font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
-    color:var(--text-faint); padding:0 12px; margin:14px 0 6px;
+    color:var(--green); padding:0 12px; margin:14px 0 6px;
 }
 .sidebar-section-title:first-child{ margin-top:0; }
 .sidebar-playlist-item{
-    display:flex; align-items:center; gap:10px;
+    display:flex; align-items:center; gap:10px; min-width:0;
     padding:8px 12px; border-radius:var(--radius-md);
     font-size:13px; font-weight:600; color:var(--text-muted);
     transition:background .15s ease, color .15s ease;
 }
 .sidebar-playlist-item:hover{ background:var(--bg-card); color:var(--text); }
+.sidebar-playlist-item span:last-child{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pl-thumb{ width:28px; height:28px; border-radius:6px; flex-shrink:0; background-color:var(--bg-card-hi); }
 
-.sidebar-playlist-row{ display:flex; align-items:center; gap:2px; flex-wrap:wrap; }
-.sidebar-playlist-row > .sidebar-playlist-item{ flex:1; min-width:0; border:0; background:none; font:inherit; text-align:left; cursor:pointer; }
-.sidebar-playlist-row > .sidebar-playlist-item span:last-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.sidebar-delete-btn{
-    flex-shrink:0; width:22px; height:22px; border:0; border-radius:6px;
-    background:none; color:var(--text-faint); font-size:12px; cursor:pointer;
-    display:flex; align-items:center; justify-content:center;
-    transition:background .15s ease, color .15s ease;
-}
-.sidebar-delete-btn:hover{ background:var(--bg-card-hi); color:#ff9b82; }
 .sidebar-empty-note{ padding:8px 12px; color:var(--text-faint); font-size:12px; }
 
 /* ---------- MAIN COLUMN ---------- */
