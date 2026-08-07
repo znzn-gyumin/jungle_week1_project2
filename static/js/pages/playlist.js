@@ -223,6 +223,7 @@ const setLikedRecommended = (likes) => {
 playbackButtons.forEach((button) => button.addEventListener('click', togglePlayback));
 document.querySelector('.add-button').addEventListener('click', (event) => event.currentTarget.classList.toggle('added'));
 document.querySelector('.playlist-like').addEventListener('click', (event) => {
+  if (!definition) return;
   const button = event.currentTarget;
   const liked = button.classList.toggle('liked');
   const likes = getLikedRecommended();
