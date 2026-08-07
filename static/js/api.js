@@ -133,6 +133,25 @@ function ensureSiteNowPlayingDrawer() {
     return drawer;
 }
 
+function fillNowPlayingDrawer(track) {
+    const cover = document.getElementById('drawer-cover');
+    const emptyCover = document.getElementById('drawer-empty-cover');
+    const title = document.getElementById('drawer-title');
+    const artist = document.getElementById('drawer-artist');
+    if (title) title.textContent = track.title;
+    if (artist) artist.textContent = track.artist;
+    if (cover && track.thumbnailUrl) {
+        cover.src = track.thumbnailUrl;
+        cover.alt = `${track.title} 앨범 표지`;
+        cover.hidden = false;
+        cover.style.display = 'block';
+        if (emptyCover) {
+            emptyCover.hidden = true;
+            emptyCover.style.display = 'none';
+        }
+    }
+}
+
 function extractYouTubeId(embedUrl) {
     try {
         return new URL(embedUrl).pathname.split('/').filter(Boolean).pop() || null;
@@ -455,22 +474,7 @@ async function playSiteTrack(track, startAt = 0) {
     }
 
     const drawer = document.getElementById('now-playing-drawer');
-    const drawerCover = document.getElementById('drawer-cover');
-    const drawerEmptyCover = document.getElementById('drawer-empty-cover');
-    const drawerTitle = document.getElementById('drawer-title');
-    const drawerArtist = document.getElementById('drawer-artist');
-    if (drawerTitle) drawerTitle.textContent = track.title;
-    if (drawerArtist) drawerArtist.textContent = track.artist;
-    if (drawerCover && track.thumbnailUrl) {
-        drawerCover.src = track.thumbnailUrl;
-        drawerCover.alt = `${track.title} 앨범 표지`;
-        drawerCover.hidden = false;
-        drawerCover.style.display = 'block';
-        if (drawerEmptyCover) {
-            drawerEmptyCover.hidden = true;
-            drawerEmptyCover.style.display = 'none';
-        }
-    }
+    fillNowPlayingDrawer(track);
     const audio = initSitePlayer();
 
     if (track.source === 'youtube') {

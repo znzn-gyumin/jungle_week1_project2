@@ -131,6 +131,8 @@ const updatePlayerTime = () => {
   document.getElementById('player-duration').textContent = formatDuration(duration * 1000);
 };
 
+// 다른 화면에서 재생하던 곡을 이어받은 상태. renderAlbum 이 재생바 커버를 덮어쓰지 않게 표시해 둔다.
+let handoffActive = false;
 let ytHandoffActive = false;
 let ytHandoffPlayer = null;
 let ytHandoffTimer = null;
@@ -186,6 +188,7 @@ const selectTrack = (index, autoplay = true) => {
   const track = tracks[index];
   if (!track) return;
   stopYtHandoff();
+  handoffActive = false;
   currentIndex = index;
   document.getElementById('now-title').textContent = track.title;
   document.getElementById('now-artist').textContent = track.artist;
@@ -251,9 +254,11 @@ const renderAlbum = (album) => {
   document.getElementById('album-summary').textContent = [album.releaseDate, `${tracks.length || album.totalTracks || 0}곡`, formatTotalDuration(tracks)].filter(Boolean).join(' · ');
   document.getElementById('album-number').textContent = String(album.id).padStart(2, '0').slice(-2);
   document.getElementById('track-count').textContent = `${tracks.length || album.totalTracks || 0}곡`;
-  const playerCover = document.getElementById('player-cover');
-  if (album.thumbnailUrl) playerCover.src = album.thumbnailUrl;
-  playerCover.alt = `${album.name} 앨범 표지`;
+  if (!handoffActive) {
+    const playerCover = document.getElementById('player-cover');
+    if (album.thumbnailUrl) playerCover.src = album.thumbnailUrl;
+    playerCover.alt = `${album.name} 앨범 표지`;
+  }
   const list = document.getElementById('album-tracks');
   list.replaceChildren(...tracks.map(createTrackRow));
   if (!tracks.length) list.innerHTML = '<li class="empty-tracks"><div><b>수록곡 정보가 없습니다.</b><small>이 음원 소스는 트랙 목록을 제공하지 않습니다.</small></div></li>';
@@ -351,9 +356,11 @@ window.addEventListener('popstate', () => location.reload(), { once: true });
 if (window.loadNowPlayingHandoff) {
   const handoff = window.loadNowPlayingHandoff();
   if (handoff && handoff.isPlaying && handoff.playUrl) {
+    handoffActive = true;
     document.getElementById('now-title').textContent = handoff.title;
     document.getElementById('now-artist').textContent = handoff.artist;
     if (handoff.thumbnailUrl) document.getElementById('player-cover').src = handoff.thumbnailUrl;
+    if (window.fillNowPlayingDrawer) window.fillNowPlayingDrawer(handoff);
     playerBar.hidden = false;
     if (handoff.source === 'youtube') {
       ytHandoffActive = true;

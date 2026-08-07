@@ -283,6 +283,7 @@ if (window.loadNowPlayingHandoff) {
     document.getElementById('now-title').textContent = handoff.title;
     document.getElementById('now-artist').textContent = handoff.artist;
     if (handoff.thumbnailUrl) document.getElementById('player-cover').src = handoff.thumbnailUrl;
+    if (window.fillNowPlayingDrawer) window.fillNowPlayingDrawer(handoff);
     playerBar.hidden = false;
     if (handoff.source === 'youtube') {
       ytHandoffActive = true;
