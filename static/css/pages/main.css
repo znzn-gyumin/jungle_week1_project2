@@ -9,6 +9,9 @@
 .sidebar{
     width:390px;
     flex-shrink:0;
+    /* 본문을 내려도 사이드바는 화면에 남는다. 플레이어 바(88px) 만큼은 비워둔다 */
+    position:sticky; top:0; align-self:flex-start;
+    height:calc(100vh - 88px); overflow-y:auto;
     background:var(--bg-elev);
     padding:22px 18px;
     display:flex;
