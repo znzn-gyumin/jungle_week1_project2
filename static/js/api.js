@@ -175,6 +175,17 @@ function getYtHost() {
     return host;
 }
 
+const ytStateListeners = new Set();
+
+function addYtStateListener(listener) {
+    ytStateListeners.add(listener);
+}
+
+function dispatchYtState(event) {
+    handleYtStateChange(event);
+    ytStateListeners.forEach((listener) => listener(event));
+}
+
 async function getYtPlayer() {
     await loadYouTubeApi();
     if (ytPlayer) return ytPlayer;
@@ -186,7 +197,7 @@ async function getYtPlayer() {
             playerVars: { autoplay: 0, controls: 0, disablekb: 1 },
             events: {
                 onReady: () => resolve(player),
-                onStateChange: handleYtStateChange,
+                onStateChange: dispatchYtState,
             },
         });
     });
@@ -198,6 +209,11 @@ function stopYtProgressPolling() {
     ytProgressTimer = null;
 }
 
+function saveYtProgress(isPlaying) {
+    if (!currentTrack || !ytPlayer || typeof ytPlayer.getCurrentTime !== 'function') return;
+    saveNowPlaying(currentTrack, ytPlayer.getCurrentTime(), isPlaying);
+}
+
 function startYtProgressPolling() {
     stopYtProgressPolling();
     ytProgressTimer = setInterval(() => {
@@ -205,18 +221,41 @@ function startYtProgressPolling() {
         const duration = ytPlayer.getDuration();
         if (!duration) return;
         updatePlayerProgress(ytPlayer.getCurrentTime(), duration);
+        saveYtProgress(true);
     }, 500);
 }
 
 function handleYtStateChange(event) {
-    if (activePlayMode !== 'youtube' || !sitePlayerUI) return;
-    if (event.data === window.YT.PlayerState.PLAYING) {
-        sitePlayerUI.setIcon(true);
-        startYtProgressPolling();
-    } else if (event.data === window.YT.PlayerState.PAUSED || event.data === window.YT.PlayerState.ENDED) {
-        sitePlayerUI.setIcon(false);
+    if (activePlayMode !== 'youtube') return;
+    const playing = event.data === window.YT.PlayerState.PLAYING;
+    const stopped = event.data === window.YT.PlayerState.PAUSED || event.data === window.YT.PlayerState.ENDED;
+    // 이어재생 저장은 사이트 플레이어 바가 없는 앨범/플레이리스트 화면에서도 돌아야 한다.
+    if (playing) startYtProgressPolling();
+    else if (stopped) {
         stopYtProgressPolling();
+        saveYtProgress(false);
     }
+    if (!sitePlayerUI) return;
+    if (playing) sitePlayerUI.setIcon(true);
+    else if (stopped) sitePlayerUI.setIcon(false);
+}
+
+async function resumeYouTubeHandoff(handoff, onState) {
+    const videoId = extractYouTubeId(handoff.playUrl);
+    if (!videoId) return null;
+    activePlayMode = 'youtube';
+    currentTrack = {
+        title: handoff.title,
+        artist: handoff.artist,
+        thumbnailUrl: handoff.thumbnailUrl,
+        playUrl: handoff.playUrl,
+        source: 'youtube',
+    };
+    if (onState) addYtStateListener(onState);
+    const player = await getYtPlayer();
+    player.loadVideoById(videoId, handoff.currentTime || 0);
+    player.playVideo();
+    return player;
 }
 
 function updatePlayerProgress(current, duration) {

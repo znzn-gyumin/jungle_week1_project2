@@ -33,6 +33,40 @@ const updatePlayer = () => {
   document.getElementById('player-duration').textContent = formatDuration(duration * 1000);
 };
 
+let ytHandoffActive = false;
+let ytHandoffPlayer = null;
+let ytHandoffTimer = null;
+
+const updateYtHandoffTime = () => {
+  if (!ytHandoffPlayer || typeof ytHandoffPlayer.getDuration !== 'function') return;
+  const duration = ytHandoffPlayer.getDuration();
+  if (!duration) return;
+  const elapsed = ytHandoffPlayer.getCurrentTime();
+  seek.max = String(duration);
+  seek.value = String(elapsed);
+  seek.style.setProperty('--progress', `${(elapsed / duration) * 100}%`);
+  document.getElementById('player-current').textContent = formatDuration(elapsed * 1000);
+  document.getElementById('player-duration').textContent = formatDuration(duration * 1000);
+};
+
+const onYtHandoffState = (event) => {
+  if (!ytHandoffActive) return;
+  const playing = event.data === window.YT.PlayerState.PLAYING;
+  setPlaying(playing);
+  clearInterval(ytHandoffTimer);
+  ytHandoffTimer = playing ? setInterval(updateYtHandoffTime, 500) : null;
+  updateYtHandoffTime();
+};
+
+const stopYtHandoff = () => {
+  if (!ytHandoffActive) return;
+  ytHandoffActive = false;
+  clearInterval(ytHandoffTimer);
+  ytHandoffTimer = null;
+  if (ytHandoffPlayer) ytHandoffPlayer.pauseVideo();
+  setPlaying(false);
+};
+
 const updateDrawer = (track, index) => {
   document.getElementById('drawer-cover').src = track.thumbnailUrl || document.getElementById('playlist-cover').src;
   document.getElementById('drawer-title').textContent = track.title;
@@ -53,6 +87,7 @@ const updateDrawer = (track, index) => {
 const selectTrack = (index, autoplay = true) => {
   const track = tracks[index];
   if (!track) return;
+  stopYtHandoff();
   currentIndex = index;
   handoffActive = false;
   document.getElementById('now-title').textContent = track.title;
@@ -74,6 +109,11 @@ const selectTrack = (index, autoplay = true) => {
 };
 
 const togglePlayback = () => {
+  if (ytHandoffActive && ytHandoffPlayer) {
+    if (ytHandoffPlayer.getPlayerState() === window.YT.PlayerState.PLAYING) ytHandoffPlayer.pauseVideo();
+    else ytHandoffPlayer.playVideo();
+    return;
+  }
   if (currentIndex < 0) selectTrack(0);
   else if (audio.paused) {
     if (audio.currentTime >= previewLimit - .1) audio.currentTime = 0;
@@ -125,8 +165,9 @@ const openLibraryWithoutStoppingPlayback = async (event, pushHistory = true) => 
     ensureStylesheet('/css/pages/main.css');
     ensureStylesheet('/css/pages/main-dynamic.css');
     document.body.prepend(shell);
+    const ytHost = document.getElementById('site-yt-host');
     [...document.body.children].forEach((child) => {
-      if (child !== shell && child !== playerBar && child !== audio && child !== drawer) child.remove();
+      if (child !== shell && child !== playerBar && child !== audio && child !== drawer && child !== ytHost) child.remove();
     });
     document.title = nextDocument.title;
     if (pushHistory) history.pushState({ flowbeeLibrary: true }, '', '/');
@@ -218,7 +259,15 @@ audio.addEventListener('timeupdate', () => {
   if (!audio.paused) saveSnapshot(true);
 });
 audio.addEventListener('loadedmetadata', updatePlayer);
-seek.addEventListener('input', () => { if (tracks[currentIndex]?.playUrl) audio.currentTime = Number(seek.value); updatePlayer(); });
+seek.addEventListener('input', () => {
+  if (ytHandoffActive && ytHandoffPlayer) {
+    ytHandoffPlayer.seekTo(Number(seek.value), true);
+    updateYtHandoffTime();
+    return;
+  }
+  if (tracks[currentIndex]?.playUrl) audio.currentTime = Number(seek.value);
+  updatePlayer();
+});
 volume.addEventListener('input', () => { audio.volume = Number(volume.value); volume.style.setProperty('--progress', `${audio.volume * 100}%`); });
 audio.volume = Number(volume.value);
 document.querySelectorAll('.back-link, .playlist-brand').forEach((link) => link.addEventListener('click', openLibraryWithoutStoppingPlayback));
@@ -229,15 +278,22 @@ window.addEventListener('popstate', () => {
 
 if (window.loadNowPlayingHandoff) {
   const handoff = window.loadNowPlayingHandoff();
-  if (handoff && handoff.isPlaying && handoff.playUrl && handoff.source !== 'youtube') {
+  if (handoff && handoff.isPlaying && handoff.playUrl) {
     handoffActive = true;
     document.getElementById('now-title').textContent = handoff.title;
     document.getElementById('now-artist').textContent = handoff.artist;
     if (handoff.thumbnailUrl) document.getElementById('player-cover').src = handoff.thumbnailUrl;
     playerBar.hidden = false;
-    audio.src = handoff.playUrl;
-    audio.addEventListener('loadedmetadata', () => { audio.currentTime = handoff.currentTime || 0; }, { once: true });
-    audio.play().catch(() => setPlaying(false));
+    if (handoff.source === 'youtube') {
+      ytHandoffActive = true;
+      window.resumeYouTubeHandoff(handoff, onYtHandoffState)
+        .then((player) => { ytHandoffPlayer = player; })
+        .catch(() => stopYtHandoff());
+    } else {
+      audio.src = handoff.playUrl;
+      audio.addEventListener('loadedmetadata', () => { audio.currentTime = handoff.currentTime || 0; }, { once: true });
+      audio.play().catch(() => setPlaying(false));
+    }
   }
 }
 
