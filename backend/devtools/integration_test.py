@@ -373,7 +373,9 @@ async def test_search_cache(a: httpx.AsyncClient, Session) -> None:
         r = await a.get("/api/search", params={"q": "Cached", "source": "itunes", "limit": 5})
         check("limit 이 달라도 같은 캐시를 쓴다", len(calls) == 1, calls)
         check("limit 은 캐시에서 잘라 준다", r.json()["tracks"] == first[:5], r.text)
-        check("외부 호출은 요청 limit 이 아니라 풀 크기로 나간다", "limit=200" in calls[0], calls)
+        # 풀은 api.MAX_LIMIT 과 같아야 한다. 작으면 limit=50 요청이 조용히 모자라고,
+        # 크면 iTunes 가 행당 약 18ms 로 선형이라 캐시 미스가 그만큼 느려진다.
+        check("외부 호출은 요청 limit 이 아니라 풀 크기로 나간다", "limit=50" in calls[0], calls)
 
         r = await a.get("/api/search", params={"q": "x" * 201})
         check("201자 검색어 422", r.status_code == 422, r.status_code)
