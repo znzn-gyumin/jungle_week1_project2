@@ -41,13 +41,16 @@
     overflow: visible;
 }
 
-/* 재생 드로어가 열려 본문이 좁아지면 한 화면에 보이는 카드도 다섯에서 넷으로 줄인다 */
-body:has(.now-playing-drawer:not(.is-collapsed)) .card-grid:is([data-album-grid], [data-playlist-grid], #search-albums-grid) {
-    grid-auto-columns: calc((100% - 60px) / 4);
-}
+/* 재생 드로어가 열려 본문이 좁아지면 한 화면에 보이는 카드도 다섯에서 넷으로 줄인다.
+   좁은 화면에서는 드로어가 본문을 밀지 않으므로 카드 수도 그대로 둔다 */
+@media (min-width: 901px) {
+    body:has(.now-playing-drawer:not(.is-collapsed)) .card-grid:is([data-album-grid], [data-playlist-grid], #search-albums-grid) {
+        grid-auto-columns: calc((100% - 60px) / 4);
+    }
 
-body:has(.now-playing-drawer:not(.is-collapsed)) .section.expanded .card-grid:is([data-album-grid], [data-playlist-grid], #search-albums-grid) {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    body:has(.now-playing-drawer:not(.is-collapsed)) .section.expanded .card-grid:is([data-album-grid], [data-playlist-grid], #search-albums-grid) {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
 }
 
 .album-slider-controls {
@@ -56,8 +59,6 @@ body:has(.now-playing-drawer:not(.is-collapsed)) .section.expanded .card-grid:is
     flex-shrink: 0;
     margin-left: auto;
 }
-
-.week-pick + .album-slider-controls { margin-left: 0; }
 
 .album-slider-controls button {
     width: 32px;

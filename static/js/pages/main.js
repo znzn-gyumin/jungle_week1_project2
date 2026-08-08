@@ -1,7 +1,8 @@
 (function () {
-const albumGrids = [...document.querySelectorAll('[data-album-grid]')];
-const playlistGrid = document.querySelector('[data-playlist-grid]');
-const playlistFixedGrid = document.querySelector('[data-playlist-grid-fixed]');
+// 본문은 탭을 옮길 때마다 통째로 갈아끼워진다. 그때 다시 찾아야 하므로 let 이다.
+let albumGrids = [];
+let playlistGrid = null;
+let playlistFixedGrid = null;
 
 const albumSearchUrl = (query, limit = 10) => {
     const params = new URLSearchParams({
@@ -145,52 +146,34 @@ const initializePlaylistReroll = () => {
 
 // 사이드바/토프바/탭은 templates/components/ 에서 통째로 공유한다. 페이지마다 달라지는
 // 부분은 여기서 켠다 - 마크업을 7벌로 복사하지 않기 위한 대가다.
-const initializeShellChrome = () => {
-    const shell = document.querySelector('.app-shell');
+// 탭 줄은 이동할 때마다 새로 오고 검색창은 살아남는다. 둘 다 지금 경로에 맞춰 다시 칠한다.
+// 검색창 안내문은 페이지마다 다르므로, data-search 가 없는 홈에서는 기본값으로 되돌려야 한다.
+const applyRouteChrome = () => {
     const path = location.pathname.replace(/\/$/, '') || '/';
     document.querySelector(`.content-tab[href="${path}"]`)?.classList.add('active');
     const input = document.querySelector('.search-box input');
-    if (input && shell?.dataset.search) input.placeholder = shell.dataset.search;
+    if (input) input.placeholder = document.querySelector('.app-shell')?.dataset.search || '아티스트, 곡, 앨범 검색';
 };
 
-const trackSearchUrl = (query, limit = 1) => {
-    const params = new URLSearchParams({
-        q: query,
-        type: 'track',
-        source: 'itunes',
-        limit: String(limit),
+// 좁은 화면에서 사이드바는 오버레이다. 햄버거로 열고, 바깥/링크/ESC 로 닫는다.
+const initializeSidebarToggle = () => {
+    const toggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.querySelector('.sidebar');
+    if (!toggle || !sidebar) return;
+    const setOpen = (open) => {
+        document.body.classList.toggle('sidebar-open', open);
+        toggle.setAttribute('aria-expanded', String(open));
+    };
+    toggle.addEventListener('click', () => setOpen(!document.body.classList.contains('sidebar-open')));
+    document.addEventListener('click', (event) => {
+        if (!document.body.classList.contains('sidebar-open')) return;
+        if (event.target === toggle || toggle.contains(event.target)) return;
+        // 사이드바 안이라도 링크를 눌렀으면 이동하면서 닫는다
+        if (sidebar.contains(event.target) && !event.target.closest('a')) return;
+        setOpen(false);
     });
-    return `/api/search?${params}`;
-};
-
-let weekPickTrack = null;
-
-const updateWeekPick = (track) => {
-    const pick = document.querySelector('.week-pick');
-    if (!pick || !track) return;
-    weekPickTrack = track;
-    const name = pick.querySelector('strong');
-    if (name) name.textContent = track.title;
-};
-
-const loadWeekPickTrack = async () => {
-    if (!document.querySelector('.week-pick')) return;
-    try {
-        const response = await fetch(trackSearchUrl('Red Velvet'));
-        const data = await response.json().catch(() => ({}));
-        const track = (data.tracks || [])[0];
-        if (track) updateWeekPick(track);
-    } catch {
-        // 이번 주 추천은 실패해도 기본 문구를 그대로 둔다
-    }
-};
-
-const initializeWeekPickPlay = () => {
-    const pick = document.querySelector('.week-pick');
-    if (!pick) return;
-    pick.addEventListener('click', (event) => {
-        event.preventDefault();
-        if (weekPickTrack && window.playSiteTrack) window.playSiteTrack(weekPickTrack);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') setOpen(false);
     });
 };
 
@@ -296,9 +279,9 @@ const performSearch = async (query) => {
     }
 };
 
+// 검색창은 탑바에 있어서 살아남는다 - 한 번만 붙인다.
 const initializeSearch = () => {
     const input = document.querySelector('.search-box input');
-    const clearBtn = document.getElementById('search-clear-btn');
     if (!input) return;
     input.addEventListener('keydown', async (event) => {
         if (event.key !== 'Enter') return;
@@ -306,7 +289,11 @@ const initializeSearch = () => {
         if (!query) { clearSearch(); return; }
         await performSearch(query);
     });
-    if (clearBtn) clearBtn.addEventListener('click', clearSearch);
+};
+
+// 검색 지우기 버튼은 본문 안에 있다 - 본문이 바뀔 때마다 다시 붙인다.
+const bindSearchClear = () => {
+    document.getElementById('search-clear-btn')?.addEventListener('click', clearSearch);
 };
 
 // 내 플레이리스트 목록은 카드 그리드와 사이드바가 같이 쓴다. 한 번만 부른다.
@@ -574,24 +561,46 @@ const initializeAuthUI = async () => {
     });
 };
 
-const initializeMainPage = () => {
+// 플레이리스트를 만들거나 곡을 담은 뒤 api.js 가 부른다. getMyPlaylists 의 promise 캐시는
+// 여기서만 비울 수 있고, 사이드바는 이제 탭을 옮겨도 안 다시 그려지므로 여기가 유일한 갱신 통로다.
+window.refreshMyPlaylists = () => {
+    myPlaylistsPromise = null;
+    loadMyPlaylists();
+    loadSidebarData();
+};
+
+// 사이드바/탑바/플레이어는 탭을 옮겨도 그대로 남는다. 여기 있는 것들은 화면당 한 번만 돈다.
+const initializeShell = () => {
     if (window.initSitePlayer) window.initSitePlayer();
-    initializeShellChrome();
+    initializeSidebarToggle();
     initializeSidebarTags();
     initializeAuthUI();
+    initializeSearch();
+    loadSidebarData();
+};
 
+// 탭 줄과 본문은 이동할 때마다 새 것으로 갈린다. api.js 가 갈아끼운 뒤 이걸 부른다.
+const initializeMainContent = () => {
+    albumGrids = [...document.querySelectorAll('[data-album-grid]')];
+    playlistGrid = document.querySelector('[data-playlist-grid]');
+    playlistFixedGrid = document.querySelector('[data-playlist-grid-fixed]');
+
+    applyRouteChrome();
+    bindSearchClear();
     [...document.querySelectorAll('.section')]
         .filter((section) => !section.querySelector('[data-album-grid], [data-playlist-grid], [data-playlist-grid-fixed]'))
         .forEach(updateMoreButton);
-    initializeSearch();
     initializeAlbumGrids();
-    initializeWeekPickPlay();
-    loadWeekPickTrack();
     loadMyPlaylists();
-    loadSidebarData();
     loadRecommendedPlaylists();
     initializePlaylistReroll();
     loadFixedPlaylists();
+};
+window.initializeMainContent = initializeMainContent;
+
+const initializeMainPage = () => {
+    initializeShell();
+    initializeMainContent();
 };
 
 if (document.readyState === 'loading') {

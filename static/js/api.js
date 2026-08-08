@@ -441,7 +441,22 @@ async function navigateWithoutStoppingPlayback(path, pushHistory = true) {
         link.href = href;
         document.head.appendChild(link);
     });
-    swapInShell(nextShell);
+    // 탭이 달라도 사이드바/탑바/플레이어는 같은 것이다. 살려두면 그 안의 목록을 다시
+    // 받아올 일이 없다. 그래서 실제로 다른 부분 - 탭 줄과 본문 - 만 갈아끼운다.
+    // 셸이 없는 화면(앨범/추천 플레이리스트 상세)에서 돌아올 때만 통째로 바꾼다.
+    const currentTabs = document.querySelector('.content-tabs');
+    const currentContent = document.querySelector('.main-content');
+    const nextTabs = nextDocument.querySelector('.content-tabs');
+    const nextContent = nextDocument.querySelector('.main-content');
+    const keepsShell = currentTabs && currentContent && nextTabs && nextContent;
+    if (keepsShell) {
+        // 검색창 안내문이 페이지마다 다르다. 셸을 살리므로 이 값도 직접 옮겨야 한다.
+        document.querySelector('.app-shell').dataset.search = nextShell.dataset.search || '';
+        currentTabs.replaceWith(nextTabs);
+        currentContent.replaceWith(nextContent);
+    } else {
+        swapInShell(nextShell);
+    }
     document.title = nextDocument.title;
     ensureSiteNowPlayingDrawer().classList.add('is-collapsed');
     if (pushHistory) history.pushState({ flowbeePersistentPage: true }, '', path);
@@ -449,7 +464,9 @@ async function navigateWithoutStoppingPlayback(path, pushHistory = true) {
     // 어느 화면에서 넘어오든 main.js/페이지 스크립트가 쓰는 전역이 먼저 준비돼 있어야 한다.
     if (!window.FlowbeePlaylists) await loadPageScript('/js/recommended-playlists.js');
     if (!window.FlowbeeFixedCatalog) await loadPageScript('/js/fixed-catalog.js');
-    await loadPageScript('/js/pages/main.js');
+    // 셸을 통째로 갈았으면 사이드바도 새 것이라 main.js 를 처음부터 다시 돌려야 한다.
+    if (keepsShell && window.initializeMainContent) window.initializeMainContent();
+    else await loadPageScript('/js/pages/main.js');
     if (dynamicPageScripts.has(path)) await loadPageScript(`/js/pages/${path.slice(1)}.js`);
 }
 
@@ -574,6 +591,9 @@ async function addTrackToPlaylist(playlistId, track, button) {
         alert(err.message || '담기에 실패했어요.');
     } finally {
         closePlaylistPicker();
+        // 새로 만든 플레이리스트든 곡 수가 바뀐 기존 것이든, 목록/사이드바를 다시 그린다.
+        // 담기가 실패해도 부른다 - createPlaylistAndAdd 로 왔다면 플레이리스트는 이미 생겼다.
+        window.refreshMyPlaylists?.();
     }
 }
 
