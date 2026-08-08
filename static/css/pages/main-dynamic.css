@@ -60,8 +60,6 @@
     margin-left: auto;
 }
 
-.week-pick + .album-slider-controls { margin-left: 0; }
-
 .album-slider-controls button {
     width: 32px;
     height: 32px;

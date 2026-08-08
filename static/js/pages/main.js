@@ -177,47 +177,6 @@ const initializeSidebarToggle = () => {
     });
 };
 
-const trackSearchUrl = (query, limit = 1) => {
-    const params = new URLSearchParams({
-        q: query,
-        type: 'track',
-        source: 'itunes',
-        limit: String(limit),
-    });
-    return `/api/search?${params}`;
-};
-
-let weekPickTrack = null;
-
-const updateWeekPick = (track) => {
-    const pick = document.querySelector('.week-pick');
-    if (!pick || !track) return;
-    weekPickTrack = track;
-    const name = pick.querySelector('strong');
-    if (name) name.textContent = track.title;
-};
-
-const loadWeekPickTrack = async () => {
-    if (!document.querySelector('.week-pick')) return;
-    try {
-        const response = await fetch(trackSearchUrl('Red Velvet'));
-        const data = await response.json().catch(() => ({}));
-        const track = (data.tracks || [])[0];
-        if (track) updateWeekPick(track);
-    } catch {
-        // 이번 주 추천은 실패해도 기본 문구를 그대로 둔다
-    }
-};
-
-const initializeWeekPickPlay = () => {
-    const pick = document.querySelector('.week-pick');
-    if (!pick) return;
-    pick.addEventListener('click', (event) => {
-        event.preventDefault();
-        if (weekPickTrack && window.playSiteTrack) window.playSiteTrack(weekPickTrack);
-    });
-};
-
 const loadAlbums = async (grid, query) => {
     showGridMessage(grid, '실제 앨범을 불러오는 중입니다.');
     try {
@@ -632,8 +591,6 @@ const initializeMainContent = () => {
         .filter((section) => !section.querySelector('[data-album-grid], [data-playlist-grid], [data-playlist-grid-fixed]'))
         .forEach(updateMoreButton);
     initializeAlbumGrids();
-    initializeWeekPickPlay();
-    loadWeekPickTrack();
     loadMyPlaylists();
     loadRecommendedPlaylists();
     initializePlaylistReroll();

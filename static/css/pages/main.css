@@ -189,27 +189,6 @@
 }
 .more-btn:hover{ color:var(--text); background:var(--bg-card); }
 
-.week-pick{
-    display:flex; align-items:center; gap:10px;
-    margin-left:auto; padding:6px 6px 6px 16px;
-    border-radius:999px; max-width:280px; min-width:0;
-    background:linear-gradient(135deg, rgba(232,163,61,0.18), rgba(138,90,43,0.18));
-    border:1px solid rgba(244,185,66,0.28);
-    transition:transform .18s ease, border-color .2s ease;
-}
-.week-pick:hover{ transform:translateY(-2px); border-color:rgba(244,185,66,0.5); }
-.week-pick-decor{ width:56px; height:auto; flex-shrink:0; }
-.week-pick-text{
-    font-size:12.5px; font-weight:600; color:var(--text-muted);
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-.week-pick-text strong{ color:var(--text); font-weight:700; }
-
-@media(max-width:1150px){
-    .week-pick-text{ display:none; }
-    .week-pick{ padding:6px; }
-}
-
 .card-grid{
     display:grid;
     grid-template-columns:repeat(5, 1fr);
