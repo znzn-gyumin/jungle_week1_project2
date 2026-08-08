@@ -347,6 +347,8 @@
     padding:14px; transition:background .2s ease, transform .2s ease;
 }
 .track-card:hover{ background:var(--bg-card-hi); transform:translateY(-3px); }
+/* 최근 재생 카드만 <button> 이다 (누르면 그 자리에서 재생). 브라우저 기본값을 지운다 */
+.recent-play-card{ border:none; width:100%; font:inherit; color:inherit; text-align:left; cursor:pointer; }
 .track-thumb{
     width:100%; aspect-ratio:1/1; border-radius:8px; margin-bottom:12px;
     box-shadow:0 8px 18px rgba(0,0,0,0.35);

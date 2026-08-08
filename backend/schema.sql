@@ -138,6 +138,26 @@ CREATE INDEX ix_likes_album_id           ON likes (album_id);
 CREATE INDEX ix_likes_playlist_id        ON likes (playlist_id);
 
 
+-- 유저가 곡을 마지막으로 재생한 시각. 이력 전체가 아니라 곡당 한 행이다 -
+-- 홈의 "최근 재생" 목록이 이 표를 그대로 읽는다.
+CREATE TABLE plays (
+    id        bigserial   NOT NULL,
+    user_id   bigint      NOT NULL,
+    track_id  bigint      NOT NULL,
+    played_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT pk_plays PRIMARY KEY (id),
+    CONSTRAINT fk_plays_user_id_users
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_plays_track_id_tracks
+        FOREIGN KEY (track_id) REFERENCES tracks (id) ON DELETE CASCADE,
+    CONSTRAINT uq_plays_user_id_track_id UNIQUE (user_id, track_id)
+);
+
+CREATE INDEX ix_plays_user_id_played_at ON plays (user_id, played_at DESC);
+CREATE INDEX ix_plays_track_id          ON plays (track_id);
+
+
 -- 질의 -> 결과 행 ID 매핑. 트랙/앨범 실물은 tracks/albums 가 원본이고
 -- 여기엔 순서만 남는다. updated_at 이 외부 API 를 마지막으로 친 시각이다.
 CREATE TABLE search_cache (

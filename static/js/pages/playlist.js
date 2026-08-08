@@ -65,7 +65,10 @@ const selectTrack = (index, autoplay = true) => {
     return;
   }
   audio.src = track.playUrl;
-  if (autoplay) audio.play().catch(() => setPlaying(false));
+  if (autoplay) {
+    window.recordPlay?.(track.id);
+    audio.play().catch(() => setPlaying(false));
+  }
 };
 
 const togglePlayback = () => {

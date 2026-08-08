@@ -270,6 +270,34 @@ async def run_tests(a: httpx.AsyncClient, b: httpx.AsyncClient, Session) -> None
     r = await a.delete(f"/api/likes/albums/{album_id}")
     check("이미 취소된 좋아요 removed=False", r.json()["removed"] is False, r.text)
 
+    # --- 최근 재생 API ---
+    r = await a.get("/api/plays")
+    check("최근 재생 초기 빈 목록", r.status_code == 200 and r.json()["tracks"] == [], r.text)
+
+    r = await a.post(f"/api/plays/{track_ids[0]}")
+    check("재생 기록 200", r.status_code == 200 and r.json()["saved"] is True, r.text)
+    r = await a.post(f"/api/plays/{track_ids[1]}")
+    check("두 번째 곡 기록", r.status_code == 200, r.text)
+    r = await a.post(f"/api/plays/{track_ids[0]}")
+    check("같은 곡 재기록도 200 (멱등)", r.status_code == 200, r.text)
+
+    r = await a.post("/api/plays/999999")
+    check("없는 곡 재생 기록 404", r.status_code == 404, r.text)
+
+    played = (await a.get("/api/plays")).json()["tracks"]
+    check("최근 재생은 곡당 한 행", len(played) == 2, played)
+    check("가장 최근에 튼 곡이 맨 앞", played[0]["id"] == track_ids[0], played)
+    check("앨범 조인 payload", played[0]["album"]["name"] == "Album 0", played)
+
+    r = await b.get("/api/plays")
+    check("남의 재생 기록은 안 보인다", r.json()["tracks"] == [], r.text)
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+        r = await c.post(f"/api/plays/{track_ids[0]}")
+        check("비로그인 재생 기록 401", r.status_code == 401, r.text)
+        r = await c.get("/api/plays")
+        check("비로그인 최근 재생 401", r.status_code == 401, r.text)
+
     # --- 삭제 전파 ---
     r = await a.delete("/api/users/me")
     check("계정 삭제 200", r.status_code == 200, r.text)
@@ -284,7 +312,9 @@ async def run_tests(a: httpx.AsyncClient, b: httpx.AsyncClient, Session) -> None
     )
     async with Session() as s:
         left = (await s.execute(sql_text("SELECT count(*) FROM tracks"))).scalar_one()
+        plays_left = (await s.execute(sql_text("SELECT count(*) FROM plays"))).scalar_one()
     check("공용 캐시 tracks 는 남음", left == 3, left)
+    check("유저 삭제 시 plays CASCADE", plays_left == 0, plays_left)
 
     await test_search_cache(a, Session)
 

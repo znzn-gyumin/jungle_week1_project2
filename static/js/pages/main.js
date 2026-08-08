@@ -103,6 +103,58 @@ const updateSliderControls = (section, grid = section.querySelector('[data-album
     head.append(controls);
 };
 
+// 최근 재생 카드는 앨범 카드처럼 링크가 아니라 그 자리에서 곡을 다시 튼다.
+const createRecentPlayCard = (track) => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'track-card recent-play-card';
+
+    const cover = document.createElement('div');
+    cover.className = 'track-thumb album-thumb';
+    if (track.thumbnailUrl) cover.style.backgroundImage = `url("${window.artwork(track.thumbnailUrl, 300).replaceAll('"', '%22')}")`;
+
+    const title = document.createElement('div');
+    title.className = 'track-name';
+    title.textContent = track.title;
+
+    const subtitle = document.createElement('div');
+    subtitle.className = 'track-sub';
+    subtitle.textContent = track.artist;
+
+    card.append(cover, title, subtitle);
+    card.addEventListener('click', () => window.playSiteTrack?.(track));
+    return card;
+};
+
+// 곡을 연달아 누르면 응답이 뒤바뀐 순서로 올 수 있다. 마지막 호출만 그린다.
+let recentPlaysRequest = 0;
+
+const loadRecentPlays = async () => {
+    const grid = document.getElementById('recent-plays-grid');
+    if (!grid || !window.getCurrentUser) return;
+    const mine = ++recentPlaysRequest;
+    const me = await window.getCurrentUser();
+    if (!me.loggedIn) {
+        showGridMessage(grid, '로그인하면 최근 들은 곡이 여기에 쌓여요.');
+        return;
+    }
+    try {
+        const response = await fetch('/api/plays');
+        const data = await response.json().catch(() => ({}));
+        if (mine !== recentPlaysRequest) return;
+        if (!response.ok) throw new Error(data.error || '최근 재생을 불러오지 못했습니다.');
+        const tracks = data.tracks || [];
+        if (!tracks.length) {
+            showGridMessage(grid, '아직 재생한 곡이 없어요. 아무 곡이나 틀어보세요.');
+            return;
+        }
+        grid.replaceChildren(...tracks.map(createRecentPlayCard));
+        updateMoreButton(grid.closest('.section'));
+    } catch (error) {
+        showGridMessage(grid, error.message, true);
+    }
+};
+
 const loadRecommendedPlaylists = async () => {
     if (!playlistGrid || !window.FlowbeePlaylists) return;
     showGridMessage(playlistGrid, '플로비 추천 플레이리스트를 만드는 중입니다.');
@@ -564,6 +616,9 @@ const initializeAuthUI = async () => {
 
 // 플레이리스트를 만들거나 곡을 담은 뒤 api.js 가 부른다. getMyPlaylists 의 promise 캐시는
 // 여기서만 비울 수 있고, 사이드바는 이제 탭을 옮겨도 안 다시 그려지므로 여기가 유일한 갱신 통로다.
+// 곡을 틀면 api.js 가 기록을 끝낸 뒤 이걸 부른다. 새로고침 없이 순서가 갱신된다.
+window.refreshRecentPlays = () => loadRecentPlays();
+
 window.refreshMyPlaylists = () => {
     myPlaylistsPromise = null;
     loadMyPlaylists();
@@ -592,6 +647,7 @@ const initializeMainContent = () => {
         .filter((section) => !section.querySelector('[data-album-grid], [data-playlist-grid], [data-playlist-grid-fixed]'))
         .forEach(updateMoreButton);
     initializeAlbumGrids();
+    loadRecentPlays();
     loadMyPlaylists();
     loadRecommendedPlaylists();
     initializePlaylistReroll();

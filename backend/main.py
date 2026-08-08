@@ -13,7 +13,12 @@ from starlette.exceptions import HTTPException
 from backend.api import albums, health, search, tracks
 from backend.config import get_settings
 from backend.db.session import engine
-from backend.routers import likes_router, playlists_router, users_router
+from backend.routers import (
+    likes_router,
+    playlists_router,
+    plays_router,
+    users_router,
+)
 from backend.sources import itunes, youtube
 
 settings = get_settings()
@@ -93,3 +98,4 @@ app.include_router(tracks.router)
 app.include_router(users_router)
 app.include_router(playlists_router)
 app.include_router(likes_router)
+app.include_router(plays_router)

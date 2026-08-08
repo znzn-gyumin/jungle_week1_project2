@@ -497,9 +497,20 @@ function initializePersistentNavigation() {
     });
 }
 
+// 최근 재생은 DB(plays)에 남는다. 실패해도 재생은 계속되므로 결과를 안 기다린다.
+// track.id 는 DB 트랙 id 다 - 검색/차트 행(data-id)이나 상세 화면 트랙에만 있다.
+// 기록이 끝난 뒤에 홈의 "최근 재생" 칸을 다시 그린다 (홈이 아니면 no-op).
+function recordPlay(trackId) {
+    if (!trackId) return;
+    fetch(`/api/plays/${Number(trackId)}`, { method: 'POST' })
+        .then((response) => { if (response.ok) window.refreshRecentPlays?.(); })
+        .catch(() => {});
+}
+
 async function playSiteTrack(track, startAt = 0) {
     if (!track) return;
     currentTrack = track;
+    recordPlay(track.id);
     const nameEl = document.querySelector('.player-now-playing .track-name');
     const subEl = document.querySelector('.player-now-playing .track-sub');
     const thumbEl = document.querySelector('.player-now-playing .track-thumb');
@@ -696,6 +707,7 @@ document.addEventListener('click', (event) => {
     const row = event.target.closest('.chart-row[data-title]');
     if (!row || event.target.closest('.chart-add')) return;
     playSiteTrack({
+        id: row.dataset.id,
         title: row.dataset.title,
         artist: row.dataset.artist,
         thumbnailUrl: row.dataset.thumb,
@@ -722,6 +734,7 @@ Object.assign(window, {
     loadNowPlayingHandoff,
     initSitePlayer,
     playSiteTrack,
+    recordPlay,
     getCurrentUser,
     handleAddToPlaylistClick,
     navigateWithoutStoppingPlayback,
