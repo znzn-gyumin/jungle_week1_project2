@@ -30,7 +30,24 @@ async def list_tracks(
     return TrackListResponse(tracks=[TrackOut.model_validate(t) for t in rows])
 
 
-# /{track_id} 보다 먼저 걸어야 한다. 아래에 두면 "top" 이 int 로 파싱돼 422 가 난다.
+# /{track_id} 보다 먼저 걸어야 한다. 아래에 두면 "top"/"latest" 가 int 로 파싱돼 422 가 난다.
+@router.get("/latest", response_model=TrackListResponse)
+async def latest_tracks(
+    q: str = Query(
+        search_service.LATEST_QUERY,
+        min_length=1,
+        max_length=search_service.MAX_QUERY_LENGTH,
+    ),
+    limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    db: AsyncSession = Depends(get_db),
+) -> TrackListResponse:
+    tracks, errors = await search_service.latest_tracks(db, q.strip(), limit)
+    if not tracks:
+        error = errors[0]["error"] if errors else "최신 음악을 불러오지 못했다"
+        raise HTTPException(502, {"error": error, "errors": errors})
+    return TrackListResponse(tracks=[TrackOut.model_validate(t) for t in tracks])
+
+
 @router.get("/top", response_model=TrackListResponse)
 async def top_tracks(
     limit: int = Query(20, ge=1, le=MAX_LIMIT),

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlencode
 
@@ -83,15 +84,21 @@ async def search_albums(
     return [r for r in results if r.get("collectionId")]
 
 
-async def top_tracks(limit: int = 20, country: str = "KR") -> list[dict[str, Any]]:
-    """Apple Music 국가별 인기곡.
+async def _chart(
+    feed_kind: str,
+    entity: str,
+    source_id: Callable[[dict[str, Any]], str | None],
+    limit: int,
+    country: str,
+) -> list[dict[str, Any]]:
+    """Apple Music 국가별 차트.
 
-    RSS 피드는 순위와 트랙 ID 만 준다. 상세는 /lookup 이 ID 를 쉼표로 한 번에
-    받으므로 곡 수와 무관하게 총 2회 호출이면 끝난다. 검색으로 곡을 되찾을
-    필요가 없어서 제목이 엉뚱한 곡에 붙을 여지도 없다.
+    RSS 피드는 순위와 ID 만 준다. 상세는 /lookup 이 ID 를 쉼표로 한 번에
+    받으므로 항목 수와 무관하게 총 2회 호출이면 끝난다. 검색으로 항목을 되찾을
+    필요가 없어서 제목이 엉뚱한 곡/앨범에 붙을 여지도 없다.
     """
     feed = await _json(
-        f"{RSS_BASE}/api/v2/{country.lower()}/music/most-played/{limit}/songs.json"
+        f"{RSS_BASE}/api/v2/{country.lower()}/music/most-played/{limit}/{feed_kind}.json"
     )
     ids = [str(r["id"]) for r in feed.get("feed", {}).get("results", []) if r.get("id")]
     if not ids:
@@ -99,11 +106,19 @@ async def top_tracks(limit: int = 20, country: str = "KR") -> list[dict[str, Any
 
     results = await _get(
         "/lookup",
-        {"id": ",".join(ids), "entity": "song", "country": country},
+        {"id": ",".join(ids), "entity": entity, "country": country},
     )
     # lookup 응답 순서는 보장이 없다. 순위는 피드 순서가 원본이다.
-    by_id = {str(r["trackId"]): r for r in results if r.get("trackId")}
+    by_id = {sid: r for r in results if (sid := source_id(r))}
     return [by_id[i] for i in ids if i in by_id]
+
+
+async def top_tracks(limit: int = 20, country: str = "KR") -> list[dict[str, Any]]:
+    return await _chart("songs", "song", track_source_id, limit, country)
+
+
+async def top_albums(limit: int = 20, country: str = "KR") -> list[dict[str, Any]]:
+    return await _chart("albums", "album", album_source_id, limit, country)
 
 
 async def lookup_album_tracks(
@@ -167,4 +182,9 @@ def to_album(result: dict[str, Any]) -> dict[str, Any]:
 
 def album_source_id(result: dict[str, Any]) -> str | None:
     value = result.get("collectionId")
+    return str(value) if value else None
+
+
+def track_source_id(result: dict[str, Any]) -> str | None:
+    value = result.get("trackId")
     return str(value) if value else None

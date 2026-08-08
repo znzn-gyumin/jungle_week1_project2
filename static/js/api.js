@@ -472,7 +472,6 @@ async function navigateWithoutStoppingPlayback(path, pushHistory = true) {
 
     // 어느 화면에서 넘어오든 main.js/페이지 스크립트가 쓰는 전역이 먼저 준비돼 있어야 한다.
     if (!window.FlowbeePlaylists) await loadPageScript('/js/recommended-playlists.js');
-    if (!window.FlowbeeFixedCatalog) await loadPageScript('/js/fixed-catalog.js');
     // 셸을 통째로 갈았으면 사이드바도 새 것이라 main.js 를 처음부터 다시 돌려야 한다.
     if (keepsShell && window.initializeMainContent) window.initializeMainContent();
     else await loadPageScript('/js/pages/main.js');

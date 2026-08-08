@@ -232,10 +232,10 @@ const initializeSidebarToggle = () => {
     });
 };
 
-const loadAlbums = async (grid, query) => {
+const loadAlbums = async (grid, url) => {
     showGridMessage(grid, '실제 앨범을 불러오는 중입니다.');
     try {
-        const response = await fetch(albumSearchUrl(query));
+        const response = await fetch(url);
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || '앨범 API 요청에 실패했습니다.');
         const albums = data.albums || [];
@@ -254,24 +254,21 @@ const loadAlbums = async (grid, query) => {
     }
 };
 
+// 어느 줄이든 응답은 { albums } 하나로 같다. 다른 건 어디서 받아오냐뿐이다.
+const albumGridUrl = (grid) => {
+    const limit = grid.dataset.limit || '10';
+    if ('topAlbums' in grid.dataset) return `/api/albums/top?limit=${limit}`;
+    // 검색 씨앗의 기본값은 서버가 쥔다. 화면이 굳이 다른 걸 원할 때만 data-query 로 덮는다.
+    if ('latest' in grid.dataset) {
+        const params = new URLSearchParams({ limit });
+        if (grid.dataset.query) params.set('q', grid.dataset.query);
+        return `/api/albums/latest?${params}`;
+    }
+    return albumSearchUrl(grid.dataset.query, limit);
+};
+
 const initializeAlbumGrids = () => Promise.all(
-    albumGrids.map(async (grid) => {
-        if (grid.dataset.fixedLatest === 'true' && window.FlowbeeFixedCatalog) {
-            showGridMessage(grid, '고정 최신 앨범을 불러오는 중...');
-            try {
-                const albums = await window.FlowbeeFixedCatalog.loadLatestAlbums();
-                grid.replaceChildren(...albums.map(createAlbumCard));
-                const section = grid.closest('.section');
-                updateMoreButton(section);
-                updateSliderControls(section);
-                return albums;
-            } catch (error) {
-                showGridMessage(grid, error.message, true);
-                return [];
-            }
-        }
-        return loadAlbums(grid, grid.dataset.query);
-    }),
+    albumGrids.map((grid) => loadAlbums(grid, albumGridUrl(grid))),
 );
 
 const searchAlbumsUrl = (query) => `/api/search?${new URLSearchParams({ q: query, type: 'album', source: 'itunes', limit: '50' })}`;

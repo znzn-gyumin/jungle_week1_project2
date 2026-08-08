@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Awaitable, Callable
+from datetime import date
 from typing import Any, NamedTuple
 
 import httpx
@@ -25,6 +26,15 @@ MAX_QUERY_LENGTH = 200
 # 차트는 검색어가 없다. query 자리에 국가를 넣는 대신 kind 를 따로 준다.
 # 그래야 "top" 을 검색한 사람의 캐시와 절대 겹치지 않는다.
 TOP_KIND = "top"
+TOP_ALBUM_KIND = "top_album"
+
+# "신보" 피드는 Apple 에 없다 (most-recent, new-releases 둘 다 404, 레거시 RSS 는 400).
+# 검색 결과를 넓게 받아 발매일로 다시 세우는 게 진짜 최신을 얻는 유일한 길이다.
+# 풀을 캐시가 통째로 안고 있어서 limit 이 달라도 외부 호출은 늘지 않는다.
+LATEST_POOL = 200
+
+# 신보 검색 씨앗. 화면마다 적어 두면 또 갈라지니 기본값은 여기 하나뿐이다.
+LATEST_QUERY = "K-pop"
 
 
 def cache_key(q: str) -> str:
@@ -176,6 +186,74 @@ async def top_tracks(
         )
         await db.commit()
     return rows, []
+
+
+async def top_albums(
+    db: AsyncSession, limit: int
+) -> tuple[list[Album], list[dict[str, str]]]:
+    """Apple Music 인기 앨범 차트. top_tracks 와 같은 피드/캐시 구조다."""
+    name = SourceType.ITUNES.value
+    country = settings.itunes_country
+    cached = await repository.cached_ids(
+        db, TOP_ALBUM_KIND, name, country, limit, settings.search_cache_ttl
+    )
+    if cached is not None:
+        return await repository.albums_by_ids(db, cached), []
+
+    try:
+        results = await itunes.top_albums(limit=limit, country=country)
+    except SOURCE_ERRORS as exc:
+        return [], [{"source": name, "error": _message(exc)}]
+
+    ids = await repository.upsert_albums(db, [itunes.to_album(r) for r in results])
+    ordered = [
+        ids[sid] for r in results if (sid := itunes.album_source_id(r)) and sid in ids
+    ]
+    # 검색과 달리 빈 차트는 "결과 없음" 이 아니라 고장이다. 캐시하면 하루 동안 굳는다.
+    if ordered:
+        await repository.put_cached_ids(
+            db, TOP_ALBUM_KIND, name, country, limit, ordered
+        )
+        await db.commit()
+    return await repository.albums_by_ids(db, ordered), []
+
+
+def _newest_first(rows: list[Any], limit: int) -> list[Any]:
+    """발매일 내림차순. 같은 곡/앨범은 한 번만.
+
+    검색 결과에는 싱글판과 앨범 수록판이 다른 ID 로 같이 들어온다. 그대로 두면
+    최신 목록에 같은 제목이 두 줄 뜬다. 발매일이 없는 항목은 최신일 수 없어 뒤로 민다.
+    """
+    seen: set[tuple[str, str]] = set()
+    picked: list[Any] = []
+    for row in sorted(rows, key=lambda r: r.release_date or date.min, reverse=True):
+        key = (
+            (getattr(row, "title", None) or row.name).casefold(),
+            row.artist.casefold(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        picked.append(row)
+        if len(picked) == limit:
+            break
+    return picked
+
+
+async def latest_albums(
+    db: AsyncSession, q: str, limit: int
+) -> tuple[list[Album], list[dict[str, str]]]:
+    albums, errors = await search_albums(
+        db, q, SourceType.ITUNES.value, LATEST_POOL
+    )
+    return _newest_first(albums, limit), errors
+
+
+async def latest_tracks(
+    db: AsyncSession, q: str, limit: int
+) -> tuple[list[Track], list[dict[str, str]]]:
+    tracks, errors = await search(db, q, SourceType.ITUNES.value, LATEST_POOL)
+    return _newest_first(tracks, limit), errors
 
 
 async def search_albums(
