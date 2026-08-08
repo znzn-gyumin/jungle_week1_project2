@@ -6,6 +6,7 @@ from backend.db import repository
 from backend.db.session import get_db
 from backend.models.enums import SourceType
 from backend.schemas import TrackListResponse, TrackOut
+from backend.services import search as search_service
 from backend.services.search import SOURCES
 
 router = APIRouter(prefix="/api/tracks", tags=["tracks"])
@@ -27,6 +28,19 @@ async def list_tracks(
         limit=limit,
     )
     return TrackListResponse(tracks=[TrackOut.model_validate(t) for t in rows])
+
+
+# /{track_id} 보다 먼저 걸어야 한다. 아래에 두면 "top" 이 int 로 파싱돼 422 가 난다.
+@router.get("/top", response_model=TrackListResponse)
+async def top_tracks(
+    limit: int = Query(20, ge=1, le=MAX_LIMIT),
+    db: AsyncSession = Depends(get_db),
+) -> TrackListResponse:
+    tracks, errors = await search_service.top_tracks(db, limit)
+    if not tracks:
+        error = errors[0]["error"] if errors else "차트를 불러오지 못했다"
+        raise HTTPException(502, {"error": error, "errors": errors})
+    return TrackListResponse(tracks=[TrackOut.model_validate(t) for t in tracks])
 
 
 @router.get("/{track_id}", response_model=TrackOut)

@@ -22,6 +22,10 @@ SOURCE_ERRORS = (ITunesError, YouTubeError, httpx.HTTPError)
 # search_cache.query 컬럼 크기. api.search 가 같은 값으로 입력을 막는다.
 MAX_QUERY_LENGTH = 200
 
+# 차트는 검색어가 없다. query 자리에 국가를 넣는 대신 kind 를 따로 준다.
+# 그래야 "top" 을 검색한 사람의 캐시와 절대 겹치지 않는다.
+TOP_KIND = "top"
+
 
 def cache_key(q: str) -> str:
     """대소문자만 다른 검색어가 캐시를 따로 먹지 않게 한다."""
@@ -145,6 +149,33 @@ async def search(
 
     await db.commit()
     return tracks, errors
+
+
+async def top_tracks(
+    db: AsyncSession, limit: int
+) -> tuple[list[Track], list[dict[str, str]]]:
+    """Apple Music 인기곡 차트. 하루 한 번 갱신되니 캐시 TTL 을 그대로 쓴다."""
+    name = SourceType.ITUNES.value
+    country = settings.itunes_country
+    cached = await repository.cached_ids(
+        db, TOP_KIND, name, country, limit, settings.search_cache_ttl
+    )
+    if cached is not None:
+        return await repository.tracks_by_ids(db, cached), []
+
+    try:
+        results = await itunes.top_tracks(limit=limit, country=country)
+    except SOURCE_ERRORS as exc:
+        return [], [{"source": name, "error": _message(exc)}]
+
+    rows = await _persist_itunes(db, results)
+    # 검색과 달리 빈 차트는 "결과 없음" 이 아니라 고장이다. 캐시하면 하루 동안 굳는다.
+    if rows:
+        await repository.put_cached_ids(
+            db, TOP_KIND, name, country, limit, [t.id for t in rows]
+        )
+        await db.commit()
+    return rows, []
 
 
 async def search_albums(

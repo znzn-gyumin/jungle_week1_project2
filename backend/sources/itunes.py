@@ -7,6 +7,9 @@ from backend.models.enums import SourceType
 from backend.sources import parse_date
 
 BASE = "https://itunes.apple.com"
+# 차트 피드는 검색 API 와 호스트가 다르다. rss.applemarketingtools.com 은
+# 여기로 301 하니 처음부터 최종 주소를 쓴다.
+RSS_BASE = "https://rss.marketingtools.apple.com"
 ITUNES_MAX_LIMIT = 200
 ARTWORK_SIZE = "600x600bb"
 
@@ -31,16 +34,20 @@ def _http() -> httpx.AsyncClient:
     return _client
 
 
-async def _get(path: str, params: dict[str, Any]) -> list[dict[str, Any]]:
-    res = await _http().get(f"{BASE}{path}?{urlencode(params)}")
+async def _json(url: str) -> dict[str, Any]:
+    res = await _http().get(url)
     if res.status_code == 429:
         raise ITunesError("iTunes 요청 한도 초과 (IP 당 약 20회/분)", 429)
     if res.status_code >= 400:
         raise ITunesError(f"iTunes {res.status_code}", res.status_code)
     try:
-        body = res.json()
+        return res.json()
     except ValueError:
         raise ITunesError("iTunes 응답을 JSON 으로 읽지 못했다", 502) from None
+
+
+async def _get(path: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+    body = await _json(f"{BASE}{path}?{urlencode(params)}")
     return body.get("results", [])
 
 
@@ -74,6 +81,29 @@ async def search_albums(
         },
     )
     return [r for r in results if r.get("collectionId")]
+
+
+async def top_tracks(limit: int = 20, country: str = "KR") -> list[dict[str, Any]]:
+    """Apple Music 국가별 인기곡.
+
+    RSS 피드는 순위와 트랙 ID 만 준다. 상세는 /lookup 이 ID 를 쉼표로 한 번에
+    받으므로 곡 수와 무관하게 총 2회 호출이면 끝난다. 검색으로 곡을 되찾을
+    필요가 없어서 제목이 엉뚱한 곡에 붙을 여지도 없다.
+    """
+    feed = await _json(
+        f"{RSS_BASE}/api/v2/{country.lower()}/music/most-played/{limit}/songs.json"
+    )
+    ids = [str(r["id"]) for r in feed.get("feed", {}).get("results", []) if r.get("id")]
+    if not ids:
+        return []
+
+    results = await _get(
+        "/lookup",
+        {"id": ",".join(ids), "entity": "song", "country": country},
+    )
+    # lookup 응답 순서는 보장이 없다. 순위는 피드 순서가 원본이다.
+    by_id = {str(r["trackId"]): r for r in results if r.get("trackId")}
+    return [by_id[i] for i in ids if i in by_id]
 
 
 async def lookup_album_tracks(

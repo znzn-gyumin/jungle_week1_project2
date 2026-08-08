@@ -10,29 +10,6 @@
         { name: '미스트롯 : 포유 PART13', artist: '허찬미, 김나희', query: '미스트롯 포유 PART13 허찬미 김나희' },
     ];
 
-    const melonChart = [
-        { title: 'LOVE ATTACK', artist: 'RESCENE (리센느)', album: 'SCENEDROME' },
-        { title: '숨쉬기', artist: '아이오아이 (I.O.I)', album: 'I.O.I 3rd MINI ALBUM' },
-        { title: 'REDDER', artist: 'CORTIS (코르티스)', album: 'GREEN:GREEN' },
-        { title: 'LEMONADE', artist: 'aespa', album: 'LEMONADE : The 2nd Album' },
-        { title: "It's Me", artist: '마미손', album: 'MAMIHLAPINATAPAI' },
-        { title: 'Pretty Girl', artist: 'RESCENE (리센느)', album: 'Pretty Girl - Special Single' },
-        { title: '만찬가', artist: '태연 (TAEYEON)', album: 'I-POP REMAKE Vol.1' },
-        { title: '캐치 캐치', artist: 'YENA (최예나)', album: 'LOVE CATCHER' },
-        { title: 'Deja Vu', artist: 'RESCENE (리센느)', album: 'Dearest' },
-        { title: 'Drowning', artist: 'WOODZ', album: 'OO-LI' },
-        { title: 'RUDE!', artist: 'Hearts2Hearts (하츠투하츠)', album: 'RUDE!' },
-        { title: 'BAD', artist: '김태연', album: 'GOLDEN HOUR : Part.5' },
-        { title: '소문의 너와', artist: 'ASHU (애슈)', album: '계화' },
-        { title: '사랑하게 될 거야', artist: '한로로', album: '이상비행' },
-        { title: '여름아 부탁해', artist: '볼빨간사춘기', album: '여름아 부탁해' },
-        { title: 'Lemon Tang', artist: 'Hearts2Hearts (하츠투하츠)', album: 'Lemon Tang : The 2nd Album' },
-        { title: 'Good Goodbye', artist: '화사 (HWASA)', album: 'Good Goodbye' },
-        { title: 'ㅇㅁㅇ', artist: '문초은', album: '자몽청구존립' },
-        { title: '기쁨, 슬픔, 아름다운 마음', artist: 'ASHU (애슈)', album: '계화' },
-        { title: '타임캡슐', artist: '다비치', album: '타임캡슐' },
-    ];
-
     const latestMusic = [
         { title: 'This & That', artist: 'Stray Kids (스트레이 키즈)', album: 'THIS & THAT' },
         { title: 'courage', artist: 'wave to earth', album: 'bad pieces' },
@@ -84,8 +61,7 @@
     // 목록이 고정이라 결과도 고정이다. 캐시하지 않으면 화면에 들어올 때마다
     // /api/search 를 항목 수만큼(20/20/8회) 다시 쏜다. withCache 는 3일 뒤 만료된다.
     const loadLatestAlbums = () => withCache('flowbee_fixed_albums_v1', () => resolveAll(latestAlbums, findFixedAlbum));
-    const loadMelonChart = () => withCache('flowbee_fixed_melon_v1', () => resolveAll(melonChart, findFixedTrack));
     const loadLatestMusic = () => withCache('flowbee_fixed_latest_v1', () => resolveAll(latestMusic, findFixedTrack));
 
-    window.FlowbeeFixedCatalog = { latestAlbums, latestMusic, melonChart, loadLatestAlbums, loadLatestMusic, loadMelonChart };
+    window.FlowbeeFixedCatalog = { latestAlbums, latestMusic, loadLatestAlbums, loadLatestMusic };
 }());
