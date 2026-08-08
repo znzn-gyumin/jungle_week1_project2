@@ -66,8 +66,10 @@ app.get(['/events', '/events.html'], page('events'));
 app.get(['/album', '/album.html', '/album/:albumId'], page('album'));
 app.get(['/playlist', '/playlist.html', '/playlist/:playlistSlug'], page('playlist'));
 
-// 서버 실행
-app.listen(port, () => {
+// 서버 실행. 127.0.0.1 에만 묶는다 - 기본값(0.0.0.0)이면 3001 이 그대로 외부에
+// 열려서 nginx 를 건너뛴 요청이 들어온다. 그러면 위 proxyReq 가 공격자의 소켓
+// 주소를 X-Forwarded-For 로 넣어주는 꼴이라, CF-Connecting-IP 기반 제한이 무의미해진다.
+app.listen(port, '127.0.0.1', () => {
   console.log(`Server is running on http://localhost:${port}`);
   console.log(`API proxy  /api -> ${apiTarget}`);
 });
