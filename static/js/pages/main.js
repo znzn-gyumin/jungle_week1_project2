@@ -151,6 +151,29 @@ const initializeShellChrome = () => {
     document.querySelector(`.content-tab[href="${path}"]`)?.classList.add('active');
     const input = document.querySelector('.search-box input');
     if (input && shell?.dataset.search) input.placeholder = shell.dataset.search;
+    initializeSidebarToggle();
+};
+
+// 좁은 화면에서 사이드바는 오버레이다. 햄버거로 열고, 바깥/링크/ESC 로 닫는다.
+const initializeSidebarToggle = () => {
+    const toggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.querySelector('.sidebar');
+    if (!toggle || !sidebar) return;
+    const setOpen = (open) => {
+        document.body.classList.toggle('sidebar-open', open);
+        toggle.setAttribute('aria-expanded', String(open));
+    };
+    toggle.addEventListener('click', () => setOpen(!document.body.classList.contains('sidebar-open')));
+    document.addEventListener('click', (event) => {
+        if (!document.body.classList.contains('sidebar-open')) return;
+        if (event.target === toggle || toggle.contains(event.target)) return;
+        // 사이드바 안이라도 링크를 눌렀으면 이동하면서 닫는다
+        if (sidebar.contains(event.target) && !event.target.closest('a')) return;
+        setOpen(false);
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') setOpen(false);
+    });
 };
 
 const trackSearchUrl = (query, limit = 1) => {

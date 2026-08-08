@@ -97,6 +97,13 @@
     position:sticky; top:0; z-index:5;
     background:rgba(21,15,8,0.85); backdrop-filter:blur(8px);
 }
+/* 사이드바가 오버레이로 바뀌는 좁은 화면에서만 보인다 */
+.sidebar-toggle{
+    display:none; flex-shrink:0;
+    width:38px; height:38px; border:0; border-radius:50%;
+    background:var(--bg-card); color:var(--text);
+    font-size:17px; line-height:1; cursor:pointer;
+}
 .search-box{
     display:flex; align-items:center; gap:10px;
     background:var(--bg-card); border-radius:999px;
@@ -135,8 +142,12 @@
     display:flex; align-items:center; gap:28px;
     padding:0 32px; height:48px;
     border-bottom:1px solid var(--line);
+    /* 탭이 화면 폭을 넘으면 줄바꿈 대신 가로 스크롤한다 */
+    overflow-x:auto; scrollbar-width:none;
 }
+.content-tabs::-webkit-scrollbar{ display:none; }
 .content-tab{
+    flex-shrink:0; white-space:nowrap;
     font-size:14px; font-weight:600; color:var(--text-faint);
     height:100%; display:flex; align-items:center;
     border-bottom:2px solid transparent;
@@ -212,11 +223,14 @@
    드로어는 토프바 아래에서 시작하므로 토프바는 비켜주지 않는다. */
 .content-tabs,
 .main-content{ padding-right:44px; transition:padding-right .28s cubic-bezier(.22,1,.36,1); }
-body:has(.now-playing-drawer:not(.is-collapsed)) .content-tabs,
-body:has(.now-playing-drawer:not(.is-collapsed)) .main-content{ padding-right:min(350px,88vw); }
-body:has(.now-playing-drawer:not(.is-collapsed)) .card-grid{ grid-template-columns:repeat(4, 1fr); }
-body:has(.now-playing-drawer:not(.is-collapsed)) .card-grid:not([data-playlist-grid-fixed]) > .track-card:nth-child(n+5){ display:none; }
-body:has(.now-playing-drawer:not(.is-collapsed)) .section.expanded .card-grid > .track-card{ display:block; }
+/* 좁은 화면에서는 드로어가 본문을 밀어내면 남는 폭이 없다. 덮게 둔다 */
+@media(min-width:901px){
+    body:has(.now-playing-drawer:not(.is-collapsed)) .content-tabs,
+    body:has(.now-playing-drawer:not(.is-collapsed)) .main-content{ padding-right:min(350px,88vw); }
+    body:has(.now-playing-drawer:not(.is-collapsed)) .card-grid{ grid-template-columns:repeat(4, 1fr); }
+    body:has(.now-playing-drawer:not(.is-collapsed)) .card-grid:not([data-playlist-grid-fixed]) > .track-card:nth-child(n+5){ display:none; }
+    body:has(.now-playing-drawer:not(.is-collapsed)) .section.expanded .card-grid > .track-card{ display:block; }
+}
 
 @media(max-width:900px){
     .card-grid{ grid-template-columns:repeat(3, 1fr); }
@@ -415,12 +429,42 @@ body:has(.now-playing-drawer:not(.is-collapsed)) .section.expanded .card-grid > 
 .volume-slider:hover::-moz-range-thumb, .volume-slider:focus::-moz-range-thumb{ opacity:1; }
 .volume-slider::-moz-range-track{ height:4px; border-radius:999px; background:transparent; }
 
+/* 사이드바 폭이 본문을 잡아먹기 시작하면 줄인다 */
+@media(max-width:1250px){
+    .sidebar{ width:300px; }
+}
 @media(max-width:900px){
-    .sidebar{ display:none; }
-    .player-now-playing{ width:auto; }
+    /* 사이드바는 사라지는 대신 햄버거로 여닫는 오버레이가 된다 */
+    .sidebar-toggle{ display:grid; place-items:center; }
+    .sidebar{
+        position:fixed; left:0; top:0; z-index:30;
+        width:min(300px,84vw);
+        transform:translateX(-100%);
+        transition:transform .28s cubic-bezier(.22,1,.36,1);
+    }
+    body.sidebar-open .sidebar{ transform:none; }
+    body.sidebar-open::before{
+        content:''; position:fixed; inset:0; z-index:29;
+        background:rgba(0,0,0,.55);
+    }
+    .player-now-playing{ width:auto; min-width:0; }
+    .topbar{ padding:14px 18px; gap:12px; }
+    .content-tabs{ padding-left:18px; }
+    .main-content{ padding-left:18px; }
 }
 @media(max-width:700px){
     .search-box{ max-width:none; }
     .subscribe-text{ display:none; }
     .subscribe-banner{ padding:9px 12px; }
+    /* 좁은 화면에서 볼륨 슬라이더는 자리만 차지한다. 기기 볼륨으로 충분하다 */
+    .player-volume{ display:none; }
+    .player-bar{ gap:12px; padding:0 14px; }
+    .player-now-playing .track-name,
+    .player-now-playing .track-sub{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .player-now-playing > div{ min-width:0; }
+}
+/* 아주 좁은 화면에서는 곡 정보 대신 컨트롤을 살린다 */
+@media(max-width:430px){
+    .player-now-playing{ display:none; }
+    .subscribe-banner{ display:none; }
 }
