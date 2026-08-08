@@ -4,3 +4,9 @@
 }
 .signup-terms input{ margin-top:3px; }
 .signup-terms span{ line-height:1.4; }
+
+/* 구글로 들어오면 위 약관 체크박스를 지나치므로 버튼 아래에 같은 내용을 알린다. */
+.signup-social-terms{
+    margin:12px 0 0;
+    color:var(--text-faint); font-size:11px; line-height:1.5; text-align:center;
+}

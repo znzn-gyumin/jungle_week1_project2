@@ -59,6 +59,14 @@
             <button type="submit" class="btn btn-primary login-submit">회원가입</button>
         </form>
 
+        <div class="login-divider" id="google-divider"><span>또는</span></div>
+
+        <!-- 구글 버튼은 google-signin.js 가 Google Identity Services 로 여기에 그린다.
+             클라이언트 ID 가 없으면 위 구분선·아래 약관 문구와 함께 통째로 사라진다.
+             구글로 들어오면 위 폼의 약관 체크박스를 지나치므로 여기서 따로 알린다. -->
+        <div class="login-social" id="google-btn"></div>
+        <p class="signup-social-terms" id="google-terms">구글로 계속하면 이용약관 및 개인정보 처리방침에 동의하는 것으로 봅니다.</p>
+
         <p class="login-footer">
             이미 계정이 있으신가요? <a href="/login" class="login-link">로그인</a>
         </p>
@@ -66,6 +74,7 @@
 
 </div>
 
+<script src="/js/google-signin.js"></script>
 <script src="/js/pages/signup.js"></script>
 </body>
 </html>
