@@ -45,7 +45,7 @@ async function withCache(key, loader) {
 
 async function fetchSearch({ q, type = 'track', source = 'all', limit = 8 }) {
     const params = new URLSearchParams({ q, type, source, limit: String(limit) });
-    const res = await fetch(`/api/search?${params.toString()}`);
+    const res = await fetch(`${CATALOG_API}/api/search?${params.toString()}`);
     if (!res.ok) throw new Error(`search failed: ${res.status}`);
     return res.json();
 }

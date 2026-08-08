@@ -267,7 +267,7 @@ handoff.start();
 const albumId = albumIdFromLocation();
 if (!/^\d+$/.test(albumId || '')) showError('앨범 ID가 필요합니다. /album/앨범ID 주소로 접속해 주세요.');
 else {
-  fetch(`/api/albums/${albumId}`)
+  fetch(`${CATALOG_API}/api/albums/${albumId}`)
     .then(async (response) => {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || '앨범 정보를 불러오지 못했습니다.');

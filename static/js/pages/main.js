@@ -11,7 +11,7 @@ const albumSearchUrl = (query, limit = 10) => {
         source: 'itunes',
         limit: String(limit),
     });
-    return `/api/search?${params}`;
+    return `${CATALOG_API}/api/search?${params}`;
 };
 
 const createAlbumCard = (album) => {
@@ -257,12 +257,12 @@ const loadAlbums = async (grid, url) => {
 // 어느 줄이든 응답은 { albums } 하나로 같다. 다른 건 어디서 받아오냐뿐이다.
 const albumGridUrl = (grid) => {
     const limit = grid.dataset.limit || '10';
-    if ('topAlbums' in grid.dataset) return `/api/albums/top?limit=${limit}`;
+    if ('topAlbums' in grid.dataset) return `${CATALOG_API}/api/albums/top?limit=${limit}`;
     // 검색 씨앗의 기본값은 서버가 쥔다. 화면이 굳이 다른 걸 원할 때만 data-query 로 덮는다.
     if ('latest' in grid.dataset) {
         const params = new URLSearchParams({ limit });
         if (grid.dataset.query) params.set('q', grid.dataset.query);
-        return `/api/albums/latest?${params}`;
+        return `${CATALOG_API}/api/albums/latest?${params}`;
     }
     return albumSearchUrl(grid.dataset.query, limit);
 };
@@ -271,8 +271,8 @@ const initializeAlbumGrids = () => Promise.all(
     albumGrids.map((grid) => loadAlbums(grid, albumGridUrl(grid))),
 );
 
-const searchAlbumsUrl = (query) => `/api/search?${new URLSearchParams({ q: query, type: 'album', source: 'itunes', limit: '50' })}`;
-const searchTracksUrl = (query) => `/api/search?${new URLSearchParams({ q: query, type: 'track', source: 'all', limit: '50' })}`;
+const searchAlbumsUrl = (query) => `${CATALOG_API}/api/search?${new URLSearchParams({ q: query, type: 'album', source: 'itunes', limit: '50' })}`;
+const searchTracksUrl = (query) => `${CATALOG_API}/api/search?${new URLSearchParams({ q: query, type: 'track', source: 'all', limit: '50' })}`;
 
 const matchesQuery = (query, ...fields) => {
     const q = query.trim().toLowerCase();

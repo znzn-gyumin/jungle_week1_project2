@@ -52,7 +52,7 @@
     try { sourceTracks = JSON.parse(sessionStorage.getItem(sourceKey(definition.slug)) || 'null'); } catch { sessionStorage.removeItem(sourceKey(definition.slug)); }
     if (!Array.isArray(sourceTracks) || !sourceTracks.length) {
       const params = new URLSearchParams({ q: definition.query, type: 'track', source: 'itunes', limit: '40' });
-      const response = await fetch(`/api/search?${params}`);
+      const response = await fetch(`${CATALOG_API}/api/search?${params}`);
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || '추천곡을 불러오지 못했습니다.');
       sourceTracks = data.tracks || [];
