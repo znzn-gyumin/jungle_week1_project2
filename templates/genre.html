@@ -28,17 +28,8 @@
 <!--#include bee-->
                 </h2>
                 </div>
-                <div class="genre-filter">
-                    <button type="button" class="genre-filter-btn active" data-genre="all">전체</button>
-                    <button type="button" class="genre-filter-btn" data-genre="발라드">발라드</button>
-                    <button type="button" class="genre-filter-btn" data-genre="댄스">댄스</button>
-                    <button type="button" class="genre-filter-btn" data-genre="R&B">R&B</button>
-                    <button type="button" class="genre-filter-btn" data-genre="힙합">힙합</button>
-                    <button type="button" class="genre-filter-btn" data-genre="인디">인디</button>
-                    <button type="button" class="genre-filter-btn" data-genre="재즈">재즈</button>
-                    <button type="button" class="genre-filter-btn" data-genre="어쿠스틱">어쿠스틱</button>
-                    <button type="button" class="genre-filter-btn" data-genre="시티팝">시티팝</button>
-                </div>
+                <!-- 버튼은 genre.js 의 GENRES 가 그린다. 여기에 또 적으면 두 곳이 어긋난다. -->
+                <div class="genre-filter"></div>
                 <div class="chart-head">
                     <span>순위</span>
                     <span></span>
@@ -58,7 +49,6 @@
 
 <script defer src="/js/api.js"></script>
 <script defer src="/js/recommended-playlists.js"></script>
-<script defer src="/js/fixed-catalog.js"></script>
 <script defer src="/js/pages/main.js"></script>
 <script defer src="/js/pages/genre.js"></script>
 </body>

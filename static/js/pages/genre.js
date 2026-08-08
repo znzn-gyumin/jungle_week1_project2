@@ -6,6 +6,16 @@ const initializeGenrePage = () => {
 
     const GENRES = ['발라드', '댄스', 'R&B', '힙합', '인디', '재즈', '어쿠스틱', '시티팝'];
 
+    // 버튼도 이 목록에서 만든다. genre.html 에 버튼을 적어 두면 목록이 늘 때마다 두 곳이 어긋난다.
+    filter.replaceChildren(...[['all', '전체'], ...GENRES.map((genre) => [genre, genre])].map(([genre, label], index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = index === 0 ? 'genre-filter-btn active' : 'genre-filter-btn';
+        button.dataset.genre = genre;
+        button.textContent = label;
+        return button;
+    }));
+
     const fetchGenre = (genre) => withCache(`flowbee_cache_genre_v4_${genre}`, () => fetchSearch({ q: genre, type: 'track', source: 'all', limit: 50 }).then((data) => data.tracks));
 
     const renderTracks = (tracks, genreLabel) => {
