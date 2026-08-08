@@ -597,6 +597,14 @@ const initializeAuthUI = async () => {
     });
 };
 
+// 플레이리스트를 만들거나 곡을 담은 뒤 api.js 가 부른다. getMyPlaylists 의 promise 캐시는
+// 여기서만 비울 수 있다 - 안 비우면 탭을 옮겨 main.js 가 다시 실행될 때까지 옛 목록이 남는다.
+window.refreshMyPlaylists = () => {
+    myPlaylistsPromise = null;
+    loadMyPlaylists();
+    loadSidebarData();
+};
+
 const initializeMainPage = () => {
     if (window.initSitePlayer) window.initSitePlayer();
     initializeShellChrome();

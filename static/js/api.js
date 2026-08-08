@@ -574,6 +574,9 @@ async function addTrackToPlaylist(playlistId, track, button) {
         alert(err.message || '담기에 실패했어요.');
     } finally {
         closePlaylistPicker();
+        // 새로 만든 플레이리스트든 곡 수가 바뀐 기존 것이든, 목록/사이드바를 다시 그린다.
+        // 담기가 실패해도 부른다 - createPlaylistAndAdd 로 왔다면 플레이리스트는 이미 생겼다.
+        window.refreshMyPlaylists?.();
     }
 }
 
