@@ -41,6 +41,15 @@
     overflow: visible;
 }
 
+/* 재생 드로어가 열려 본문이 좁아지면 한 화면에 보이는 카드도 다섯에서 넷으로 줄인다 */
+body:has(.now-playing-drawer:not(.is-collapsed)) .card-grid:is([data-album-grid], [data-playlist-grid], #search-albums-grid) {
+    grid-auto-columns: calc((100% - 60px) / 4);
+}
+
+body:has(.now-playing-drawer:not(.is-collapsed)) .section.expanded .card-grid:is([data-album-grid], [data-playlist-grid], #search-albums-grid) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .album-slider-controls {
     display: flex;
     gap: 6px;

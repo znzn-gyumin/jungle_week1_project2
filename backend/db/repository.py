@@ -1,11 +1,12 @@
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.models import Album, Track
+from backend.models import Album, SearchCache, Track
 from backend.models.enums import SourceType
 
 
@@ -42,6 +43,8 @@ async def upsert_albums(db: AsyncSession, rows: list[dict[str, Any]]) -> dict[st
             "release_date": stmt.excluded.release_date,
             "total_tracks": stmt.excluded.total_tracks,
             "thumbnail_url": stmt.excluded.thumbnail_url,
+            "artist_source_id": stmt.excluded.artist_source_id,
+            "genre": stmt.excluded.genre,
             "updated_at": func.now(),
         },
     ).returning(Album.id, Album.source_id)
@@ -65,6 +68,11 @@ async def upsert_tracks(db: AsyncSession, rows: list[dict[str, Any]]) -> list[Tr
             "duration_ms": stmt.excluded.duration_ms,
             "thumbnail_url": stmt.excluded.thumbnail_url,
             "play_url": stmt.excluded.play_url,
+            "artist_source_id": stmt.excluded.artist_source_id,
+            "genre": stmt.excluded.genre,
+            "release_date": stmt.excluded.release_date,
+            "disc_number": stmt.excluded.disc_number,
+            "track_number": stmt.excluded.track_number,
             "updated_at": func.now(),
         },
     )
@@ -140,3 +148,83 @@ async def albums_by_ids(db: AsyncSession, ids: list[int]) -> list[Album]:
     found = (await db.execute(select(Album).where(Album.id.in_(ids)))).scalars().all()
     by_id = {a.id: a for a in found}
     return [by_id[i] for i in ids if i in by_id]
+
+
+async def mark_tracks_synced(db: AsyncSession, album_id: int) -> None:
+    await db.execute(
+        update(Album).where(Album.id == album_id).values(tracks_synced_at=func.now())
+    )
+
+
+async def tracks_by_ids(db: AsyncSession, ids: list[int]) -> list[Track]:
+    if not ids:
+        return []
+    found = (
+        (
+            await db.execute(
+                select(Track).options(selectinload(Track.album)).where(Track.id.in_(ids))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    by_id = {t.id: t for t in found}
+    return [by_id[i] for i in ids if i in by_id]
+
+
+async def cached_ids(
+    db: AsyncSession,
+    kind: str,
+    source: str,
+    query: str,
+    limit: int,
+    ttl: int,
+) -> list[int] | None:
+    """TTL 안이면 저장된 결과 ID 목록, 아니면 None.
+
+    빈 리스트도 유효한 적중이다 - "결과 없음" 을 기억해 헛질의가 API 를 다시
+    치지 않게 한다. 만료 판정 기준 시각은 앱이 계산한다 (앱과 DB 가 같은 UTC).
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=ttl)
+    return (
+        await db.execute(
+            select(SearchCache.result_ids).where(
+                SearchCache.kind == kind,
+                SearchCache.source == source,
+                SearchCache.query == query,
+                SearchCache.result_limit == limit,
+                SearchCache.updated_at > cutoff,
+            )
+        )
+    ).scalar_one_or_none()
+
+
+async def put_cached_ids(
+    db: AsyncSession,
+    kind: str,
+    source: str,
+    query: str,
+    limit: int,
+    ids: list[int],
+) -> None:
+    stmt = insert(SearchCache).values(
+        kind=kind,
+        source=source,
+        query=query,
+        result_limit=limit,
+        result_ids=ids,
+    )
+    await db.execute(
+        stmt.on_conflict_do_update(
+            index_elements=[
+                SearchCache.kind,
+                SearchCache.source,
+                SearchCache.query,
+                SearchCache.result_limit,
+            ],
+            set_={
+                "result_ids": stmt.excluded.result_ids,
+                "updated_at": func.now(),
+            },
+        )
+    )

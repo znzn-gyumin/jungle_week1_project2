@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createProxyMiddleware } from 'http-proxy-middleware';
@@ -38,75 +39,32 @@ app.use(express.static(path.join(__dirname, 'static')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 기본 라우팅 (templates/index.html 파일 전달)
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'index.html'));
-});
+// 템플릿 엔진 대신 <!--#include 이름--> 만 치환한다. 사이드바/토프바/탭/플레이어는
+// templates/components/ 한 곳에서만 고치면 모든 페이지에 반영된다.
+// 매 요청마다 읽는다 - 캐시하면 템플릿을 고칠 때마다 서버를 다시 띄워야 한다.
+const templatePath = (name) => path.join(__dirname, 'templates', `${name}.html`);
+const componentPath = (name) => path.join(__dirname, 'templates', 'components', `${name}.html`);
 
-// 랜딩 페이지 (templates/home.html 파일 전달)
-app.get('/home', (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'home.html'));
-});
+const renderPage = (name) => fs
+  .readFileSync(templatePath(name), 'utf8')
+  .replace(/<!--#include ([\w-]+)-->/g, (_, part) => fs.readFileSync(componentPath(part), 'utf8'));
 
-// 로그인 페이지 (templates/login.html 파일 전달)
-app.get('/login', (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'login.html'));
-});
+const page = (name) => (req, res) => res.type('html').send(renderPage(name));
 
-// 회원가입 페이지 (templates/signup.html 파일 전달)
-app.get('/signup', (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'signup.html'));
-});
-
-// 비밀번호 재설정 페이지 (templates/forgot-password.html 파일 전달)
-app.get('/forgot-password', (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'forgot-password.html'));
-});
-
-// 차트 페이지 (templates/chart.html 파일 전달)
-app.get(['/chart', '/chart.html'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'chart.html'));
-});
-
-// 최신음악 페이지 (templates/latest-music.html 파일 전달)
-app.get(['/latest-music', '/latest-music.html'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'latest-music.html'));
-});
-
-// 최신앨범 페이지 (templates/latest-albums.html 파일 전달)
-app.get(['/latest-albums', '/latest-albums.html'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'latest-albums.html'));
-});
-
-// 장르음악 페이지 (templates/genre.html 파일 전달)
-app.get(['/genre', '/genre.html'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'genre.html'));
-});
-
-// 내 플레이리스트 상세 페이지 (templates/my-playlist.html 파일 전달)
-app.get(['/my-playlist/:playlistId'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'my-playlist.html'));
-});
-
-// 플레이리스트 목록 페이지 (templates/playlists.html 파일 전달)
-app.get(['/playlists', '/playlists.html'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'playlists.html'));
-});
-
-// 이벤트 페이지 (templates/events.html 파일 전달)
-app.get(['/events', '/events.html'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'events.html'));
-});
-
-// 앨범 페이지 (templates/album.html 파일 전달)
-app.get(['/album', '/album.html', '/album/:albumId'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'album.html'));
-});
-
-// 플레이리스트 페이지 (templates/playlist.html 파일 전달)
-app.get(['/playlist', '/playlist.html', '/playlist/:playlistSlug'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates', 'playlist.html'));
-});
+app.get('/', page('index'));
+app.get('/home', page('home'));
+app.get('/login', page('login'));
+app.get('/signup', page('signup'));
+app.get('/forgot-password', page('forgot-password'));
+app.get(['/chart', '/chart.html'], page('chart'));
+app.get(['/latest-music', '/latest-music.html'], page('latest-music'));
+app.get(['/latest-albums', '/latest-albums.html'], page('latest-albums'));
+app.get(['/genre', '/genre.html'], page('genre'));
+app.get('/my-playlist/:playlistId', page('my-playlist'));
+app.get(['/playlists', '/playlists.html'], page('playlists'));
+app.get(['/events', '/events.html'], page('events'));
+app.get(['/album', '/album.html', '/album/:albumId'], page('album'));
+app.get(['/playlist', '/playlist.html', '/playlist/:playlistSlug'], page('playlist'));
 
 // 서버 실행
 app.listen(port, () => {

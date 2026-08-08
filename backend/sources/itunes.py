@@ -1,10 +1,10 @@
-from datetime import date, datetime
 from typing import Any
 from urllib.parse import urlencode
 
 import httpx
 
 from backend.models.enums import SourceType
+from backend.sources import parse_date
 
 BASE = "https://itunes.apple.com"
 ITUNES_MAX_LIMIT = 200
@@ -95,17 +95,13 @@ async def search_album_tracks(
     return [r for r in results if album_source_id(r) == collection_id]
 
 
-def _release_date(value: str | None) -> date | None:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
-    except ValueError:
-        return None
-
-
 def _artwork(url: str | None) -> str | None:
     return url.replace("100x100bb", ARTWORK_SIZE) if url else None
+
+
+def _artist_id(result: dict[str, Any]) -> str | None:
+    value = result.get("artistId")
+    return str(value) if value else None
 
 
 def to_track(result: dict[str, Any]) -> dict[str, Any]:
@@ -117,6 +113,11 @@ def to_track(result: dict[str, Any]) -> dict[str, Any]:
         "duration_ms": result.get("trackTimeMillis"),
         "thumbnail_url": _artwork(result.get("artworkUrl100")),
         "play_url": result.get("previewUrl"),
+        "artist_source_id": _artist_id(result),
+        "genre": result.get("primaryGenreName"),
+        "release_date": parse_date(result.get("releaseDate")),
+        "disc_number": result.get("discNumber"),
+        "track_number": result.get("trackNumber"),
     }
 
 
@@ -126,9 +127,11 @@ def to_album(result: dict[str, Any]) -> dict[str, Any]:
         "source_id": str(result["collectionId"]),
         "name": result.get("collectionName") or "",
         "artist": result.get("artistName") or "",
-        "release_date": _release_date(result.get("releaseDate")),
+        "release_date": parse_date(result.get("releaseDate")),
         "total_tracks": result.get("trackCount"),
         "thumbnail_url": _artwork(result.get("artworkUrl100")),
+        "artist_source_id": _artist_id(result),
+        "genre": result.get("primaryGenreName"),
     }
 
 

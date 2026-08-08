@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
         await engine.dispose()
 
 
-app = FastAPI(title="Flowbee API", lifespan=lifespan)
+app = FastAPI(title="플로비 API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

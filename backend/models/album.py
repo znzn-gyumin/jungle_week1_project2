@@ -1,7 +1,7 @@
-from datetime import date
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Date, DateTime, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base, PKMixin, TimestampMixin
@@ -28,8 +28,19 @@ class Album(PKMixin, TimestampMixin, Base):
     total_tracks: Mapped[int | None] = mapped_column(Integer)
     thumbnail_url: Mapped[str | None] = mapped_column(Text)
 
+    artist_source_id: Mapped[str | None] = mapped_column(String(128))
+    genre: Mapped[str | None] = mapped_column(Text)
+
+    # 트랙 목록을 소스에서 마지막으로 채운 시각. services.albums 가 이 값으로
+    # 재조회를 건너뛴다. NULL 이면 아직 한 번도 안 채웠다는 뜻.
+    tracks_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # 소스 응답 순서가 아니라 디스크/트랙 번호 순. lookup 과 search 결과를 합치면
+    # (services.albums) 응답 순서가 뒤섞이기 때문에 DB 에서 정렬한다.
     tracks: Mapped[list["Track"]] = relationship(
-        back_populates="album", passive_deletes="all"
+        back_populates="album",
+        passive_deletes="all",
+        order_by="[Track.disc_number.nulls_last(), Track.track_number.nulls_last()]",
     )
     likes: Mapped[list["Like"]] = relationship(
         back_populates="album",

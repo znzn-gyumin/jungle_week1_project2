@@ -64,20 +64,28 @@
         return type === 'album' ? data.albums?.[0] : data.tracks?.[0];
     };
 
-    const loadLatestAlbums = () => Promise.all(latestAlbums.map(async (fixed, index) => {
+    // 검색이 빗나간 항목은 진짜 id 가 없어서 담기도 앨범 이동도 안 되는 껍데기다. 가짜 id 를 붙이지 말고 뺀다.
+    const resolveAll = async (items, resolve) => {
+        const resolved = (await Promise.all(items.map(resolve))).filter(Boolean);
+        if (!resolved.length) throw new Error('음원 정보를 불러오지 못했어요.');
+        return resolved;
+    };
+
+    const findFixedAlbum = async (fixed) => {
         const found = await searchOne(fixed.query, 'album').catch(() => null);
-        return { ...found, ...fixed, id: found?.id || `fixed-${index}`, thumbnailUrl: found?.thumbnailUrl || '' };
-    }));
+        return found && { ...found, ...fixed };
+    };
 
-    const loadMelonChart = () => Promise.all(melonChart.map(async (fixed, index) => {
+    const findFixedTrack = async (fixed) => {
         const found = await searchOne(`${fixed.title} ${fixed.artist}`, 'track').catch(() => null);
-        return { ...found, ...fixed, id: found?.id || `melon-${index + 1}`, thumbnailUrl: found?.thumbnailUrl || '', playUrl: found?.playUrl || '', source: found?.source || 'itunes' };
-    }));
+        return found && { ...found, ...fixed };
+    };
 
-    const loadLatestMusic = () => Promise.all(latestMusic.map(async (fixed, index) => {
-        const found = await searchOne(`${fixed.title} ${fixed.artist}`, 'track').catch(() => null);
-        return { ...found, ...fixed, id: found?.id || `latest-${index + 1}`, thumbnailUrl: found?.thumbnailUrl || '', playUrl: found?.playUrl || '', source: found?.source || 'itunes' };
-    }));
+    // 목록이 고정이라 결과도 고정이다. 캐시하지 않으면 화면에 들어올 때마다
+    // /api/search 를 항목 수만큼(20/20/8회) 다시 쏜다. withCache 는 3일 뒤 만료된다.
+    const loadLatestAlbums = () => withCache('flowbee_fixed_albums_v1', () => resolveAll(latestAlbums, findFixedAlbum));
+    const loadMelonChart = () => withCache('flowbee_fixed_melon_v1', () => resolveAll(melonChart, findFixedTrack));
+    const loadLatestMusic = () => withCache('flowbee_fixed_latest_v1', () => resolveAll(latestMusic, findFixedTrack));
 
     window.FlowbeeFixedCatalog = { latestAlbums, latestMusic, melonChart, loadLatestAlbums, loadLatestMusic, loadMelonChart };
 }());

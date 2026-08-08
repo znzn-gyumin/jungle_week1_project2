@@ -1,9 +1,12 @@
+(function () {
+const { formatDuration, createHandoff } = window.FlowbeeDetailPlayer;
+
 const page = document.getElementById('album-page');
 const statusBox = document.getElementById('album-status');
 const content = document.getElementById('album-content');
 const body = document.getElementById('album-body');
 const playerBar = document.getElementById('album-player');
-const drawer = document.getElementById('now-playing-drawer');
+if (window.ensureSiteNowPlayingDrawer) window.ensureSiteNowPlayingDrawer();
 const audio = document.getElementById('audio-player');
 const albumButtons = [document.getElementById('album-play'), document.getElementById('player-toggle')];
 const seek = document.getElementById('player-seek');
@@ -12,11 +15,8 @@ const previewLimit = 30;
 let tracks = [];
 let currentIndex = -1;
 
-const formatDuration = (milliseconds) => {
-  if (!Number.isFinite(milliseconds) || milliseconds < 0) return '—';
-  const seconds = Math.floor(milliseconds / 1000);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-};
+const setPlaying = (playing) => albumButtons.forEach((button) => button.classList.toggle('is-playing', playing));
+const handoff = createHandoff({ audio, seek, setPlaying, playerBar });
 
 const formatTotalDuration = (items) => {
   const total = items.reduce((sum, track) => sum + (track.durationMs || 0), 0);
@@ -69,55 +69,6 @@ const applyAlbumPalette = (image) => {
   }
 };
 
-const ensureStylesheet = (href) => {
-  if (document.querySelector(`link[href="${href}"]`)) return;
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = href;
-  document.head.append(link);
-};
-
-const openLibraryWithoutStoppingPlayback = async (event, pushHistory = true) => {
-  event?.preventDefault();
-  // 이 앨범의 <audio> 를 그대로 살려서 옮기므로, 새 페이지가 handoff 로 또 한 번
-  // 재생을 시작하면 소리가 겹친다. 여기서 지워서 이중 재생을 막는다.
-  if (window.clearNowPlaying) window.clearNowPlaying();
-  drawer?.classList.add('is-collapsed');
-  const drawerToggle = document.getElementById('drawer-toggle');
-  if (drawerToggle) {
-    drawerToggle.textContent = '‹';
-    drawerToggle.setAttribute('aria-label', '현재 재생 패널 열기');
-  }
-  const link = event?.currentTarget;
-  link?.classList.add('is-loading');
-  try {
-    const response = await fetch('/');
-    if (!response.ok) throw new Error('라이브러리를 불러오지 못했습니다.');
-    const html = await response.text();
-    const nextDocument = new DOMParser().parseFromString(html, 'text/html');
-    const shell = nextDocument.querySelector('.app-shell');
-    if (!shell) throw new Error('라이브러리 화면을 찾지 못했습니다.');
-    ensureStylesheet('/css/pages/main.css');
-    ensureStylesheet('/css/pages/main-dynamic.css');
-    document.body.prepend(shell);
-    [...document.body.children].forEach((child) => {
-      if (child !== shell && child !== playerBar && child !== audio && child !== drawer) child.remove();
-    });
-    document.title = nextDocument.title;
-    if (pushHistory) history.pushState({ flowbeeLibrary: true }, '', '/');
-    const script = document.createElement('script');
-    script.src = `/js/pages/main.js?v=${Date.now()}`;
-    document.body.append(script);
-  } catch (error) {
-    link?.classList.remove('is-loading');
-    statusBox.hidden = false;
-    statusBox.textContent = error.message;
-    statusBox.classList.add('is-error');
-  }
-};
-
-const setPlaying = (playing) => albumButtons.forEach((button) => button.classList.toggle('is-playing', playing));
-
 const updatePlayerTime = () => {
   const elapsed = Number.isFinite(audio.currentTime) ? Math.min(audio.currentTime, previewLimit) : 0;
   const sourceDuration = Number.isFinite(audio.duration) ? audio.duration : previewLimit;
@@ -149,6 +100,7 @@ const updateDrawer = (track, index) => {
 const selectTrack = (index, autoplay = true) => {
   const track = tracks[index];
   if (!track) return;
+  handoff.stop();
   currentIndex = index;
   document.getElementById('now-title').textContent = track.title;
   document.getElementById('now-artist').textContent = track.artist;
@@ -170,6 +122,7 @@ const selectTrack = (index, autoplay = true) => {
 };
 
 const togglePlayback = () => {
+  if (handoff.togglePlayback()) return;
   if (currentIndex < 0) selectTrack(0);
   else if (audio.paused) {
     if (audio.currentTime >= previewLimit - 0.1) audio.currentTime = 0;
@@ -194,7 +147,7 @@ const createTrackRow = (track, index) => {
 
 const renderAlbum = (album) => {
   tracks = album.tracks || [];
-  document.title = `${album.name} | Flowbee`;
+  document.title = `${album.name} | 플로비`;
   const cover = document.getElementById('album-cover');
   if (album.thumbnailUrl) {
     cover.crossOrigin = 'anonymous';
@@ -205,13 +158,16 @@ const renderAlbum = (album) => {
   document.getElementById('album-title').textContent = album.name;
   document.getElementById('album-artist').textContent = album.artist;
   document.getElementById('album-type').textContent = `${album.source.toUpperCase()} ALBUM${album.releaseDate ? ` · ${album.releaseDate.slice(0, 4)}` : ''}`;
-  document.getElementById('album-description').textContent = `${album.artist}의 앨범 수록곡을 Flowbee에서 들어보세요.`;
+  document.getElementById('album-description').textContent = `${album.artist}의 앨범 수록곡을 플로비에서 들어보세요.`;
   document.getElementById('album-summary').textContent = [album.releaseDate, `${tracks.length || album.totalTracks || 0}곡`, formatTotalDuration(tracks)].filter(Boolean).join(' · ');
   document.getElementById('album-number').textContent = String(album.id).padStart(2, '0').slice(-2);
   document.getElementById('track-count').textContent = `${tracks.length || album.totalTracks || 0}곡`;
-  const playerCover = document.getElementById('player-cover');
-  if (album.thumbnailUrl) playerCover.src = album.thumbnailUrl;
-  playerCover.alt = `${album.name} 앨범 표지`;
+  // 다른 화면에서 넘어온 곡을 이어 재생 중이면 재생바 커버를 덮어쓰지 않는다.
+  if (!handoff.active) {
+    const playerCover = document.getElementById('player-cover');
+    if (album.thumbnailUrl) playerCover.src = album.thumbnailUrl;
+    playerCover.alt = `${album.name} 앨범 표지`;
+  }
   const list = document.getElementById('album-tracks');
   list.replaceChildren(...tracks.map(createTrackRow));
   if (!tracks.length) list.innerHTML = '<li class="empty-tracks"><div><b>수록곡 정보가 없습니다.</b><small>이 음원 소스는 트랙 목록을 제공하지 않습니다.</small></div></li>';
@@ -289,6 +245,7 @@ document.getElementById('player-next').addEventListener('click', () => {
   if (tracks.length) selectTrack(currentIndex + 1 < tracks.length ? currentIndex + 1 : 0);
 });
 seek.addEventListener('input', () => {
+  if (handoff.seekTo(Number(seek.value))) return;
   if (currentIndex < 0) selectTrack(0, false);
   if (tracks[currentIndex]?.playUrl) audio.currentTime = Math.min(Number(seek.value), previewLimit);
   updatePlayerTime();
@@ -298,21 +255,11 @@ volume.addEventListener('input', () => {
   volume.style.setProperty('--progress', `${audio.volume * 100}%`);
 });
 audio.volume = Number(volume.value);
-document.querySelectorAll('.back-link, .album-brand').forEach((link) => link.addEventListener('click', openLibraryWithoutStoppingPlayback));
+// 라이브러리로 돌아가는 링크는 api.js 의 전역 클릭 핸들러가 가로챈다.
+// 재생 중인 <audio> 를 살린 채 셸만 갈아끼운다.
 window.addEventListener('popstate', () => location.reload(), { once: true });
 
-if (window.loadNowPlayingHandoff) {
-  const handoff = window.loadNowPlayingHandoff();
-  if (handoff && handoff.isPlaying && handoff.playUrl && handoff.source !== 'youtube') {
-    document.getElementById('now-title').textContent = handoff.title;
-    document.getElementById('now-artist').textContent = handoff.artist;
-    if (handoff.thumbnailUrl) document.getElementById('player-cover').src = handoff.thumbnailUrl;
-    playerBar.hidden = false;
-    audio.src = handoff.playUrl;
-    audio.addEventListener('loadedmetadata', () => { audio.currentTime = handoff.currentTime || 0; }, { once: true });
-    audio.play().catch(() => setPlaying(false));
-  }
-}
+handoff.start();
 
 const albumId = albumIdFromLocation();
 if (!/^\d+$/.test(albumId || '')) showError('앨범 ID가 필요합니다. /album/앨범ID 주소로 접속해 주세요.');
@@ -326,3 +273,4 @@ else {
     .then(renderAlbum)
     .catch((error) => showError(error.message));
 }
+}());

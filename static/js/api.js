@@ -1,3 +1,4 @@
+(function () {
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -66,7 +67,7 @@ function renderChartRow(rank, track, genreLabel) {
     const thumb = escapeHtml(track.thumbnailUrl || '');
     const playUrl = escapeHtml(track.playUrl || '');
     const source = escapeHtml(track.source || '');
-    return `<div class="chart-row" data-id="${track.id}" data-title="${title}" data-artist="${artist}" data-thumb="${thumb}" data-play-url="${playUrl}" data-source="${source}">
+    return `<div class="chart-row" data-id="${escapeHtml(track.id)}" data-title="${title}" data-artist="${artist}" data-thumb="${thumb}" data-play-url="${playUrl}" data-source="${source}">
         <span class="chart-rank">${rank}</span>
         <img class="chart-thumb" src="${thumb}" alt="">
         <div class="chart-meta"><b>${title}</b><small>${artist}</small></div>
@@ -118,21 +119,37 @@ function ensureSiteNowPlayingDrawer() {
         drawer = document.createElement('aside');
         drawer.className = 'now-playing-drawer is-collapsed';
         drawer.id = 'now-playing-drawer';
-        drawer.innerHTML = '<button class="drawer-toggle" id="drawer-toggle" type="button" aria-label="현재 재생 패널 열기">‹</button><div class="drawer-content"><p class="drawer-label">NOW PLAYING · 30초 미리듣기</p><div class="drawer-empty-cover" id="drawer-empty-cover" aria-hidden="true">♪</div><img class="drawer-cover" id="drawer-cover" alt="" hidden><h2 class="drawer-title" id="drawer-title">재생 중인 곡이 없습니다</h2><p class="drawer-artist" id="drawer-artist">곡을 선택해 주세요.</p><div class="drawer-preview">Flowbee는 iTunes에서 제공하는 30초 미리듣기를 재생합니다.</div><h3 class="drawer-queue-title">다음 재생 목록</h3><div class="drawer-queue" id="drawer-queue"></div></div>';
+        drawer.innerHTML = '<button class="drawer-close" id="drawer-close" type="button" aria-label="현재 재생 패널 닫기">✕</button><div class="drawer-content"><p class="drawer-label">NOW PLAYING</p><div class="drawer-empty-cover" id="drawer-empty-cover" aria-hidden="true">♪</div><img class="drawer-cover" id="drawer-cover" alt="" hidden><h2 class="drawer-title" id="drawer-title">재생 중인 곡이 없습니다</h2><p class="drawer-artist" id="drawer-artist">곡을 선택해 주세요.</p><div class="drawer-preview">플로비는 iTunes에서 제공하는 30초 미리듣기를 재생합니다.</div><h3 class="drawer-queue-title">다음 재생 목록</h3><div class="drawer-queue" id="drawer-queue"></div></div>';
         document.body.insertBefore(drawer, document.querySelector('.player-bar'));
     }
-    // 앨범/플레이리스트 상세 화면은 각 페이지 재생기가 토글을 직접 관리한다.
-    if (document.getElementById('album-page') || document.getElementById('playlist-page')) return drawer;
-    const toggle = drawer.querySelector('#drawer-toggle');
-    if (toggle && toggle.dataset.initialized !== 'true') {
-        toggle.dataset.initialized = 'true';
-        toggle.addEventListener('click', () => {
-            const collapsed = drawer.classList.toggle('is-collapsed');
-            toggle.textContent = collapsed ? '‹' : '›';
-            toggle.setAttribute('aria-label', collapsed ? '현재 재생 패널 열기' : '현재 재생 패널 닫기');
+    // 접힌 상태에서는 삐져나온 부분 아무 데나 누르면 열리고, 닫기는 왼쪽 위 버튼으로만 한다.
+    if (drawer.dataset.initialized !== 'true') {
+        drawer.dataset.initialized = 'true';
+        drawer.addEventListener('click', (event) => {
+            if (drawer.classList.contains('is-collapsed')) drawer.classList.remove('is-collapsed');
+            else if (event.target.closest('#drawer-close')) drawer.classList.add('is-collapsed');
         });
     }
     return drawer;
+}
+
+function fillNowPlayingDrawer(track) {
+    const cover = document.getElementById('drawer-cover');
+    const emptyCover = document.getElementById('drawer-empty-cover');
+    const title = document.getElementById('drawer-title');
+    const artist = document.getElementById('drawer-artist');
+    if (title) title.textContent = track.title;
+    if (artist) artist.textContent = track.artist;
+    if (cover && track.thumbnailUrl) {
+        cover.src = track.thumbnailUrl;
+        cover.alt = `${track.title} 앨범 표지`;
+        cover.hidden = false;
+        cover.style.display = 'block';
+        if (emptyCover) {
+            emptyCover.hidden = true;
+            emptyCover.style.display = 'none';
+        }
+    }
 }
 
 function extractYouTubeId(embedUrl) {
@@ -177,6 +194,17 @@ function getYtHost() {
     return host;
 }
 
+const ytStateListeners = new Set();
+
+function addYtStateListener(listener) {
+    ytStateListeners.add(listener);
+}
+
+function dispatchYtState(event) {
+    handleYtStateChange(event);
+    ytStateListeners.forEach((listener) => listener(event));
+}
+
 async function getYtPlayer() {
     await loadYouTubeApi();
     if (ytPlayer) return ytPlayer;
@@ -188,7 +216,7 @@ async function getYtPlayer() {
             playerVars: { autoplay: 0, controls: 0, disablekb: 1 },
             events: {
                 onReady: () => resolve(player),
-                onStateChange: handleYtStateChange,
+                onStateChange: dispatchYtState,
             },
         });
     });
@@ -200,6 +228,11 @@ function stopYtProgressPolling() {
     ytProgressTimer = null;
 }
 
+function saveYtProgress(isPlaying) {
+    if (!currentTrack || !ytPlayer || typeof ytPlayer.getCurrentTime !== 'function') return;
+    saveNowPlaying(currentTrack, ytPlayer.getCurrentTime(), isPlaying);
+}
+
 function startYtProgressPolling() {
     stopYtProgressPolling();
     ytProgressTimer = setInterval(() => {
@@ -207,18 +240,41 @@ function startYtProgressPolling() {
         const duration = ytPlayer.getDuration();
         if (!duration) return;
         updatePlayerProgress(ytPlayer.getCurrentTime(), duration);
+        saveYtProgress(true);
     }, 500);
 }
 
 function handleYtStateChange(event) {
-    if (activePlayMode !== 'youtube' || !sitePlayerUI) return;
-    if (event.data === window.YT.PlayerState.PLAYING) {
-        sitePlayerUI.setIcon(true);
-        startYtProgressPolling();
-    } else if (event.data === window.YT.PlayerState.PAUSED || event.data === window.YT.PlayerState.ENDED) {
-        sitePlayerUI.setIcon(false);
+    if (activePlayMode !== 'youtube') return;
+    const playing = event.data === window.YT.PlayerState.PLAYING;
+    const stopped = event.data === window.YT.PlayerState.PAUSED || event.data === window.YT.PlayerState.ENDED;
+    // 이어재생 저장은 사이트 플레이어 바가 없는 앨범/플레이리스트 화면에서도 돌아야 한다.
+    if (playing) startYtProgressPolling();
+    else if (stopped) {
         stopYtProgressPolling();
+        saveYtProgress(false);
     }
+    if (!sitePlayerUI) return;
+    if (playing) sitePlayerUI.setIcon(true);
+    else if (stopped) sitePlayerUI.setIcon(false);
+}
+
+async function resumeYouTubeHandoff(handoff, onState) {
+    const videoId = extractYouTubeId(handoff.playUrl);
+    if (!videoId) return null;
+    activePlayMode = 'youtube';
+    currentTrack = {
+        title: handoff.title,
+        artist: handoff.artist,
+        thumbnailUrl: handoff.thumbnailUrl,
+        playUrl: handoff.playUrl,
+        source: 'youtube',
+    };
+    if (onState) addYtStateListener(onState);
+    const player = await getYtPlayer();
+    player.loadVideoById(videoId, handoff.currentTime || 0);
+    player.playVideo();
+    return player;
 }
 
 function updatePlayerProgress(current, duration) {
@@ -230,7 +286,8 @@ function updatePlayerProgress(current, duration) {
 }
 
 const NOW_PLAYING_KEY = 'flowbee_now_playing';
-const NOW_PLAYING_HANDOFF_MAX_AGE_MS = 8000;
+// 느린 네트워크/콜드 캐시에서는 다음 페이지가 뜨는 데만 8초를 넘길 수 있다.
+const NOW_PLAYING_HANDOFF_MAX_AGE_MS = 30000;
 
 function saveNowPlaying(track, currentTime, isPlaying) {
     try {
@@ -336,10 +393,36 @@ const dynamicPageScripts = new Set(['/latest-music', '/latest-albums', '/genre',
 function loadPageScript(src) {
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = `${src}?spa=${Date.now()}`;
-        script.onload = resolve;
-        script.onerror = reject;
+        script.src = src;
+        // 실행이 끝난 <script> 는 지운다. 남겨두면 화면을 옮길 때마다 쌓인다.
+        // 태그를 지워도 이미 실행된 코드는 그대로 살아 있다.
+        const done = (handler) => () => { script.remove(); handler(); };
+        script.onload = done(resolve);
+        script.onerror = done(() => reject(new Error(`스크립트를 불러오지 못했습니다: ${src}`)));
         document.body.appendChild(script);
+    });
+}
+
+// 상세 화면(앨범/추천 플레이리스트)에는 .app-shell 이 없다. 그 경우엔 라이브러리 셸을
+// 앞에 붙이고 재생 중인 것들만 남긴다. 상세 화면이 각자 복사해 두던 로직을 여기로 모았다.
+function swapInShell(nextShell) {
+    const currentShell = document.querySelector('.app-shell');
+    if (currentShell) {
+        currentShell.replaceWith(nextShell);
+        return;
+    }
+    // 재생 중인 <audio> 를 그대로 들고 가므로, 새 화면이 handoff 로 또 틀면 소리가 겹친다.
+    const keep = new Set([
+        document.getElementById('audio-player'),
+        document.getElementById('site-audio'),
+        document.getElementById('site-yt-host'),
+        document.getElementById('now-playing-drawer'),
+        document.querySelector('.album-player'),
+    ]);
+    clearNowPlaying();
+    document.body.prepend(nextShell);
+    [...document.body.children].forEach((child) => {
+        if (child !== nextShell && !keep.has(child)) child.remove();
     });
 }
 
@@ -348,8 +431,7 @@ async function navigateWithoutStoppingPlayback(path, pushHistory = true) {
     if (!response.ok) throw new Error('화면을 불러오지 못했습니다.');
     const nextDocument = new DOMParser().parseFromString(await response.text(), 'text/html');
     const nextShell = nextDocument.querySelector('.app-shell');
-    const currentShell = document.querySelector('.app-shell');
-    if (!nextShell || !currentShell) throw new Error('화면 영역을 찾지 못했습니다.');
+    if (!nextShell) throw new Error('화면 영역을 찾지 못했습니다.');
 
     nextDocument.querySelectorAll('link[rel="stylesheet"]').forEach((stylesheet) => {
         const href = stylesheet.getAttribute('href');
@@ -359,30 +441,16 @@ async function navigateWithoutStoppingPlayback(path, pushHistory = true) {
         link.href = href;
         document.head.appendChild(link);
     });
-    currentShell.replaceWith(nextShell);
+    swapInShell(nextShell);
     document.title = nextDocument.title;
     ensureSiteNowPlayingDrawer().classList.add('is-collapsed');
-    const toggle = document.getElementById('drawer-toggle');
-    if (toggle) {
-        toggle.textContent = '‹';
-        toggle.setAttribute('aria-label', '현재 재생 패널 열기');
-    }
     if (pushHistory) history.pushState({ flowbeePersistentPage: true }, '', path);
 
-    if (path === '/') {
-        await loadPageScript('/js/recommended-playlists.js');
-        await loadPageScript('/js/fixed-catalog.js');
-        await loadPageScript('/js/pages/main.js');
-    } else {
-        await loadPageScript('/js/pages/main.js');
-        if (path === '/latest-music' || path === '/latest-albums' || path === '/chart') {
-            await loadPageScript('/js/fixed-catalog.js');
-        }
-        if (dynamicPageScripts.has(path)) {
-            const pageName = path.slice(1);
-            await loadPageScript(`/js/pages/${pageName}.js`);
-        }
-    }
+    // 어느 화면에서 넘어오든 main.js/페이지 스크립트가 쓰는 전역이 먼저 준비돼 있어야 한다.
+    if (!window.FlowbeePlaylists) await loadPageScript('/js/recommended-playlists.js');
+    if (!window.FlowbeeFixedCatalog) await loadPageScript('/js/fixed-catalog.js');
+    await loadPageScript('/js/pages/main.js');
+    if (dynamicPageScripts.has(path)) await loadPageScript(`/js/pages/${path.slice(1)}.js`);
 }
 
 function initializePersistentNavigation() {
@@ -418,22 +486,7 @@ async function playSiteTrack(track, startAt = 0) {
     }
 
     const drawer = document.getElementById('now-playing-drawer');
-    const drawerCover = document.getElementById('drawer-cover');
-    const drawerEmptyCover = document.getElementById('drawer-empty-cover');
-    const drawerTitle = document.getElementById('drawer-title');
-    const drawerArtist = document.getElementById('drawer-artist');
-    if (drawerTitle) drawerTitle.textContent = track.title;
-    if (drawerArtist) drawerArtist.textContent = track.artist;
-    if (drawerCover && track.thumbnailUrl) {
-        drawerCover.src = track.thumbnailUrl;
-        drawerCover.alt = `${track.title} 앨범 표지`;
-        drawerCover.hidden = false;
-        drawerCover.style.display = 'block';
-        if (drawerEmptyCover) {
-            drawerEmptyCover.hidden = true;
-            drawerEmptyCover.style.display = 'none';
-        }
-    }
+    fillNowPlayingDrawer(track);
     const audio = initSitePlayer();
 
     if (track.source === 'youtube') {
@@ -622,5 +675,28 @@ document.addEventListener('click', (event) => {
     });
 });
 
+// 다른 스크립트가 실제로 쓰는 것만 내보낸다. 나머지는 이 파일 안에 갇혀 있어야
+// 페이지 스크립트가 같은 이름을 써도 부딪히지 않는다.
+Object.assign(window, {
+    escapeHtml,
+    withCache,
+    fetchSearch,
+    renderChartRow,
+    renderAlbumCard,
+    renderApiStatus,
+    ensureSiteNowPlayingDrawer,
+    fillNowPlayingDrawer,
+    resumeYouTubeHandoff,
+    saveNowPlaying,
+    clearNowPlaying,
+    loadNowPlayingHandoff,
+    initSitePlayer,
+    playSiteTrack,
+    getCurrentUser,
+    handleAddToPlaylistClick,
+    navigateWithoutStoppingPlayback,
+});
+
 initSitePlayer();
 initializePersistentNavigation();
+}());

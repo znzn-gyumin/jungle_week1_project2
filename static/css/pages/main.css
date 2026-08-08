@@ -7,8 +7,11 @@
 
 /* ---------- SIDEBAR ---------- */
 .sidebar{
-    width:240px;
+    width:390px;
     flex-shrink:0;
+    /* 본문을 내려도 사이드바는 화면에 남는다. 플레이어 바(88px) 만큼은 비워둔다 */
+    position:sticky; top:0; align-self:flex-start;
+    height:calc(100vh - 88px); overflow-y:auto;
     background:var(--bg-elev);
     padding:22px 18px;
     display:flex;
@@ -26,25 +29,45 @@
 }
 .sidebar-logo .dot-icon svg{ width:22px; height:22px; }
 
-.sidebar-nav{ display:flex; flex-direction:column; gap:2px; }
-.sidebar-link{
-    display:flex; align-items:center; gap:12px;
-    padding:10px 12px; border-radius:var(--radius-md);
-    font-weight:600; font-size:14px; color:var(--text-muted);
+.sidebar-tags{ display:flex; align-items:center; gap:8px; padding:0 6px; min-width:0; user-select:none; }
+.sidebar-tag-track{ position:relative; flex:1; min-width:0; display:flex; }
+/* 태그가 사이드바 폭을 넘으면 줄바꿈 대신 가로 스크롤한다 */
+.sidebar-tag-scroll{
+    display:flex; gap:8px; min-width:0; flex:1;
+    overflow-x:auto; scrollbar-width:none; overscroll-behavior-x:contain;
+    cursor:grab;
+}
+.sidebar-tag-scroll.is-dragging{ cursor:grabbing; }
+.sidebar-tag-scroll::-webkit-scrollbar{ display:none; }
+.sidebar-tag{
+    flex-shrink:0; white-space:nowrap; -webkit-user-drag:none;
+    border:0; background:rgba(255,248,236,0.13); color:var(--text);
+    border-radius:999px; padding:6px 12px;
+    font-size:12px; font-weight:600; cursor:pointer;
     transition:background .15s ease, color .15s ease;
 }
-.sidebar-link .icon{ width:18px; text-align:center; font-size:15px; }
-.sidebar-link:hover{ background:var(--bg-card); color:var(--text); }
-.sidebar-link.active{ background:var(--bg-card-hi); color:var(--text); }
-
-.sidebar-divider{ height:1px; background:var(--line); margin:0 6px; }
+.sidebar-tag:hover{ background:rgba(255,248,236,0.22); }
+.sidebar-tag.active{ background:var(--green); color:var(--ink); }
+.sidebar-tag-clear,
+.sidebar-tag-arrow{
+    flex-shrink:0;
+    width:28px; height:28px; border:0; border-radius:50%;
+    background:rgba(255,248,236,0.13); color:var(--text);
+    font-size:12px; line-height:1; cursor:pointer;
+    transition:background .15s ease;
+}
+/* 화살표는 태그 위에 겹친다 - 배경색 그림자로 가려지는 부분을 자연스럽게 흐린다 */
+.sidebar-tag-arrow{
+    position:absolute; top:50%; transform:translateY(-50%); z-index:1;
+    font-size:18px;
+    box-shadow:0 0 12px 9px var(--bg-elev);
+}
+.sidebar-tag-arrow[data-dir="-1"]{ left:0; }
+.sidebar-tag-arrow[data-dir="1"]{ right:0; }
+.sidebar-tag-clear:hover,
+.sidebar-tag-arrow:hover{ background:rgba(255,248,236,0.22); }
 
 .sidebar-playlists{ display:block; }
-.sidebar-section-title{
-    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
-    color:var(--green); padding:0 12px; margin:14px 0 6px;
-}
-.sidebar-section-title:first-child{ margin-top:0; }
 .sidebar-playlist-item{
     display:flex; align-items:center; gap:10px; min-width:0;
     padding:8px 12px; border-radius:var(--radius-md);
@@ -176,6 +199,16 @@
 .card-grid > .track-card:nth-child(n+6){ display:none; }
 .section.expanded .card-grid > .track-card{ display:block; }
 .card-grid[data-playlist-grid-fixed] > .track-card{ display:block; }
+
+/* 재생 드로어가 열리면 본문이 그만큼 좁아지고 한 줄에 보이는 카드도 하나 줄어든다.
+   드로어는 토프바 아래에서 시작하므로 토프바는 비켜주지 않는다. */
+.content-tabs,
+.main-content{ padding-right:44px; transition:padding-right .28s cubic-bezier(.22,1,.36,1); }
+body:has(.now-playing-drawer:not(.is-collapsed)) .content-tabs,
+body:has(.now-playing-drawer:not(.is-collapsed)) .main-content{ padding-right:min(350px,88vw); }
+body:has(.now-playing-drawer:not(.is-collapsed)) .card-grid{ grid-template-columns:repeat(4, 1fr); }
+body:has(.now-playing-drawer:not(.is-collapsed)) .card-grid:not([data-playlist-grid-fixed]) > .track-card:nth-child(n+5){ display:none; }
+body:has(.now-playing-drawer:not(.is-collapsed)) .section.expanded .card-grid > .track-card{ display:block; }
 
 @media(max-width:900px){
     .card-grid{ grid-template-columns:repeat(3, 1fr); }

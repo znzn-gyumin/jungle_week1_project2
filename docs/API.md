@@ -1,4 +1,4 @@
-# Flowbee API 명세
+# 플로비 API 명세
 
 FastAPI 앱(`backend/main.py`), prefix `/api`. Express(`app.js`)가 `/api` 를 FastAPI 로 프록시하므로 브라우저에서는 same-origin.
 

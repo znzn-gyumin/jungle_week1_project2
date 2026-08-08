@@ -1,5 +1,8 @@
+import secrets
 from typing import Any
 
+import certifi
+import httpx
 from fastapi import APIRouter, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
@@ -17,6 +20,7 @@ from backend.accounts import (
     login_user,
     logout_user,
 )
+from backend.config import get_settings
 from backend.models import Like, Playlist, User
 from backend.ratelimit import clear as clear_failures
 from backend.ratelimit import record_failure, retry_after
@@ -118,6 +122,84 @@ async def login(
         raise HTTPException(401, "이메일 또는 비밀번호가 올바르지 않습니다")
 
     clear_failures(key)
+    return _session_response(user)
+
+
+GOOGLE_TOKENINFO = "https://oauth2.googleapis.com/tokeninfo"
+GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
+
+
+class GoogleBody(BaseModel):
+    credential: str = Field(min_length=1, max_length=4096)
+
+
+async def verify_google_token(credential: str) -> dict[str, Any]:
+    """구글 ID 토큰을 검증하고 payload 를 돌려준다. 실패하면 빈 dict.
+
+    JWKS 를 받아 서명을 직접 검증하는 대신 구글 tokeninfo 에 물어본다. 로그인
+    때만 도는 왕복 한 번이라 값이 싸고, 서명·만료 판정을 구글에 맡길 수 있다.
+    """
+    # ponytail: 요청마다 클라이언트를 새로 연다. 로그인이 잦아지면 lifespan 의
+    # 공용 AsyncClient 를 여기로도 넘길 것.
+    async with httpx.AsyncClient(timeout=10.0, verify=certifi.where()) as http:
+        res = await http.get(GOOGLE_TOKENINFO, params={"id_token": credential})
+    return res.json() if res.status_code == 200 else {}
+
+
+async def _create_google_user(db: AsyncSession, email: str, name: str) -> User:
+    base = name.strip()[:30] or email.split("@")[0][:30]
+    # 구글로만 들어오는 계정이라 아무도 모르는 비밀번호를 넣는다. NOT NULL 을
+    # 채우기 위한 값이고, 이 해시와 맞는 비밀번호는 존재하지 않는다.
+    password_hash = hash_password(secrets.token_urlsafe(32))
+
+    # 구글 이름이 이미 쓰는 닉네임이면 짧은 꼬리를 붙여 다시 시도한다.
+    for attempt in range(5):
+        user = User(
+            nickname=base if attempt == 0 else f"{base[:25]}{secrets.token_hex(2)}",
+            email=email,
+            password_hash=password_hash,
+        )
+        db.add(user)
+        try:
+            await db.commit()
+        except IntegrityError as exc:
+            await db.rollback()
+            if _conflict_field(exc) != "닉네임":
+                raise
+            continue
+        await db.refresh(user)
+        return user
+    raise HTTPException(409, "닉네임을 만들지 못했습니다. 잠시 후 다시 시도하세요")
+
+
+@router.get("/google")
+async def google_config() -> dict[str, str]:
+    """프런트가 구글 버튼을 그릴 때 쓰는 공개 클라이언트 ID."""
+    return {"clientId": get_settings().google_client_id}
+
+
+@router.post("/google")
+async def google_login(body: GoogleBody, db: AsyncSession = DbSession) -> JSONResponse:
+    client_id = get_settings().google_client_id
+    if not client_id:
+        raise HTTPException(503, "구글 로그인이 설정되지 않았습니다")
+
+    info = await verify_google_token(body.credential)
+    # aud 를 확인하지 않으면 다른 구글 앱이 받은 토큰으로도 로그인이 된다.
+    # email_verified 는 구글이 그 주소의 소유를 확인했다는 뜻이라, 이게 참일
+    # 때만 같은 이메일의 기존 계정에 붙여도 안전하다.
+    if (
+        info.get("aud") != client_id
+        or info.get("iss") not in GOOGLE_ISSUERS
+        or str(info.get("email_verified")).lower() != "true"
+        or not info.get("email")
+    ):
+        raise HTTPException(401, "구글 인증에 실패했습니다")
+
+    email = info["email"].strip().lower()
+    user = await db.scalar(select(User).where(User.email == email))
+    if user is None:
+        user = await _create_google_user(db, email, info.get("name") or "")
     return _session_response(user)
 
 
