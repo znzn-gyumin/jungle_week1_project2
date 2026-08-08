@@ -13,6 +13,7 @@ integration_test.py 와 같은 방식(pgserver + 실제 ASGI 앱)으로 돌지�
   7. IntegrityError 를 전부 409 로 오역 (routers/users.py)
   8. 비밀번호 변경·계정 삭제 후에도 다른 세션 유효 (sessions.py, routers/users.py)
   9. 목록 API 에 상한 없음 + /api/likes 페이로드 중복 (routers/likes.py, playlists.py)
+ 10. 구글 로그인 토큰 검증 · 계정 연결 (routers/users.py) - 결함 수정이 아니라 기능 회귀 방어
 
 실행:
 
@@ -48,6 +49,8 @@ from backend.accounts import USER_COOKIE, USER_COOKIE_OPTS  # noqa: E402
 from backend.db.session import get_db  # noqa: E402
 from backend.main import app  # noqa: E402
 from backend.models import Track  # noqa: E402
+from backend.config import get_settings  # noqa: E402
+from backend.routers import users as users_router  # noqa: E402
 from backend.routers.users import _conflict_field  # noqa: E402
 
 PASS, FAIL = [], []
@@ -108,6 +111,7 @@ async def main() -> int:
         await test_integrity_error_mapping(a, Session)
         await test_session_invalidation(a, transport)
         await test_list_limits(a, Session)
+        await test_google_login(transport)
 
     await engine.dispose()
     print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
@@ -719,6 +723,91 @@ async def test_list_limits(a: httpx.AsyncClient, Session) -> None:
             "likes limit 상한 초과는 422",
             (await c.get("/api/likes?limit=100000")).status_code == 422,
         )
+
+
+# --- 10. 구글 로그인 -----------------------------------------------------
+async def test_google_login(transport) -> None:
+    """구글 ID 토큰 검증과 계정 연결.
+
+    tokeninfo 왕복만 가짜로 바꾸고 나머지(라우터·DB·세션)는 진짜로 돌린다.
+    """
+    settings = get_settings()
+    real_verify, real_client_id = users_router.verify_google_token, settings.google_client_id
+    payload = {}
+
+    async def fake_verify(credential: str) -> dict:
+        return payload
+
+    users_router.verify_google_token = fake_verify
+    client = "test-client.apps.googleusercontent.com"
+
+    def token(**over) -> dict:
+        return {
+            "aud": client,
+            "iss": "https://accounts.google.com",
+            "email_verified": "true",
+            "email": "gu@ex.com",
+            "name": "구글유저",
+            **over,
+        }
+
+    async def post(body: dict) -> httpx.Response:
+        nonlocal payload
+        payload = body
+        async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+            return await c.post("/api/users/google", json={"credential": "tok"})
+
+    try:
+        settings.google_client_id = ""
+        check("클라이언트 ID 없으면 503", (await post(token())).status_code == 503)
+
+        settings.google_client_id = client
+        async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+            cfg = (await c.get("/api/users/google")).json()
+        check("clientId 를 프런트에 내려준다", cfg == {"clientId": client}, cfg)
+
+        check("aud 가 다르면 401", (await post(token(aud="other"))).status_code == 401)
+        check("iss 가 구글이 아니면 401", (await post(token(iss="evil.com"))).status_code == 401)
+        check(
+            "email_verified 아니면 401",
+            (await post(token(email="new@ex.com", email_verified="false"))).status_code == 401,
+        )
+        check("검증 실패(빈 payload)면 401", (await post({})).status_code == 401)
+
+        async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+            payload = token()
+            r = await c.post("/api/users/google", json={"credential": "tok"})
+            body = r.json()
+            check("최초 구글 로그인 성공", r.status_code == 200 and body["loggedIn"] is True, body)
+            check("닉네임은 구글 이름", body.get("nickname") == "구글유저", body)
+            first_id = body.get("id")
+            check("세션 쿠키가 실제로 붙는다", (await c.get("/api/users/me")).json()["loggedIn"] is True)
+
+            # 같은 이메일로 다시 들어오면 계정을 새로 만들지 않는다.
+            r = await c.post("/api/users/google", json={"credential": "tok"})
+            check("재로그인은 같은 계정", r.json().get("id") == first_id, r.json())
+
+            # 닉네임이 겹치면 꼬리를 붙여서라도 가입시킨다.
+            payload = token(email="gu2@ex.com")
+            r = await c.post("/api/users/google", json={"credential": "tok"})
+            body = r.json()
+            check("닉네임 충돌해도 가입 성공", r.status_code == 200, body)
+            check(
+                "충돌한 닉네임은 꼬리가 붙는다",
+                body.get("nickname", "").startswith("구글유저")
+                and body.get("nickname") != "구글유저",
+                body,
+            )
+            check("다른 이메일은 다른 계정", body.get("id") != first_id, body)
+
+            # 구글로 만든 계정은 비밀번호 로그인이 불가능하다.
+            r = await c.post(
+                "/api/users/login", json={"email": "gu@ex.com", "password": "pw12345678"}
+            )
+            check("구글 계정은 비밀번호 로그인 불가", r.status_code == 401, r.text)
+    finally:
+        users_router.verify_google_token = real_verify
+        settings.google_client_id = real_client_id
 
 
 if __name__ == "__main__":

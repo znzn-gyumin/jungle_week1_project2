@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     postgres_db: str = "flowbee"
 
     youtube_api_key: SecretStr = SecretStr("")
+
+    # 구글 OAuth 클라이언트 ID. 비어 있으면 구글 로그인 버튼이 아예 안 뜬다.
+    # 공개값이라 프런트에 그대로 내려준다 (GET /api/users/google).
+    google_client_id: str = ""
+
     # iTunes storefront 이자 YouTube 지역 제한 판정 국가. 같은 ISO 코드를 쓴다.
     itunes_country: str = "KR"
 
