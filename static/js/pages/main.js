@@ -200,11 +200,14 @@ const initializePlaylistReroll = () => {
 // 부분은 여기서 켠다 - 마크업을 7벌로 복사하지 않기 위한 대가다.
 // 탭 줄은 이동할 때마다 새로 오고 검색창은 살아남는다. 둘 다 지금 경로에 맞춰 다시 칠한다.
 // 검색창 안내문은 페이지마다 다르므로, data-search 가 없는 홈에서는 기본값으로 되돌려야 한다.
+// 기본값은 topbar.html 의 placeholder 하나뿐이다. 덮어쓰기 전에 한 번 챙겨 둔다.
 const applyRouteChrome = () => {
     const path = location.pathname.replace(/\/$/, '') || '/';
     document.querySelector(`.content-tab[href="${path}"]`)?.classList.add('active');
     const input = document.querySelector('.search-box input');
-    if (input) input.placeholder = document.querySelector('.app-shell')?.dataset.search || '아티스트, 곡, 앨범 검색';
+    if (!input) return;
+    input.dataset.defaultPlaceholder ??= input.placeholder;
+    input.placeholder = document.querySelector('.app-shell')?.dataset.search || input.dataset.defaultPlaceholder;
 };
 
 // 좁은 화면에서 사이드바는 오버레이다. 햄버거로 열고, 바깥/링크/ESC 로 닫는다.
