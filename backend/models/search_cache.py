@@ -1,4 +1,4 @@
-from sqlalchemy import ARRAY, BigInteger, Integer, String, UniqueConstraint
+from sqlalchemy import ARRAY, BigInteger, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.db.base import Base, PKMixin, TimestampMixin
@@ -12,6 +12,9 @@ class SearchCache(PKMixin, TimestampMixin, Base):
 
     updated_at 이 외부 API 를 마지막으로 친 시각이다. settings.search_cache_ttl
     안이면 services.search 가 API 호출을 건너뛰고 ID 로 DB 에서 읽는다.
+
+    한 질의당 행은 하나다. 요청 개수는 키가 아니다 - result_ids 에 소스가 한 번에
+    주는 최대치가 들어 있고 부르는 쪽이 앞에서부터 자른다.
     """
 
     __tablename__ = "search_cache"
@@ -20,8 +23,7 @@ class SearchCache(PKMixin, TimestampMixin, Base):
             "kind",
             "source",
             "query",
-            "result_limit",
-            name="uq_search_cache_kind_source_query_result_limit",
+            name="uq_search_cache_kind_source_query",
         ),
     )
 
@@ -30,7 +32,6 @@ class SearchCache(PKMixin, TimestampMixin, Base):
     # casefold 된 검색어. varchar 상한은 btree 인덱스가 감당할 크기로 자른 값이고
     # api.search 가 같은 길이로 입력을 막는다.
     query: Mapped[str] = mapped_column(String(200), nullable=False)
-    result_limit: Mapped[int] = mapped_column(Integer, nullable=False)
     result_ids: Mapped[list[int]] = mapped_column(ARRAY(BigInteger), nullable=False)
 
     def __repr__(self) -> str:

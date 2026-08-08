@@ -177,13 +177,16 @@ async def cached_ids(
     kind: str,
     source: str,
     query: str,
-    limit: int,
     ttl: int,
 ) -> list[int] | None:
     """TTL 안이면 저장된 결과 ID 목록, 아니면 None.
 
     빈 리스트도 유효한 적중이다 - "결과 없음" 을 기억해 헛질의가 API 를 다시
     치지 않게 한다. 만료 판정 기준 시각은 앱이 계산한다 (앱과 DB 가 같은 UTC).
+
+    요청한 개수는 키에 넣지 않는다. 넣으면 limit=20 과 21 이 서로 다른 항목이 되어
+    같은 검색어가 화면마다 외부 API 를 다시 친다. 저장된 목록은 소스가 한 번에 주는
+    최대치라, 부르는 쪽이 앞에서부터 필요한 만큼 자르면 된다.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(seconds=ttl)
     return (
@@ -192,7 +195,6 @@ async def cached_ids(
                 SearchCache.kind == kind,
                 SearchCache.source == source,
                 SearchCache.query == query,
-                SearchCache.result_limit == limit,
                 SearchCache.updated_at > cutoff,
             )
         )
@@ -204,14 +206,12 @@ async def put_cached_ids(
     kind: str,
     source: str,
     query: str,
-    limit: int,
     ids: list[int],
 ) -> None:
     stmt = insert(SearchCache).values(
         kind=kind,
         source=source,
         query=query,
-        result_limit=limit,
         result_ids=ids,
     )
     await db.execute(
@@ -220,7 +220,6 @@ async def put_cached_ids(
                 SearchCache.kind,
                 SearchCache.source,
                 SearchCache.query,
-                SearchCache.result_limit,
             ],
             set_={
                 "result_ids": stmt.excluded.result_ids,

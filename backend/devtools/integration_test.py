@@ -368,8 +368,12 @@ async def test_search_cache(a: httpx.AsyncClient, Session) -> None:
         r = await a.get("/api/search", params={"q": "CACHED", "source": "itunes"})
         check("대소문자만 다른 검색어도 적중", len(calls) == 1, calls)
 
+        # 캐시 키에 limit 이 없다. 있으면 화면마다 limit 이 다른 것만으로 같은
+        # 검색어가 외부 API 를 다시 친다. 대신 풀 전체를 받아 두고 여기서 자른다.
         r = await a.get("/api/search", params={"q": "Cached", "source": "itunes", "limit": 5})
-        check("limit 이 다르면 새로 친다", len(calls) == 2, calls)
+        check("limit 이 달라도 같은 캐시를 쓴다", len(calls) == 1, calls)
+        check("limit 은 캐시에서 잘라 준다", r.json()["tracks"] == first[:5], r.text)
+        check("외부 호출은 요청 limit 이 아니라 풀 크기로 나간다", "limit=200" in calls[0], calls)
 
         r = await a.get("/api/search", params={"q": "x" * 201})
         check("201자 검색어 422", r.status_code == 422, r.status_code)

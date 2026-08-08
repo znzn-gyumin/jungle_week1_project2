@@ -28,10 +28,12 @@ MAX_QUERY_LENGTH = 200
 TOP_KIND = "top"
 TOP_ALBUM_KIND = "top_album"
 
+# 차트 피드는 크기가 URL 경로에 박힌다 (.../most-played/{n}/songs.json).
+# api.MAX_LIMIT 과 같은 값이라 어떤 요청이든 이 한 판으로 덮인다.
+CHART_POOL = 50
+
 # "신보" 피드는 Apple 에 없다 (most-recent, new-releases 둘 다 404, 레거시 RSS 는 400).
 # 검색 결과를 넓게 받아 발매일로 다시 세우는 게 진짜 최신을 얻는 유일한 길이다.
-# 풀을 캐시가 통째로 안고 있어서 limit 이 달라도 외부 호출은 늘지 않는다.
-LATEST_POOL = 200
 
 # 신보 검색 씨앗. 화면마다 적어 두면 또 갈라지니 기본값은 여기 하나뿐이다.
 LATEST_QUERY = "K-pop"
@@ -45,6 +47,11 @@ def cache_key(q: str) -> str:
 class Fetcher(NamedTuple):
     fetch: Callable[[str, int], Awaitable[list[dict[str, Any]]]]
     persist: Callable[[AsyncSession, list[dict[str, Any]]], Awaitable[list[Track]]]
+    # 한 번에 받아 캐시에 통째로 넣어 두는 결과 수. 요청한 limit 은 읽을 때 자른다.
+    # 소스가 한 번에 주는 최대치라 풀을 키워도 외부 호출 횟수는 그대로다: iTunes 는
+    # limit 이 쿼리 파라미터라 200 이든 25 든 요청 1회, YouTube 는 maxResults 상한이
+    # 50 이고 search.list 1회(100 유닛) + videos.list 1회면 끝난다.
+    pool: int
 
 
 async def _fetch_itunes(q: str, limit: int) -> list[dict[str, Any]]:
@@ -81,8 +88,12 @@ async def _persist_youtube(
 
 
 _FETCHERS: dict[str, Fetcher] = {
-    SourceType.ITUNES.value: Fetcher(_fetch_itunes, _persist_itunes),
-    SourceType.YOUTUBE.value: Fetcher(_fetch_youtube, _persist_youtube),
+    SourceType.ITUNES.value: Fetcher(
+        _fetch_itunes, _persist_itunes, itunes.ITUNES_MAX_LIMIT
+    ),
+    SourceType.YOUTUBE.value: Fetcher(
+        _fetch_youtube, _persist_youtube, youtube.YOUTUBE_MAX_RESULTS
+    ),
 }
 
 SOURCES = tuple(_FETCHERS)
@@ -126,12 +137,12 @@ async def search(
     cached: dict[str, list[int] | None] = {}
     for name in wanted:
         cached[name] = await repository.cached_ids(
-            db, "track", name, key, limit, settings.search_cache_ttl
+            db, "track", name, key, settings.search_cache_ttl
         )
 
     live = [name for name in wanted if cached[name] is None]
     fetched = await asyncio.gather(
-        *(_FETCHERS[name].fetch(q, limit) for name in live),
+        *(_FETCHERS[name].fetch(q, _FETCHERS[name].pool) for name in live),
         return_exceptions=True,
     )
     results = dict(zip(live, fetched))
@@ -140,7 +151,8 @@ async def search(
     for name in wanted:
         ids = cached[name]
         if ids is not None:
-            tracks.extend(await repository.tracks_by_ids(db, ids))
+            # 자르고 나서 읽는다. 25 개 달라는데 200 행을 채워 올릴 이유가 없다.
+            tracks.extend(await repository.tracks_by_ids(db, ids[:limit]))
             continue
 
         result = results[name]
@@ -152,10 +164,9 @@ async def search(
             continue
 
         rows = await _FETCHERS[name].persist(db, result)
-        await repository.put_cached_ids(
-            db, "track", name, key, limit, [t.id for t in rows]
-        )
-        tracks.extend(rows)
+        # 캐시에는 풀 전체를 넣는다. limit 은 이 호출자에게만 해당하는 값이다.
+        await repository.put_cached_ids(db, "track", name, key, [t.id for t in rows])
+        tracks.extend(rows[:limit])
 
     await db.commit()
     return tracks, errors
@@ -168,13 +179,13 @@ async def top_tracks(
     name = SourceType.ITUNES.value
     country = settings.itunes_country
     cached = await repository.cached_ids(
-        db, TOP_KIND, name, country, limit, settings.search_cache_ttl
+        db, TOP_KIND, name, country, settings.search_cache_ttl
     )
     if cached is not None:
-        return await repository.tracks_by_ids(db, cached), []
+        return await repository.tracks_by_ids(db, cached[:limit]), []
 
     try:
-        results = await itunes.top_tracks(limit=limit, country=country)
+        results = await itunes.top_tracks(limit=CHART_POOL, country=country)
     except SOURCE_ERRORS as exc:
         return [], [{"source": name, "error": _message(exc)}]
 
@@ -182,10 +193,10 @@ async def top_tracks(
     # 검색과 달리 빈 차트는 "결과 없음" 이 아니라 고장이다. 캐시하면 하루 동안 굳는다.
     if rows:
         await repository.put_cached_ids(
-            db, TOP_KIND, name, country, limit, [t.id for t in rows]
+            db, TOP_KIND, name, country, [t.id for t in rows]
         )
         await db.commit()
-    return rows, []
+    return rows[:limit], []
 
 
 async def top_albums(
@@ -195,13 +206,13 @@ async def top_albums(
     name = SourceType.ITUNES.value
     country = settings.itunes_country
     cached = await repository.cached_ids(
-        db, TOP_ALBUM_KIND, name, country, limit, settings.search_cache_ttl
+        db, TOP_ALBUM_KIND, name, country, settings.search_cache_ttl
     )
     if cached is not None:
-        return await repository.albums_by_ids(db, cached), []
+        return await repository.albums_by_ids(db, cached[:limit]), []
 
     try:
-        results = await itunes.top_albums(limit=limit, country=country)
+        results = await itunes.top_albums(limit=CHART_POOL, country=country)
     except SOURCE_ERRORS as exc:
         return [], [{"source": name, "error": _message(exc)}]
 
@@ -211,11 +222,9 @@ async def top_albums(
     ]
     # 검색과 달리 빈 차트는 "결과 없음" 이 아니라 고장이다. 캐시하면 하루 동안 굳는다.
     if ordered:
-        await repository.put_cached_ids(
-            db, TOP_ALBUM_KIND, name, country, limit, ordered
-        )
+        await repository.put_cached_ids(db, TOP_ALBUM_KIND, name, country, ordered)
         await db.commit()
-    return await repository.albums_by_ids(db, ordered), []
+    return await repository.albums_by_ids(db, ordered[:limit]), []
 
 
 def _newest_first(rows: list[Any], limit: int) -> list[Any]:
@@ -243,8 +252,9 @@ def _newest_first(rows: list[Any], limit: int) -> list[Any]:
 async def latest_albums(
     db: AsyncSession, q: str, limit: int
 ) -> tuple[list[Album], list[dict[str, str]]]:
+    # 발매일로 다시 세우려면 풀 전체가 필요하다. 풀 크기를 그대로 넘겨 자르지 않는다.
     albums, errors = await search_albums(
-        db, q, SourceType.ITUNES.value, LATEST_POOL
+        db, q, SourceType.ITUNES.value, itunes.ITUNES_MAX_LIMIT
     )
     return _newest_first(albums, limit), errors
 
@@ -252,7 +262,9 @@ async def latest_albums(
 async def latest_tracks(
     db: AsyncSession, q: str, limit: int
 ) -> tuple[list[Track], list[dict[str, str]]]:
-    tracks, errors = await search(db, q, SourceType.ITUNES.value, LATEST_POOL)
+    tracks, errors = await search(
+        db, q, SourceType.ITUNES.value, _FETCHERS[SourceType.ITUNES.value].pool
+    )
     return _newest_first(tracks, limit), errors
 
 
@@ -266,14 +278,14 @@ async def search_albums(
     name = SourceType.ITUNES.value
     key = cache_key(q)
     cached = await repository.cached_ids(
-        db, "album", name, key, limit, settings.search_cache_ttl
+        db, "album", name, key, settings.search_cache_ttl
     )
     if cached is not None:
-        return await repository.albums_by_ids(db, cached), []
+        return await repository.albums_by_ids(db, cached[:limit]), []
 
     try:
         results = await itunes.search_albums(
-            q, limit=limit, country=settings.itunes_country
+            q, limit=itunes.ITUNES_MAX_LIMIT, country=settings.itunes_country
         )
     except SOURCE_ERRORS as exc:
         return [], [{"source": name, "error": _message(exc)}]
@@ -282,7 +294,7 @@ async def search_albums(
     ordered = [
         ids[sid] for r in results if (sid := itunes.album_source_id(r)) and sid in ids
     ]
-    await repository.put_cached_ids(db, "album", name, key, limit, ordered)
+    await repository.put_cached_ids(db, "album", name, key, ordered)
     await db.commit()
 
-    return await repository.albums_by_ids(db, ordered), []
+    return await repository.albums_by_ids(db, ordered[:limit]), []

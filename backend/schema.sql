@@ -165,14 +165,16 @@ CREATE TABLE search_cache (
     kind         varchar(16)  NOT NULL,
     source       varchar(16)  NOT NULL,
     query        varchar(200) NOT NULL,
-    result_limit integer      NOT NULL,
+    -- 요청 개수는 키가 아니다. 키에 넣으면 limit=20 과 21 이 서로 다른 행이 되어
+    -- 같은 검색어가 화면마다 외부 API 를 다시 친다. result_ids 에는 소스가 한 번에
+    -- 주는 최대치가 들어 있고, 부르는 쪽이 앞에서부터 자른다.
     result_ids   bigint[]     NOT NULL,
     created_at   timestamptz  NOT NULL DEFAULT now(),
     updated_at   timestamptz  NOT NULL DEFAULT now(),
 
     CONSTRAINT pk_search_cache PRIMARY KEY (id),
-    CONSTRAINT uq_search_cache_kind_source_query_result_limit
-        UNIQUE (kind, source, query, result_limit)
+    CONSTRAINT uq_search_cache_kind_source_query
+        UNIQUE (kind, source, query)
 );
 
 COMMIT;
