@@ -56,16 +56,23 @@
     font-size:12px; line-height:1; cursor:pointer;
     transition:background .15s ease;
 }
-/* 화살표는 태그 위에 겹친다 - 배경색 그림자로 가려지는 부분을 자연스럽게 흐린다 */
+/* 화살표는 태그 위에 겹친다. 원형이라 네 꼭짓점으로 아래 태그가 비치므로
+   버튼 뒤에 사각 그라데이션 판을 깔아 가린다(안쪽으로 자연스럽게 사라진다) */
 .sidebar-tag-arrow{
     position:absolute; top:50%; transform:translateY(-50%); z-index:1;
+    background:color-mix(in srgb, var(--bg-elev), #FFF8EC 13%);
     font-size:18px;
-    box-shadow:0 0 12px 9px var(--bg-elev);
+}
+.sidebar-tag-arrow::before{
+    content:''; position:absolute; z-index:-1;
+    top:-4px; bottom:-4px; width:46px;
 }
 .sidebar-tag-arrow[data-dir="-1"]{ left:0; }
 .sidebar-tag-arrow[data-dir="1"]{ right:0; }
-.sidebar-tag-clear:hover,
-.sidebar-tag-arrow:hover{ background:rgba(255,248,236,0.22); }
+.sidebar-tag-arrow[data-dir="-1"]::before{ left:-2px; background:linear-gradient(90deg,var(--bg-elev) 68%,transparent); }
+.sidebar-tag-arrow[data-dir="1"]::before{ right:-2px; background:linear-gradient(270deg,var(--bg-elev) 68%,transparent); }
+.sidebar-tag-clear:hover{ background:rgba(255,248,236,0.22); }
+.sidebar-tag-arrow:hover{ background:color-mix(in srgb, var(--bg-elev), #FFF8EC 22%); }
 
 .sidebar-playlists{ display:block; }
 .sidebar-playlist-item{
@@ -74,6 +81,7 @@
     font-size:13px; font-weight:600; color:var(--text-muted);
     transition:background .15s ease, color .15s ease;
 }
+.sidebar-playlist-item[hidden]{ display:none; } /* display:flex 가 UA 의 [hidden] 규칙을 이겨서 필터가 안 먹는다 */
 .sidebar-playlist-item:hover{ background:var(--bg-card); color:var(--text); }
 .sidebar-playlist-item span:last-child{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pl-thumb{ width:28px; height:28px; border-radius:6px; flex-shrink:0; background-color:var(--bg-card-hi); }
