@@ -22,7 +22,7 @@ window.addEventListener('DOMContentLoaded', () => {
         const source = escapeHtml(track.source || '');
         return `<div class="chart-row" data-item-id="${item.itemId}" data-title="${title}" data-artist="${artist}" data-thumb="${thumb}" data-play-url="${playUrl}" data-source="${source}">
             <span class="chart-rank">${item.position + 1}</span>
-            <img class="chart-thumb" src="${thumb}" alt="">
+            <img class="chart-thumb" src="${escapeHtml(artwork(track.thumbnailUrl, 150))}" alt="" loading="lazy" decoding="async">
             <div class="chart-meta"><b>${title}</b><small>${artist}</small></div>
             <span class="chart-album">${albumName}</span>
             <button class="chart-play" type="button" aria-label="재생">▷</button>

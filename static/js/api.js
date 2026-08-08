@@ -5,6 +5,14 @@ function escapeHtml(value) {
     }[ch]));
 }
 
+// iTunes 아트워크 URL 은 크기 세그먼트를 갈아끼울 수 있다 (600x600bb -> 150x150bb).
+// DB 에는 600 을 넣어 두고 (상세 페이지 커버용) 목록/썸네일은 필요한 크기만 받는다.
+// 실측: 600=100KB, 300=25KB, 150=8.5KB, 100=4.9KB. 목록 한 장에 수십 개가 깔리니 차이가 크다.
+// YouTube 썸네일은 이 패턴이 없어서 그대로 통과한다.
+function artwork(url, px) {
+    return url ? String(url).replace(/\/\d+x\d+bb\./, `/${px}x${px}bb.`) : '';
+}
+
 const FLOWBEE_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3일마다 새로 불러온다
 
 function getCached(key) {
@@ -64,12 +72,13 @@ function renderChartRow(rank, track, genreLabel) {
     const albumText = genreLabel || (typeof track.album === 'string' ? track.album : (track.album?.name || (track.source === 'youtube' ? 'YouTube' : '')));
     const title = escapeHtml(track.title);
     const artist = escapeHtml(track.artist);
+    // data-thumb 은 원본을 그대로 둔다. 이 값이 재생 드로어(≈306px) 커버로 넘어간다.
     const thumb = escapeHtml(track.thumbnailUrl || '');
     const playUrl = escapeHtml(track.playUrl || '');
     const source = escapeHtml(track.source || '');
     return `<div class="chart-row" data-id="${escapeHtml(track.id)}" data-title="${title}" data-artist="${artist}" data-thumb="${thumb}" data-play-url="${playUrl}" data-source="${source}">
         <span class="chart-rank">${rank}</span>
-        <img class="chart-thumb" src="${thumb}" alt="">
+        <img class="chart-thumb" src="${escapeHtml(artwork(track.thumbnailUrl, 150))}" alt="" loading="lazy" decoding="async">
         <div class="chart-meta"><b>${title}</b><small>${artist}</small></div>
         <span class="chart-album">${escapeHtml(albumText)}</span>
         <button class="chart-play" type="button" aria-label="재생">▷</button>
@@ -79,7 +88,7 @@ function renderChartRow(rank, track, genreLabel) {
 
 function renderAlbumCard(album) {
     return `<a class="track-card" href="/album/${album.id}">
-        <div class="track-thumb" style="background-image:url('${escapeHtml(album.thumbnailUrl || '')}');background-size:cover;background-position:center;"></div>
+        <div class="track-thumb" style="background-image:url('${escapeHtml(artwork(album.thumbnailUrl, 300))}');background-size:cover;background-position:center;"></div>
         <div class="track-name">${escapeHtml(album.name)}</div>
         <div class="track-sub">${escapeHtml(album.artist)}</div>
     </a>`;
@@ -497,7 +506,7 @@ async function playSiteTrack(track, startAt = 0) {
     if (nameEl) nameEl.textContent = track.title;
     if (subEl) subEl.textContent = track.artist;
     if (thumbEl && track.thumbnailUrl) {
-        thumbEl.style.backgroundImage = `url('${track.thumbnailUrl.replace(/'/g, '%27')}')`;
+        thumbEl.style.backgroundImage = `url('${artwork(track.thumbnailUrl, 150).replace(/'/g, '%27')}')`;
         thumbEl.style.backgroundSize = 'cover';
         thumbEl.style.backgroundPosition = 'center';
     }
@@ -699,6 +708,7 @@ document.addEventListener('click', (event) => {
 // 페이지 스크립트가 같은 이름을 써도 부딪히지 않는다.
 Object.assign(window, {
     escapeHtml,
+    artwork,
     withCache,
     fetchSearch,
     renderChartRow,

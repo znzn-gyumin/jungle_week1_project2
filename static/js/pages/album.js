@@ -88,7 +88,7 @@ const updateDrawer = (track, index) => {
     const row = document.createElement('div');
     row.className = 'drawer-queue-item';
     row.innerHTML = '<img alt=""><div><b></b><small></small></div>';
-    row.querySelector('img').src = item.thumbnailUrl || document.getElementById('album-cover').src;
+    row.querySelector('img').src = window.artwork(item.thumbnailUrl, 150) || document.getElementById('album-cover').src;
     row.querySelector('b').textContent = item.title;
     row.querySelector('small').textContent = item.artist;
     row.addEventListener('click', () => selectTrack(index + offset + 1));

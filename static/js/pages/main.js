@@ -21,7 +21,7 @@ const createAlbumCard = (album) => {
 
     const cover = document.createElement('div');
     cover.className = 'track-thumb album-thumb';
-    if (album.thumbnailUrl) cover.style.backgroundImage = `url("${album.thumbnailUrl.replaceAll('"', '%22')}")`;
+    if (album.thumbnailUrl) cover.style.backgroundImage = `url("${window.artwork(album.thumbnailUrl, 300).replaceAll('"', '%22')}")`;
 
     const title = document.createElement('div');
     title.className = 'track-name';
@@ -45,7 +45,7 @@ const createPlaylistCard = (playlist) => {
     card.href = `/playlist/${playlist.slug}`;
     const cover = document.createElement('div');
     cover.className = 'track-thumb album-thumb';
-    if (playlist.coverUrl) cover.style.backgroundImage = `url("${playlist.coverUrl.replaceAll('"', '%22')}")`;
+    if (playlist.coverUrl) cover.style.backgroundImage = `url("${window.artwork(playlist.coverUrl, 300).replaceAll('"', '%22')}")`;
     const title = document.createElement('div');
     title.className = 'track-name';
     title.textContent = playlist.title;
@@ -318,7 +318,7 @@ const createMyPlaylistCard = (playlist) => {
     const thumb = document.createElement('div');
     thumb.className = 'track-thumb';
     if (playlist.coverUrl) {
-        thumb.style.backgroundImage = `url("${playlist.coverUrl.replaceAll('"', '%22')}")`;
+        thumb.style.backgroundImage = `url("${window.artwork(playlist.coverUrl, 300).replaceAll('"', '%22')}")`;
         thumb.style.backgroundSize = 'cover';
         thumb.style.backgroundPosition = 'center';
     } else {
@@ -369,7 +369,8 @@ const sidebarThumb = (thumbnailUrl, fallbackGradient) => {
     const thumb = document.createElement('span');
     thumb.className = 'pl-thumb';
     if (thumbnailUrl) {
-        thumb.style.backgroundImage = `url("${thumbnailUrl.replaceAll('"', '%22')}")`;
+        // 사이드바 썸네일은 28px. iTunes 원본 크기(100)면 레티나에서도 충분하다.
+        thumb.style.backgroundImage = `url("${window.artwork(thumbnailUrl, 100).replaceAll('"', '%22')}")`;
         thumb.style.backgroundSize = 'cover';
         thumb.style.backgroundPosition = 'center';
     } else {

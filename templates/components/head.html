@@ -3,5 +3,9 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- 앨범 표지는 전부 이 호스트에서 온다. 첫 이미지 요청 전에 DNS+TLS 를 미리 열어 둔다.
+     표지는 대부분 일반 <img>/background-image 라 crossorigin 을 붙이면 안 된다.
+     붙이면 CORS 전용 커넥션이 열려서 정작 쓰는 커넥션은 그대로 새로 맺는다. -->
+<link rel="preconnect" href="https://is1-ssl.mzstatic.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/common.css">

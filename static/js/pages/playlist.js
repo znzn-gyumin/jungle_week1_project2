@@ -36,7 +36,7 @@ const updateDrawer = (track, index) => {
     const row = document.createElement('div');
     row.className = 'drawer-queue-item';
     row.innerHTML = '<img alt=""><div><b></b><small></small></div>';
-    row.querySelector('img').src = item.thumbnailUrl || document.getElementById('playlist-cover').src;
+    row.querySelector('img').src = window.artwork(item.thumbnailUrl, 150) || document.getElementById('playlist-cover').src;
     row.querySelector('b').textContent = item.title;
     row.querySelector('small').textContent = item.artist;
     row.addEventListener('click', () => selectTrack(index + offset + 1));
@@ -80,7 +80,7 @@ const togglePlayback = () => {
 const createTrackRow = (track, index) => {
   const row = document.createElement('li');
   row.innerHTML = `<span>${index + 1}</span><img alt=""><div><b></b><small></small></div><em></em><button class="track-heart" type="button">♡</button><time>${formatDuration(track.durationMs)}</time>`;
-  row.querySelector('img').src = track.thumbnailUrl || '';
+  row.querySelector('img').src = window.artwork(track.thumbnailUrl, 150);
   row.querySelector('b').textContent = track.title;
   row.querySelector('small').textContent = track.artist;
   row.querySelector('em').textContent = track.album?.name || '싱글';
